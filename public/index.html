@@ -1,0 +1,322 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="UTF-8" />
+  <title>Interview Whisperer — Realtime Q/A</title>
+  <style>
+    :root{
+      --bg:#0b0b0b;--panel:#131313;--line:#222;--text:#e9e9e9;
+      --q:#67b1ff; --a:#6be28c; --muted:#9aa; --badge:#222;
+    }
+    *{box-sizing:border-box}
+    body{margin:0;background:var(--bg);color:var(--text);font-family:system-ui,Segoe UI,Arial}
+    #top{position:sticky;top:0;background:var(--panel);border-bottom:1px solid var(--line);
+         padding:10px 12px;display:flex;gap:8px;align-items:center;z-index:2;flex-wrap:wrap}
+    button{border:1px solid #333;background:#1a1a1a;color:#ddd;padding:8px 12px;
+           border-radius:8px;cursor:pointer}
+    button:disabled{opacity:.5;cursor:not-allowed}
+    #status{margin-left:auto;font-size:12px;color:var(--muted);white-space:pre}
+    #vuWrap{padding:10px 16px;border-bottom:1px solid var(--line);display:flex;gap:10px;align-items:center;background:#101010}
+    #vu{width:220px;height:8px;background:#222;border-radius:6px;overflow:hidden}
+    #bar{height:100%;width:0%;background:var(--a);transition:width .07s linear}
+    .pill{padding:4px 8px;border-radius:999px;font-size:12px;background:var(--badge)}
+    .on{background:#143c22;color:#a9ffbf}
+    #jdBox{padding:12px 16px;border-bottom:1px solid var(--line);display:grid;gap:8px;background:#0f0f0f}
+    #jd{width:100%;min-height:120px;background:#0e1111;color:#eaeaea;border:1px solid #2a2a2a;border-radius:8px;padding:10px}
+    #list{padding:18px;display:flex;flex-direction:column;gap:10px}
+    .qa{padding:12px 14px;border:1px solid var(--line);border-radius:10px;background:#0f0f0f}
+    .q{color:var(--q);white-space:pre-wrap}
+    .a{color:var(--a);white-space:pre-wrap;margin-top:6px}
+    #hint{padding:6px 16px;color:var(--muted);border-bottom:1px solid var(--line)}
+    #debug{padding:10px 16px;border-top:1px solid var(--line);font:12px ui-monospace,Menlo,Consolas;color:#9aa;max-height:160px;overflow:auto;display:none}
+  </style>
+</head>
+<body>
+  <div id="top">
+    <button id="startBtn">Start Tab Capture</button>
+    <button id="stopBtn" disabled>Stop</button>
+    <button id="muteBtn" disabled>Mute</button>
+    <button id="clearBtn">Clear Answers</button>
+    <span class="pill" id="pListening">listening</span>
+    <span class="pill" id="pProcessing">processing</span>
+    <div id="status">idle</div>
+  </div>
+
+  <div id="jdBox">
+    <div style="display:flex;gap:8px;align-items:center;justify-content:space-between">
+      <strong>Job Description (tailor answers to this)</strong>
+      <span id="savedTag" class="pill" style="display:none;background:#153c1f;color:#adf5c0">JD saved</span>
+    </div>
+    <textarea id="jd" placeholder="Paste the JD here…"></textarea>
+    <div style="display:flex;gap:8px;align-items:center">
+      <button id="saveJD">Save JD</button>
+      <small style="color:#9aa">Tip: Save once; new sessions will auto-use it until you restart the server.</small>
+    </div>
+  </div>
+
+  <div id="vuWrap">
+    <div id="vu"><div id="bar"></div></div>
+    <div style="font-size:12px;color:#9aa;">Pick your Meet/Zoom/Teams tab and enable <b>Share tab audio</b>.</div>
+  </div>
+
+  <div id="hint">Q (blue) is what we hear from the meeting tab. A (green) is the answer for you to read.</div>
+  <div id="list"></div>
+  <pre id="debug"></pre>
+
+<script>
+(() => {
+  const startBtn = document.getElementById('startBtn');
+  const stopBtn  = document.getElementById('stopBtn');
+  const muteBtn  = document.getElementById('muteBtn');
+  const clearBtn = document.getElementById('clearBtn');
+  const statusEl = document.getElementById('status');
+  const pListening = document.getElementById('pListening');
+  const pProcessing = document.getElementById('pProcessing');
+  const list = document.getElementById('list');
+  const debugEl = document.getElementById('debug');
+  const bar = document.getElementById('bar');
+  const jdEl = document.getElementById('jd');
+  const saveJD = document.getElementById('saveJD');
+  const savedTag = document.getElementById('savedTag');
+
+  let pc, dc, tabStream, audioTrack, meterNode, meterCtx;
+  let dcOpen = false;
+  let qa = null;             // current QA card {root, qEl, aEl}
+  let partialQ = "";         // building transcript between speech_start/stop
+  let finalQ = "";
+  let gotAnswerThisTurn = false;
+  let vadActive = false;
+
+  const setStatus = t => { statusEl.textContent = t; console.log('[status]', t); }
+  const pillOn = (el, on) => el.classList.toggle('on', !!on);
+  const logDbg = o => {
+    try { debugEl.textContent += JSON.stringify(o, null, 2) + "\n"; }
+    catch { debugEl.textContent += String(o) + "\n"; }
+    // debugEl.style.display = 'block'; // uncomment to always show
+    debugEl.scrollTop = debugEl.scrollHeight;
+  };
+
+  function newCard() {
+    const root = document.createElement('div'); root.className = 'qa';
+    const q = document.createElement('div');   q.className = 'q'; q.textContent = 'Q: ';
+    const a = document.createElement('div');   a.className = 'a'; a.textContent = 'A: ';
+    root.appendChild(q); root.appendChild(a);
+    list.appendChild(root);
+    list.scrollTop = list.scrollHeight;
+    return {root, qEl:q, aEl:a};
+  }
+
+  function ensureCard() { if (!qa) qa = newCard(); }
+  function resetTurn() { qa = null; partialQ = ""; finalQ = ""; gotAnswerThisTurn = false; }
+
+  clearBtn.onclick = () => { list.innerHTML = ''; debugEl.textContent = ''; }
+
+  saveJD.onclick = async () => {
+    savedTag.style.display = 'none';
+    const r = await fetch('/set-jd', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ jd: jdEl.value || "" })
+    }).then(r => r.json()).catch(()=>({ok:false}));
+    if (r.ok) {
+      savedTag.style.display = 'inline-block';
+      setTimeout(() => savedTag.style.display = 'none', 1200);
+    }
+  };
+
+  muteBtn.onclick = () => {
+    if (!audioTrack) return;
+    audioTrack.enabled = !audioTrack.enabled;
+    muteBtn.textContent = audioTrack.enabled ? 'Mute' : 'Unmute';
+  };
+
+  function extractText(msg) {
+    if (typeof msg.delta === 'string') return msg.delta;
+    if (msg.message && Array.isArray(msg.message.content)) {
+      for (const c of msg.message.content) {
+        if (typeof c.text === 'string' && c.text) return c.text;
+        if (c.type === 'output_text' && typeof c.content === 'string') return c.content;
+        if (c.type === 'text' && typeof c.text === 'string') return c.text;
+      }
+    }
+    if (msg.output_text && typeof msg.output_text === 'string') return msg.output_text;
+    if (typeof msg.text === 'string') return msg.text;
+    return '';
+  }
+
+  function askForAnswer() {
+    if (!dc || !dcOpen) return;
+    // Only request an answer once per spoken turn
+    if (gotAnswerThisTurn) return;
+    gotAnswerThisTurn = true;
+    pillOn(pProcessing, true);
+    dc.send(JSON.stringify({ type:'response.create', response:{ modalities:['text'] }}));
+  }
+
+  function attachChannel(ch) {
+    dc = ch;
+    dc.onopen = () => {
+      dcOpen = true;
+      setStatus('data channel open');
+
+      // Text-only replies; keep VAD on, but DO NOT auto-answer
+      dc.send(JSON.stringify({
+        type: 'session.update',
+        session: {
+          modalities: ['text'],
+          input_audio_transcription: { model: 'whisper-1' },
+          turn_detection: {
+            type: 'server_vad',
+            threshold: 0.5,
+            prefix_padding_ms: 300,
+            silence_duration_ms: 700,
+            create_response: false,         // <- prevent unsolicited answers
+            interrupt_response: true
+          }
+        }
+      }));
+    };
+    dc.onclose = () => { dcOpen = false; };
+
+    dc.onmessage = (e) => {
+      let msg; try { msg = JSON.parse(e.data); } catch { return; }
+      // logDbg(msg);
+
+      switch (msg.type) {
+        // VAD lifecycle
+        case 'input_audio_buffer.speech_started':
+          vadActive = true;
+          pillOn(pListening, true);
+          pillOn(pProcessing, false);
+          resetTurn();
+          ensureCard();
+          qa.qEl.textContent = "Q: ";
+          qa.aEl.textContent = "A: ";
+          setStatus('listening…');
+          return;
+
+        case 'response.input_audio_transcription.delta': {
+          // Build the live transcript for Q
+          const t = msg.delta || extractText(msg);
+          if (t) {
+            partialQ += t;
+            ensureCard();
+            qa.qEl.textContent = "Q: " + partialQ;
+          }
+          return;
+        }
+        case 'response.input_audio_transcription.completed': {
+          finalQ = msg.transcript || extractText(msg) || partialQ;
+          ensureCard();
+          qa.qEl.textContent = "Q: " + finalQ;
+          return;
+        }
+
+        case 'input_audio_buffer.speech_stopped':
+          vadActive = false;
+          pillOn(pListening, false);
+          pillOn(pProcessing, true);
+          setStatus('processing…');
+          // Ask the model to answer for this turn
+          askForAnswer();
+          return;
+
+        // Assistant reply (stream)
+        case 'response.text.delta':
+        case 'response.output_text.delta':
+        case 'response.delta': {
+          const d = extractText(msg);
+          if (d) {
+            ensureCard();
+            qa.aEl.textContent += d;
+          }
+          return;
+        }
+        case 'response.message': {
+          const t = extractText(msg);
+          if (t) {
+            ensureCard();
+            qa.aEl.textContent += t;
+          }
+          return;
+        }
+        case 'response.completed':
+          pillOn(pProcessing, false);
+          // Prepare for next Q/A
+          qa = null;
+          return;
+
+        default: return;
+      }
+    };
+  }
+
+  async function startRealtime() {
+    setStatus('requesting session…');
+    const session = await fetch('/session', { method: 'POST' }).then(r => r.json()).catch(err => ({error:String(err)}));
+    const token = session?.client_secret?.value;
+    if (!token) { setStatus('token failed'); logDbg(session); return; }
+
+    pc = new RTCPeerConnection();
+    window.pc = pc; // for console debugging
+
+    attachChannel(pc.createDataChannel('oai-events'));
+    pc.ondatachannel = (e) => attachChannel(e.channel);
+    pc.oniceconnectionstatechange = () => setStatus('ice: ' + pc.iceConnectionState);
+
+    // Capture meeting tab/window with audio
+    tabStream = await navigator.mediaDevices.getDisplayMedia({ video:true, audio:true });
+    const aTracks = tabStream.getAudioTracks();
+    if (!aTracks.length) { setStatus('No audio track — re-try & enable Share tab audio.'); return; }
+    const vTracks = tabStream.getVideoTracks(); if (vTracks.length) vTracks[0].stop();
+
+    audioTrack = aTracks[0];
+    pc.addTrack(audioTrack, tabStream);
+
+    // Simple VU meter
+    meterCtx = new (window.AudioContext || window.webkitAudioContext)();
+    const src = meterCtx.createMediaStreamSource(new MediaStream([audioTrack]));
+    meterNode = meterCtx.createScriptProcessor(4096, 1, 1);
+    src.connect(meterNode); meterNode.connect(meterCtx.destination);
+    meterNode.onaudioprocess = (e) => {
+      const ch = e.inputBuffer.getChannelData(0);
+      let sum=0; for (let i=0;i<ch.length;i++){ const s=ch[i]; sum += s*s; }
+      const rms = Math.sqrt(sum / ch.length);
+      bar.style.width = Math.min(100, Math.max(0, (rms / 0.06) * 100)) + "%";
+    };
+
+    const offer = await pc.createOffer();
+    await pc.setLocalDescription(offer);
+
+    setStatus('connecting…');
+    const sdpAnswer = await fetch(
+      'https://api.openai.com/v1/realtime?model=gpt-4o-realtime-preview',
+      {
+        method:'POST',
+        headers:{
+          'Authorization': `Bearer ${token}`,
+          'Content-Type':'application/sdp'
+        },
+        body: offer.sdp
+      }
+    ).then(r => r.text());
+
+    await pc.setRemoteDescription({ type:'answer', sdp: sdpAnswer });
+
+    startBtn.disabled = true; stopBtn.disabled = false; muteBtn.disabled = false;
+    setStatus('ready — speak in the meeting tab');
+  }
+
+  startBtn.onclick = startRealtime;
+
+  stopBtn.onclick = () => {
+    try { if (tabStream) tabStream.getTracks().forEach(t => t.stop()); } catch {}
+    try { if (pc) pc.close(); } catch {}
+    try { if (meterCtx) meterCtx.close(); } catch {}
+    startBtn.disabled = false; stopBtn.disabled = true; muteBtn.disabled = true;
+    pillOn(pListening,false); pillOn(pProcessing,false); setStatus('idle');
+  };
+})();
+</script>
+</body>
+</html>
