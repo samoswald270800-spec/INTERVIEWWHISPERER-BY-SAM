@@ -64,6 +64,14 @@ function requireAuth(req, res, next) {
   return res.redirect("/login");
 }
 app.use(requireAuth);
+// Serve static files only after auth
+app.use(express.static(path.join(__dirname, "public")));
+
+// Explicit route for "/"
+app.get("/", (req, res) => {
+  res.sendFile(path.join(__dirname, "public", "index.html"));
+});
+
 /* Load resume (optional but recommended) */
 let resume = "";
 let assignment = "";
@@ -151,7 +159,12 @@ ${assignment || "(no assignment provided)"}
   }
 });
 
-app.listen(3000, () => {
-  console.log("✅ Realtime server at http://localhost:3000");
+/* ---------- Start the server (Render-safe) ---------- */
+const PORT = process.env.PORT || 3000;
+const HOST = "0.0.0.0";
+
+app.listen(PORT, HOST, () => {
+  console.log(`✅ Server listening on http://${HOST}:${PORT}`);
   console.log("   Paste a JD in the UI (Save JD) to tailor answers.");
 });
+
