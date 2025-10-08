@@ -3,11 +3,67 @@ import express from "express";
 import fetch from "node-fetch";
 import "dotenv/config";
 import fs from "fs";
+import session from "express-session";
+import path from "path";
+import { fileURLToPath } from "url";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 const app = express();
-app.use(express.static("public"));
-app.use(express.json({ limit: "1mb" })); // for /set-jd
 
+// Trust proxy for Render so secure cookies work
+app.set("trust proxy", 1);
+
+// Parse JSON before auth routes (needed for /api/login and /set-jd)
+app.use(express.json({ limit: "1mb" })); // for /set-jd and login
+
+/* ---------- Session (required for login) ---------- */
+app.use(
+  session({
+    secret: process.env.SESSION_SECRET || "dev-secret-change-me",
+    resave: false,
+    saveUninitialized: false,
+    cookie: {
+      maxAge: 24 * 3600 * 1000,
+      httpOnly: true,
+      sameSite: "lax",
+      secure: process.env.NODE_ENV === "production",
+    },
+  })
+);
+
+/* ---------- Minimal login/logout endpoints ---------- */
+// Render: set ADMIN_USER and ADMIN_PASS in Environment
+app.post("/api/login", (req, res) => {
+  const { username, password } = req.body || {};
+  const ADMIN_USER = process.env.ADMIN_USER || "";
+  const ADMIN_PASS = process.env.ADMIN_PASS || "";
+
+  if (username === ADMIN_USER && password === ADMIN_PASS) {
+    req.session.userId = username;
+    return res.json({ ok: true });
+  }
+  return res.status(401).json({ error: "Invalid username or password" });
+});
+
+app.post("/api/logout", (req, res) => {
+  req.session.destroy(() => res.json({ ok: true }));
+});
+
+// Serve the login page itself
+app.get("/login", (req, res) => {
+  if (req.session?.userId) return res.redirect("/");
+  res.sendFile(path.join(__dirname, "public", "login.html"));
+});
+
+/* ---------- Auth gate (protect everything else) ---------- */
+function requireAuth(req, res, next) {
+  if (req.path === "/login" || req.path === "/api/login") return next();
+  if (req.session?.userId) return next();
+  return res.redirect("/login");
+}
+app.use(requireAuth);
 /* Load resume (optional but recommended) */
 let resume = "";
 let assignment = "";
