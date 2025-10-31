@@ -18,21 +18,44 @@ app.set("trust proxy", 1);
 // Parse JSON before auth routes (needed for /api/login and /set-jd)
 app.use(express.json({ limit: "1mb" })); // for /set-jd and login
 
+
 /* ---------- Session (required for login) ---------- */
-/* ---------- Session (required for login) ---------- */
+/* ---------- Redis Session Store (secure, persistent) ---------- */
+import Redis from "ioredis";
+import connectRedis from "connect-redis";
+const RedisStore = connectRedis(session);
+
+// Connect to Redis Cloud
+const redisClient = new Redis(process.env.REDIS_URL, {
+  tls: {
+    rejectUnauthorized: false, // required by Redis Cloud
+  },
+});
+
+redisClient.on("connect", () => {
+  console.log("✅ Connected to Redis session store");
+});
+
+redisClient.on("error", (err) => {
+  console.error("❌ Redis session error:", err);
+});
+
+// Session middleware (stores sessions in Redis)
 app.use(
   session({
-    secret: process.env.SESSION_SECRET || "dev-secret-change-me",
+    store: new RedisStore({ client: redisClient }),
+    secret: process.env.SESSION_SECRET || "dev-secret",
     resave: false,
     saveUninitialized: false,
     cookie: {
-      maxAge: 24 * 3600 * 1000,
+      maxAge: 6 * 60 * 60 * 1000, // ✅ logout after 6 hours
       httpOnly: true,
       sameSite: "lax",
       secure: process.env.NODE_ENV === "production",
     },
   })
 );
+
 
 /* ---------- Minimal login/logout endpoints ---------- */
 // Render: set ADMIN_USER and ADMIN_PASS in Environment
