@@ -19,6 +19,7 @@ app.set("trust proxy", 1);
 app.use(express.json({ limit: "1mb" })); // for /set-jd and login
 
 /* ---------- Session (required for login) ---------- */
+/* ---------- Session (required for login) ---------- */
 app.use(
   session({
     secret: process.env.SESSION_SECRET || "dev-secret-change-me",
