@@ -1,7 +1,7 @@
 // server.js — Realtime (tab audio) + JD-tailored answers (TEXT replies only)
 import express from "express";
 import Redis from "ioredis";
-import connectRedis from "connect-redis";
+import connectRedis from "connect-redis/dist/connect-redis.js";
 import fetch from "node-fetch";
 import "dotenv/config";
 import fs from "fs";
