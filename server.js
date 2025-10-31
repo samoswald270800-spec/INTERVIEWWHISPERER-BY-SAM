@@ -1,7 +1,7 @@
 // server.js — Realtime (tab audio) + JD-tailored answers (TEXT replies only)
 import express from "express";
 import Redis from "ioredis";
-import connectRedis from "connect-redis/dist/connect-redis.js";
+import { RedisStore } from "connect-redis";
 import fetch from "node-fetch";
 import "dotenv/config";
 import fs from "fs";
@@ -41,7 +41,7 @@ redisClient.on("error", (err) => {
   console.error("❌ Redis session error:", err);
 });
 
-// Session middleware (stores sessions in Redis)
+// Apply session middleware using Redis storage
 app.use(
   session({
     store: new RedisStore({ client: redisClient }),
@@ -49,14 +49,13 @@ app.use(
     resave: false,
     saveUninitialized: false,
     cookie: {
-      maxAge: 6 * 60 * 60 * 1000, // ✅ logout after 6 hours
+      maxAge: 6 * 60 * 60 * 1000, // ✅ auto logout after 6 hours
       httpOnly: true,
       sameSite: "lax",
       secure: process.env.NODE_ENV === "production",
     },
   })
 );
-
 
 /* ---------- Minimal login/logout endpoints ---------- */
 // Render: set ADMIN_USER and ADMIN_PASS in Environment
