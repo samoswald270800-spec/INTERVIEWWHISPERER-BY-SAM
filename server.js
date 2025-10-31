@@ -23,8 +23,7 @@ app.use(express.json({ limit: "1mb" })); // for /set-jd and login
 
 /* ---------- Session (required for login) ---------- */
 /* ---------- Redis Session Store (secure, persistent) ---------- */
-import Redis from "ioredis";
-import connectRedis from "connect-redis";
+
 const RedisStore = connectRedis(session);
 
 // Connect to Redis Cloud
