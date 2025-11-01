@@ -218,24 +218,21 @@ app.delete("/admin/api/users/:username", requireAdmin, async (req, res) => {
   res.json({ ok: true });
 });
 // Serve the Admin UI (React SPA build)
-app.use(
-  "/admin",
-  requireAdmin,
-  express.static(path.join(__dirname, "admin", "dist"))
-);
 
-app.get("/admin/*", requireAdmin, (req, res) => {
-  res.sendFile(path.join(__dirname, "admin", "dist", "index.html"));
-});
 
+/* ---------- Static & Admin SPA (order matters) ---------- */
+
+// Public assets (still behind your requireAuth middleware earlier)
 app.use(express.static(path.join(__dirname, "public")));
-// Serve the Admin UI (React build will live here)
+
+// React Admin build (protected)
 app.use(
   "/admin",
   requireAdmin,
   express.static(path.join(__dirname, "admin", "dist"))
 );
 
+// SPA fallback for any nested admin routes
 app.get("/admin/*", requireAdmin, (req, res) => {
   res.sendFile(path.join(__dirname, "admin", "dist", "index.html"));
 });
