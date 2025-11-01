@@ -21,26 +21,24 @@ app.use(express.json({ limit: "1mb" })); // for /set-jd and login
     ✅ Redis Session Store (Using connect-redis v8 and ioredis v5)
    ======================================================================== */
 
-/* ---------- Redis Session Store (works with connect-redis v8 + ESM) ---------- */
-import Redis from "ioredis";
+/* ---------- Redis Session Store (connect-redis v8 + ioredis + ESM) ---------- */
 import session from "express-session";
+import Redis from "ioredis";
 import connectRedis from "connect-redis";
 
-// Initialize RedisStore (v8 syntax)
+// ✅ connect-redis v8 returns a CLASS — do NOT use default import
 const RedisStore = connectRedis(session);
 
-// Connect to Redis Cloud (TLS required)
+// ✅ TLS must be configured like this for Redis Cloud
 const redisClient = new Redis(process.env.REDIS_URL, {
   tls: {
-    rejectUnauthorized: false,  // ✅ fixes ERR_SSL_WRONG_VERSION_NUMBER
+    rejectUnauthorized: false, // <--- THIS FIXES ERR_SSL_WRONG_VERSION_NUMBER
   },
 });
 
-// Log connection events
-redisClient.on("connect", () => console.log("✅ Connected to Redis Cloud"));
-redisClient.on("error", (err) => console.error("❌ Redis session error:", err));
+redisClient.on("connect", () => console.log("✅ Redis connected"));
+redisClient.on("error", (err) => console.error("❌ Redis error", err));
 
-// Apply Redis session store
 app.use(
   session({
     store: new RedisStore({ client: redisClient }),
@@ -48,16 +46,13 @@ app.use(
     resave: false,
     saveUninitialized: false,
     cookie: {
-      maxAge: 6 * 60 * 60 * 1000, // 6 hours
+      maxAge: 1000 * 60 * 60 * 6, // 6 hours
       httpOnly: true,
       sameSite: "lax",
       secure: process.env.NODE_ENV === "production",
     },
   })
 );
-
-
-
 
 /* ---------- Minimal login/logout endpoints ---------- */
 // Render: set ADMIN_USER and ADMIN_PASS in Environment
