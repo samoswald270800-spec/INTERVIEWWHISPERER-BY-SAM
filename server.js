@@ -156,6 +156,9 @@ function requireAuth(req, res, next) {
   return res.redirect("/login");
 }
 app.use(requireAuth);
+// ✅ React Admin Panel (dist folder after build)
+app.use("/admin", express.static(path.join(__dirname, "admin/dist")));
+
 // ---[ADD] Post-auth annotator so we capture IP/loginAt even if admin logged in via your handler ---
 app.use((req, _res, next) => {
   if (req.session && !req.session.loginAt) {
