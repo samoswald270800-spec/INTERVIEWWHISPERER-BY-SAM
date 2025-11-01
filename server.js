@@ -20,33 +20,66 @@ app.use(express.json({ limit: "1mb" })); // for /set-jd and login
 /* ========================================================================
     ✅ Redis Session Store (Using connect-redis v8 and ioredis v5)
    ======================================================================== */
-
-/* ---------- Redis Session Store (connect-redis v8 + ioredis + ESM) ---------- */
+/* =======================================================================
+   Redis session store (connect-redis v8 + node-redis v4 + TLS on Redis Cloud)
+   ======================================================================= */
 import session from "express-session";
-import Redis from "ioredis";
-import connectRedis from "connect-redis";
+import * as ConnectRedis from "connect-redis";   // works with CJS/ESM exports
+import { createClient } from "redis";
 
-// ✅ connect-redis v8 returns a CLASS — do NOT use default import
-const RedisStore = connectRedis(session);
+// Resolve the RedisStore class regardless of export style
+const RedisStore =
+  (ConnectRedis && (ConnectRedis.default || ConnectRedis.RedisStore || ConnectRedis)) ||
+  (() => { throw new Error("connect-redis export not found"); })();
 
-// ✅ TLS must be configured like this for Redis Cloud
-const redisClient = new Redis(process.env.REDIS_URL, {
-  tls: {
-    rejectUnauthorized: false, // <--- THIS FIXES ERR_SSL_WRONG_VERSION_NUMBER
+// Validate env
+if (!process.env.REDIS_URL) {
+  console.error("❌ Missing REDIS_URL env var.");
+  process.exit(1);
+}
+const isTLS = process.env.REDIS_URL.startsWith("rediss://");
+if (!isTLS) {
+  console.warn("⚠️  REDIS_URL does not start with rediss:// – Redis Cloud requires TLS.");
+}
+
+// Create node-redis client
+const redisClient = createClient({
+  url: process.env.REDIS_URL,
+  socket: {
+    tls: isTLS,               // enable TLS only if using rediss://
+    rejectUnauthorized: false // Redis Cloud often needs this unless you upload CA
   },
 });
 
-redisClient.on("connect", () => console.log("✅ Redis connected"));
-redisClient.on("error", (err) => console.error("❌ Redis error", err));
+redisClient.on("connect", () => console.log("✅ Redis TCP connected"));
+redisClient.on("ready",   () => console.log("✅ Redis client ready"));
+redisClient.on("error",   (err) => console.error("❌ Redis error:", err));
+
+// Top-level await is fine in ESM (your package.json has "type": "module")
+await redisClient.connect();
+
+// Optional health check (visible in Render logs)
+try {
+  const pong = await redisClient.ping();
+  console.log("🔎 Redis PING:", pong);
+  await redisClient.set("healthcheck", "ok", { EX: 30 });
+  const hc = await redisClient.get("healthcheck");
+  console.log("🔎 Redis GET healthcheck:", hc);
+} catch (e) {
+  console.error("❌ Redis healthcheck failed:", e);
+}
+
+// Session store
+const store = new RedisStore({ client: redisClient, prefix: "sess:" });
 
 app.use(
   session({
-    store: new RedisStore({ client: redisClient }),
-    secret: process.env.SESSION_SECRET,
+    store,
+    secret: process.env.SESSION_SECRET || "dev-secret",
     resave: false,
     saveUninitialized: false,
     cookie: {
-      maxAge: 1000 * 60 * 60 * 6, // 6 hours
+      maxAge: 6 * 60 * 60 * 1000, // 6 hours
       httpOnly: true,
       sameSite: "lax",
       secure: process.env.NODE_ENV === "production",
