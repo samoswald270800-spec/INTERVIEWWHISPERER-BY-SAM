@@ -1,7 +1,7 @@
 // server.js — Realtime (tab audio) + JD-tailored answers (TEXT replies only)
 import express from "express";
 import Redis from "ioredis";
-import { RedisStore } from "connect-redis";
+import connectRedis from "connect-redis";
 import fetch from "node-fetch";
 import "dotenv/config";
 import fs from "fs";
@@ -27,18 +27,24 @@ app.use(express.json({ limit: "1mb" })); // for /set-jd and login
 
 
 // Connect to Redis Cloud
+/* ---------- Redis Session Store (secure, persistent) ---------- */
+
+// Create Redis session store instance (must be here AFTER import)
+const RedisStore = connectRedis(session);
+
+// Connect to Redis Cloud (TLS required on Redis Cloud)
 const redisClient = new Redis(process.env.REDIS_URL, {
   tls: {
-    rejectUnauthorized: false, // required by Redis Cloud
+    rejectUnauthorized: false, // ✅ required by Redis Cloud
   },
 });
 
 redisClient.on("connect", () => {
-  console.log("✅ Connected to Redis session store");
+  console.log("✅ Connected to Redis Cloud");
 });
 
 redisClient.on("error", (err) => {
-  console.error("❌ Redis session error:", err);
+  console.error("❌ Redis session error:", err.message);
 });
 
 // Apply session middleware using Redis storage
@@ -49,7 +55,7 @@ app.use(
     resave: false,
     saveUninitialized: false,
     cookie: {
-      maxAge: 6 * 60 * 60 * 1000, // ✅ auto logout after 6 hours
+      maxAge: 6 * 60 * 60 * 1000, // ✅ Auto logout after 6 hours
       httpOnly: true,
       sameSite: "lax",
       secure: process.env.NODE_ENV === "production",
