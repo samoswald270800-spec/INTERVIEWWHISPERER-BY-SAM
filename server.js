@@ -273,6 +273,9 @@ app.delete("/admin/api/users/:username", requireAdmin, async (req, res) => {
   res.json({ ok: true });
 });
 
+// ✅ Serve React admin build
+app.use("/admin", requireAdmin, express.static(path.join(__dirname, "admin", "dist")));
+
 app.use(express.static(path.join(__dirname, "public")));
 // Serve the Admin UI (React build will live here)
 app.use(
