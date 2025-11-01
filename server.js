@@ -21,29 +21,26 @@ app.use(express.json({ limit: "1mb" })); // for /set-jd and login
     ✅ Redis Session Store (Using connect-redis v8 and ioredis v5)
    ======================================================================== */
 
-// ✅ put these at the very top with other imports
+/* ---------- Redis Session Store (works with connect-redis v8 + ESM) ---------- */
 import Redis from "ioredis";
 import session from "express-session";
-import connectRedis from "connect-redis";    // <-- NO default import
+import connectRedis from "connect-redis";
 
-
-/* ---------- Redis Session Store (secure, persistent) ---------- */
-
-// Create RedisStore class from connect-redis (v6/v7/v8 compatible)
+// Initialize RedisStore (v8 syntax)
 const RedisStore = connectRedis(session);
 
-// Connect to Redis Cloud (TLS must be enabled)
+// Connect to Redis Cloud (TLS required)
 const redisClient = new Redis(process.env.REDIS_URL, {
   tls: {
-    rejectUnauthorized: false,
+    rejectUnauthorized: false,  // ✅ fixes ERR_SSL_WRONG_VERSION_NUMBER
   },
 });
 
-// Logs
-redisClient.on("connect", () => console.log("✅ Redis connected"));
-redisClient.on("error", (err) => console.error("❌ Redis error", err));
+// Log connection events
+redisClient.on("connect", () => console.log("✅ Connected to Redis Cloud"));
+redisClient.on("error", (err) => console.error("❌ Redis session error:", err));
 
-// Use Redis store for Express sessions
+// Apply Redis session store
 app.use(
   session({
     store: new RedisStore({ client: redisClient }),
@@ -58,6 +55,7 @@ app.use(
     },
   })
 );
+
 
 
 
