@@ -121,6 +121,8 @@ app.post("/api/login", async (req, res, next) => {
 
 /* ---------- Minimal login/logout endpoints ---------- */
 // Render: set ADMIN_USER and ADMIN_PASS in Environment
+/* ---------- Minimal login/logout endpoints ---------- */
+// Render: set ADMIN_USER and ADMIN_PASS in Environment
 app.post("/api/login", (req, res) => {
   const { username, password } = req.body || {};
   const ADMIN_USER = process.env.ADMIN_USER || "";
@@ -136,7 +138,6 @@ app.post("/api/login", (req, res) => {
 
   return res.status(401).json({ error: "Invalid username or password" });
 });
-
 
 app.post("/api/logout", (req, res) => {
   req.session.destroy(() => res.json({ ok: true }));
