@@ -17,59 +17,41 @@ app.set("trust proxy", 1);
 
 // Parse JSON before auth routes (needed for /api/login and /set-jd)
 app.use(express.json({ limit: "1mb" })); // for /set-jd and login
-/* ========================================================================
-    ✅ Redis Session Store (Using connect-redis v8 and ioredis v5)
-   ======================================================================== */
 /* =======================================================================
-   Redis session store (connect-redis v8 + node-redis v4 + TLS on Redis Cloud)
+   Redis session store (connect-redis v8 + node-redis v4, ESM)
    ======================================================================= */
 import session from "express-session";
-import * as ConnectRedis from "connect-redis";   // works with CJS/ESM exports
+import * as ConnectRedis from "connect-redis";   // namespace import = works in ESM
 import { createClient } from "redis";
 
-// Resolve the RedisStore class regardless of export style
+// Resolve RedisStore regardless of export style
 const RedisStore =
-  (ConnectRedis && (ConnectRedis.default || ConnectRedis.RedisStore || ConnectRedis)) ||
-  (() => { throw new Error("connect-redis export not found"); })();
+  (ConnectRedis.default ?? ConnectRedis.RedisStore ?? ConnectRedis);
 
-// Validate env
+// Sanity check env
 if (!process.env.REDIS_URL) {
-  console.error("❌ Missing REDIS_URL env var.");
-  process.exit(1);
-}
-const isTLS = process.env.REDIS_URL.startsWith("rediss://");
-if (!isTLS) {
-  console.warn("⚠️  REDIS_URL does not start with rediss:// – Redis Cloud requires TLS.");
+  throw new Error("Missing REDIS_URL env var");
 }
 
-// Create node-redis client
-const redisClient = createClient({
-  url: process.env.REDIS_URL,
-  socket: {
-    tls: isTLS,               // enable TLS only if using rediss://
-    rejectUnauthorized: false // Redis Cloud often needs this unless you upload CA
-  },
-});
+// Create node-redis client from URL ONLY.
+// NOTE: rediss:// automatically enables TLS. Do NOT add socket.tls here.
+const redisClient = createClient({ url: process.env.REDIS_URL });
 
 redisClient.on("connect", () => console.log("✅ Redis TCP connected"));
 redisClient.on("ready",   () => console.log("✅ Redis client ready"));
 redisClient.on("error",   (err) => console.error("❌ Redis error:", err));
 
-// Top-level await is fine in ESM (your package.json has "type": "module")
 await redisClient.connect();
 
-// Optional health check (visible in Render logs)
+// (Optional) quick health check in logs
 try {
   const pong = await redisClient.ping();
   console.log("🔎 Redis PING:", pong);
-  await redisClient.set("healthcheck", "ok", { EX: 30 });
-  const hc = await redisClient.get("healthcheck");
-  console.log("🔎 Redis GET healthcheck:", hc);
 } catch (e) {
-  console.error("❌ Redis healthcheck failed:", e);
+  console.error("❌ Redis PING failed:", e);
 }
 
-// Session store
+// Build store and enable sessions
 const store = new RedisStore({ client: redisClient, prefix: "sess:" });
 
 app.use(
