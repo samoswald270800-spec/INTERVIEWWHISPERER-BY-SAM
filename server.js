@@ -128,10 +128,15 @@ app.post("/api/login", (req, res) => {
 
   if (username === ADMIN_USER && password === ADMIN_PASS) {
     req.session.userId = username;
-    return res.json({ ok: true });
+    req.session.role = "admin";   // ✅ THIS LINE WAS MISSING
+    req.session.ip = req.headers["x-forwarded-for"] || req.ip;
+    req.session.loginAt = Date.now();
+    return res.json({ ok: true, role: "admin" });
   }
+
   return res.status(401).json({ error: "Invalid username or password" });
 });
+
 
 app.post("/api/logout", (req, res) => {
   req.session.destroy(() => res.json({ ok: true }));
