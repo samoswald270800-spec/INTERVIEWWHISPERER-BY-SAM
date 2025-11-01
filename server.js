@@ -24,7 +24,7 @@ app.use(express.json({ limit: "1mb" })); // for /set-jd and login
 /* ---------- Session (required for login) ---------- */
 /* ---------- Redis Session Store (secure, persistent) ---------- */
 
-const RedisStore = connectRedis(session);
+
 
 // Connect to Redis Cloud
 const redisClient = new Redis(process.env.REDIS_URL, {
