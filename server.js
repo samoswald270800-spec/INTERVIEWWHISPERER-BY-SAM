@@ -80,6 +80,43 @@ app.use(
   })
 );
 /* ============================================================================================= */
+// ---[ADD] Temp-user pre-handler for /api/login (kept before your existing /api/login) ---
+const TEMP_USER_PREFIX = "tempuser:";
+
+// Try temp-user credentials first; if not found, fall through to your existing /api/login.
+app.post("/api/login", async (req, res, next) => {
+  try {
+    const { username, password } = req.body || {};
+    if (!username || !password) return next();
+
+    const key = `${TEMP_USER_PREFIX}${username}`;
+    const raw = await redisClient.get(key);
+    if (!raw) return next(); // not a temp user → let your existing /api/login handle admin
+
+    let data;
+    try {
+      data = JSON.parse(raw);
+    } catch {
+      return next(); // malformed → ignore, let admin path try
+    }
+
+    if (data?.password !== password) {
+      // wrong temp password → let admin path try
+      return next();
+    }
+
+    // Success: set session & annotate
+    req.session.userId = username;
+    req.session.role = "user";
+    req.session.ip = req.headers["x-forwarded-for"] || req.ip;
+    req.session.loginAt = Date.now();
+
+    return res.json({ ok: true, role: "user" });
+  } catch (e) {
+    // On any unexpected error we fall through to admin path to avoid blocking it
+    return next();
+  }
+});
 
 
 /* ---------- Minimal login/logout endpoints ---------- */
@@ -113,7 +150,120 @@ function requireAuth(req, res, next) {
   return res.redirect("/login");
 }
 app.use(requireAuth);
+// ---[ADD] Post-auth annotator so we capture IP/loginAt even if admin logged in via your handler ---
+app.use((req, _res, next) => {
+  if (req.session && !req.session.loginAt) {
+    req.session.loginAt = Date.now();
+  }
+  if (req.session && !req.session.ip) {
+    req.session.ip = req.headers["x-forwarded-for"] || req.ip;
+  }
+  next();
+});
+
 // Serve static files only after auth
+// ✅ ADMIN CONSOLE (protected area)
+function requireAdmin(req, res, next) {
+  if (req.session?.role === "admin") return next();
+  return res.status(403).json({ error: "Admin only" });
+}
+
+async function createTempUser(username, password, ttlHours = 24) {
+  const ttlSeconds = ttlHours * 3600;
+  const now = Date.now();
+  const payload = { password, createdAt: now, expiresAt: now + ttlSeconds * 1000 };
+  await redisClient.set(`tempuser:${username}`, JSON.stringify(payload), { EX: ttlSeconds });
+}
+
+async function getTempUser(username) {
+  const raw = await redisClient.get(`tempuser:${username}`);
+  return raw ? JSON.parse(raw) : null;
+}
+
+async function deleteTempUser(username) {
+  await redisClient.del(`tempuser:${username}`);
+}
+
+// ✅ Admin Dashboard UI
+app.get("/admin", requireAdmin, (_req, res) => {
+  res.type("html").send(`<!doctype html>
+<html><head>
+<meta charset="utf-8"/>
+<title>Admin Console</title>
+<style>
+ body { background:#0d1117; color:white; font-family:system-ui; padding:40px; }
+ input,button { padding:10px; border-radius:8px; border:none; margin-bottom:10px; }
+ button { background:#238636; color:white; cursor:pointer; }
+ .card{ background:#161b22;padding:20px;border-radius:12px;margin-bottom:20px;}
+ table{ width:100%; margin-top:20px; }
+ th,td{ padding:10px; border-bottom:1px solid #30363d; }
+</style>
+</head><body>
+<h1>Admin Console</h1>
+
+<div class="card">
+ <h3>Create Temp User</h3>
+ <input id="u" placeholder="username"/>
+ <input id="p" placeholder="password"/>
+ <input id="h" placeholder="hours (default 24)" type="number"/>
+ <button onclick="createUser()">Create</button>
+ <p id="msg"></p>
+</div>
+
+<div class="card">
+ <h3>Active Temp Users</h3>
+ <table id="users"><thead>
+ <tr><th>User</th><th>TTL</th><th>Expires</th><th></th></tr></thead><tbody></tbody></table>
+</div>
+
+<script>
+async function createUser(){
+ const r = await fetch('/admin/api/users',{method:'POST',headers:{'Content-Type':'application/json'},
+ body:JSON.stringify({username:u.value,password:p.value,hours:h.value})});
+ msg.textContent=(await r.json()).ok?'✅ Created':'❌ Error';
+ loadUsers();
+}
+async function loadUsers(){
+ const r = await fetch('/admin/api/users');
+ const j = await r.json();
+ users.querySelector("tbody").innerHTML = j.users.map(u => (
+  \`<tr><td>\${u.username}</td><td>\${u.ttlSeconds}s</td>
+    <td>\${new Date(u.expiresAt).toLocaleString()}</td>
+    <td><button onclick="revoke('\${u.username}')">Revoke</button></td></tr>\`
+ )).join('');
+}
+async function revoke(username){
+ await fetch('/admin/api/users/'+username,{method:'DELETE'});
+ loadUsers();
+}
+loadUsers();
+</script>
+</body></html>`);
+});
+
+// API endpoints
+app.post("/admin/api/users", requireAdmin, async (req, res) => {
+  const { username, password, hours = 24 } = req.body;
+  await createTempUser(username, password, Number(hours));
+  return res.json({ ok: true });
+});
+
+app.get("/admin/api/users", requireAdmin, async (_req, res) => {
+  const users = [];
+  for await (const key of redisClient.scanIterator({ MATCH: "tempuser:*" })) {
+    const username = key.replace("tempuser:", "");
+    const data = await getTempUser(username);
+    const ttl = await redisClient.ttl(key);
+    users.push({ username, ttlSeconds: ttl, expiresAt: data.expiresAt });
+  }
+  return res.json({ ok: true, users });
+});
+
+app.delete("/admin/api/users/:username", requireAdmin, async (req, res) => {
+  await deleteTempUser(req.params.username);
+  res.json({ ok: true });
+});
+
 app.use(express.static(path.join(__dirname, "public")));
 
 // Explicit route for "/"
