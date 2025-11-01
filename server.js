@@ -157,7 +157,14 @@ function requireAuth(req, res, next) {
 }
 app.use(requireAuth);
 // ✅ React Admin Panel (dist folder after build)
-app.use("/admin", express.static(path.join(__dirname, "admin/dist")));
+// ✅ Serve React admin build (protected)
+app.use("/admin", requireAdmin, express.static(path.join(__dirname, "admin", "dist")));
+
+// ✅ SPA fallback for any /admin/* route (deep links)
+app.get("/admin/*", requireAdmin, (req, res) => {
+  res.sendFile(path.join(__dirname, "admin", "dist", "index.html"));
+});
+
 
 // ---[ADD] Post-auth annotator so we capture IP/loginAt even if admin logged in via your handler ---
 app.use((req, _res, next) => {
