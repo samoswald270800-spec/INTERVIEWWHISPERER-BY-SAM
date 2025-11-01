@@ -3,9 +3,6 @@ import express from "express";
 import fetch from "node-fetch";
 import "dotenv/config";
 import fs from "fs";
-import Redis from "ioredis";
-import connectRedis from "connect-redis";     // ✅ correct import
-import session from "express-session";
 import path from "path";
 import { fileURLToPath } from "url";
 
@@ -20,43 +17,41 @@ app.set("trust proxy", 1);
 
 // Parse JSON before auth routes (needed for /api/login and /set-jd)
 app.use(express.json({ limit: "1mb" })); // for /set-jd and login
+/* ========================================================================
+    ✅ Redis Session Store (Using connect-redis v8 and ioredis v5)
+   ======================================================================== */
 
+import Redis from "ioredis";
+import RedisStore from "connect-redis";
+import session from "express-session";
 
-/* ---------- Redis Session Store (secure, persistent) ---------- */
-// Create RedisStore class from connect-redis (v6/v7 format)
-const RedisStore = connectRedis(session);
-
-// Connect to Redis Cloud (TLS MUST be enabled, but do NOT set rejectUnauthorized)
+// Connect to Redis Cloud (IMPORTANT: TLS must be enabled)
 const redisClient = new Redis(process.env.REDIS_URL, {
-  tls: {},                                     // ✅ FIXES SSL wrong version error
+  tls: {},  // <-- required for Redis Cloud, fixes SSL wrong version error
 });
 
-// Log connection events
-redisClient.on("connect", () => {
-  console.log("✅ Connected to Redis Cloud");
-});
+// Debug logs
+redisClient.on("connect", () => console.log("✅ Connected to Redis Cloud"));
+redisClient.on("error", (err) => console.error("❌ Redis session error:", err));
 
-redisClient.on("error", (err) => {
-  console.error("❌ Redis session error:", err);
-});
-
-// Create session store
+// Create session store (v8 syntax)
 const store = new RedisStore({
   client: redisClient,
+  prefix: "iw:",    // optional prefix (your session keys in redis start with iw:)
 });
 
-// Enable session middleware with Redis store
+// Apply session middleware (stores session in Redis)
 app.use(
   session({
     store,
-    secret: process.env.SESSION_SECRET || "dev-secret",
+    secret: process.env.SESSION_SECRET,
     resave: false,
     saveUninitialized: false,
     cookie: {
-      maxAge: 1000 * 60 * 60 * 6,   // 6 hours
+      maxAge: 1000 * 60 * 60 * 6, // ⏱ auto logout after 6 hours
       httpOnly: true,
       sameSite: "lax",
-      secure: process.env.NODE_ENV === "production",
+      secure: process.env.NODE_ENV === "production", // HTTPS-only in prod
     },
   })
 );
