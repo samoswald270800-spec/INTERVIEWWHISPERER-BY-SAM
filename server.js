@@ -20,40 +20,51 @@ app.use(express.json({ limit: "1mb" })); // for /set-jd and login
 /* =======================================================================
    Redis session store (connect-redis v8 + node-redis v4, ESM)
    ======================================================================= */
+/* ================== Redis session store (connect-redis v8 + node-redis v4) ================== */
 import session from "express-session";
-import * as ConnectRedis from "connect-redis";   // namespace import = works in ESM
 import { createClient } from "redis";
+import { RedisStore } from "connect-redis";
 
-// Resolve RedisStore regardless of export style
-const RedisStore =
-  (ConnectRedis.default ?? ConnectRedis.RedisStore ?? ConnectRedis);
-
-// Sanity check env
 if (!process.env.REDIS_URL) {
-  throw new Error("Missing REDIS_URL env var");
+  console.error("❌ Missing REDIS_URL");
+  process.exit(1);
 }
 
-// Create node-redis client from URL ONLY.
-// NOTE: rediss:// automatically enables TLS. Do NOT add socket.tls here.
-const redisClient = createClient({ url: process.env.REDIS_URL });
+const redisUrl = process.env.REDIS_URL.trim();
+const useTLS = redisUrl.startsWith("rediss://");
 
-redisClient.on("connect", () => console.log("✅ Redis TCP connected"));
-redisClient.on("ready",   () => console.log("✅ Redis client ready"));
-redisClient.on("error",   (err) => console.error("❌ Redis error:", err));
+// Create the Redis client
+const redisClient = createClient({
+  url: redisUrl,
+  socket: useTLS
+    ? { tls: true, rejectUnauthorized: false }  // only when using rediss://
+    : undefined,
+});
 
+redisClient.on("error", (err) => {
+  console.error("❌ Redis error:", err);
+});
+redisClient.on("ready", () => {
+  console.log("✅ Redis client ready");
+});
+
+// Top-level await is fine in ESM
 await redisClient.connect();
 
-// (Optional) quick health check in logs
+// Optional quick health check
 try {
   const pong = await redisClient.ping();
   console.log("🔎 Redis PING:", pong);
 } catch (e) {
-  console.error("❌ Redis PING failed:", e);
+  console.error("❌ Redis ping failed:", e);
 }
 
-// Build store and enable sessions
-const store = new RedisStore({ client: redisClient, prefix: "sess:" });
+const store = new RedisStore({
+  client: redisClient,
+  prefix: "sess:",  // optional
+});
 
+// Attach the session middleware
 app.use(
   session({
     store,
@@ -68,6 +79,8 @@ app.use(
     },
   })
 );
+/* ============================================================================================= */
+
 
 /* ---------- Minimal login/logout endpoints ---------- */
 // Render: set ADMIN_USER and ADMIN_PASS in Environment
