@@ -1,13 +1,14 @@
 // server.js — Realtime (tab audio) + JD-tailored answers (TEXT replies only)
 import express from "express";
-import Redis from "ioredis";
-import RedisStore from "connect-redis";
 import fetch from "node-fetch";
 import "dotenv/config";
 import fs from "fs";
+import Redis from "ioredis";
+import connectRedis from "connect-redis";     // ✅ correct import
 import session from "express-session";
 import path from "path";
 import { fileURLToPath } from "url";
+
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -21,37 +22,30 @@ app.set("trust proxy", 1);
 app.use(express.json({ limit: "1mb" })); // for /set-jd and login
 
 
-/* ---------- Session (required for login) ---------- */
 /* ---------- Redis Session Store (secure, persistent) ---------- */
+// Create RedisStore class from connect-redis (v6/v7 format)
+const RedisStore = connectRedis(session);
 
-
-
-// Connect to Redis Cloud
-/* ---------- Redis Session Store (secure, persistent) ---------- */
-
-// Create Redis session store instance (must be here AFTER import)
-/* ---------- Redis Session Store (secure, persistent) ---------- */
-
+// Connect to Redis Cloud (TLS MUST be enabled, but do NOT set rejectUnauthorized)
 const redisClient = new Redis(process.env.REDIS_URL, {
-  tls: {
-    rejectUnauthorized: false, // ✅ required by Redis Cloud
-  },
+  tls: {},                                     // ✅ FIXES SSL wrong version error
 });
 
+// Log connection events
 redisClient.on("connect", () => {
   console.log("✅ Connected to Redis Cloud");
 });
 
 redisClient.on("error", (err) => {
-  console.error("❌ Redis session error:", err.message);
+  console.error("❌ Redis session error:", err);
 });
 
-// RedisStore is a class in connect-redis v6+
+// Create session store
 const store = new RedisStore({
   client: redisClient,
 });
 
-// Apply session middleware using Redis storage
+// Enable session middleware with Redis store
 app.use(
   session({
     store,
@@ -59,13 +53,17 @@ app.use(
     resave: false,
     saveUninitialized: false,
     cookie: {
-      maxAge: 6 * 60 * 60 * 1000, // ✅ Auto logout after 6 hours
+      maxAge: 1000 * 60 * 60 * 6,   // 6 hours
       httpOnly: true,
       sameSite: "lax",
       secure: process.env.NODE_ENV === "production",
     },
   })
 );
+
+
+
+
 
 /* ---------- Minimal login/logout endpoints ---------- */
 // Render: set ADMIN_USER and ADMIN_PASS in Environment
