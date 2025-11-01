@@ -156,14 +156,7 @@ function requireAuth(req, res, next) {
   return res.redirect("/login");
 }
 app.use(requireAuth);
-// ✅ React Admin Panel (dist folder after build)
-// ✅ Serve React admin build (protected)
-app.use("/admin", requireAdmin, express.static(path.join(__dirname, "admin", "dist")));
 
-// ✅ SPA fallback for any /admin/* route (deep links)
-app.get("/admin/*", requireAdmin, (req, res) => {
-  res.sendFile(path.join(__dirname, "admin", "dist", "index.html"));
-});
 
 
 // ---[ADD] Post-auth annotator so we capture IP/loginAt even if admin logged in via your handler ---
@@ -224,9 +217,16 @@ app.delete("/admin/api/users/:username", requireAdmin, async (req, res) => {
   await deleteTempUser(req.params.username);
   res.json({ ok: true });
 });
+// Serve the Admin UI (React SPA build)
+app.use(
+  "/admin",
+  requireAdmin,
+  express.static(path.join(__dirname, "admin", "dist"))
+);
 
-// ✅ Serve React admin build
-app.use("/admin", requireAdmin, express.static(path.join(__dirname, "admin", "dist")));
+app.get("/admin/*", requireAdmin, (req, res) => {
+  res.sendFile(path.join(__dirname, "admin", "dist", "index.html"));
+});
 
 app.use(express.static(path.join(__dirname, "public")));
 // Serve the Admin UI (React build will live here)
