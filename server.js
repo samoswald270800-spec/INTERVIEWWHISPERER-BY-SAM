@@ -193,62 +193,7 @@ async function deleteTempUser(username) {
   await redisClient.del(`tempuser:${username}`);
 }
 
-// ✅ Admin Dashboard UI
-app.get("/admin", requireAdmin, (_req, res) => {
-  res.type("html").send(`<!doctype html>
-<html><head>
-<meta charset="utf-8"/>
-<title>Admin Console</title>
-<style>
- body { background:#0d1117; color:white; font-family:system-ui; padding:40px; }
- input,button { padding:10px; border-radius:8px; border:none; margin-bottom:10px; }
- button { background:#238636; color:white; cursor:pointer; }
- .card{ background:#161b22;padding:20px;border-radius:12px;margin-bottom:20px;}
- table{ width:100%; margin-top:20px; }
- th,td{ padding:10px; border-bottom:1px solid #30363d; }
-</style>
-</head><body>
-<h1>Admin Console</h1>
 
-<div class="card">
- <h3>Create Temp User</h3>
- <input id="u" placeholder="username"/>
- <input id="p" placeholder="password"/>
- <input id="h" placeholder="hours (default 24)" type="number"/>
- <button onclick="createUser()">Create</button>
- <p id="msg"></p>
-</div>
-
-<div class="card">
- <h3>Active Temp Users</h3>
- <table id="users"><thead>
- <tr><th>User</th><th>TTL</th><th>Expires</th><th></th></tr></thead><tbody></tbody></table>
-</div>
-
-<script>
-async function createUser(){
- const r = await fetch('/admin/api/users',{method:'POST',headers:{'Content-Type':'application/json'},
- body:JSON.stringify({username:u.value,password:p.value,hours:h.value})});
- msg.textContent=(await r.json()).ok?'✅ Created':'❌ Error';
- loadUsers();
-}
-async function loadUsers(){
- const r = await fetch('/admin/api/users');
- const j = await r.json();
- users.querySelector("tbody").innerHTML = j.users.map(u => (
-  \`<tr><td>\${u.username}</td><td>\${u.ttlSeconds}s</td>
-    <td>\${new Date(u.expiresAt).toLocaleString()}</td>
-    <td><button onclick="revoke('\${u.username}')">Revoke</button></td></tr>\`
- )).join('');
-}
-async function revoke(username){
- await fetch('/admin/api/users/'+username,{method:'DELETE'});
- loadUsers();
-}
-loadUsers();
-</script>
-</body></html>`);
-});
 
 // API endpoints
 app.post("/admin/api/users", requireAdmin, async (req, res) => {
