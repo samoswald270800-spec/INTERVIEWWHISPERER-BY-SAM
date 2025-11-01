@@ -271,6 +271,17 @@ app.delete("/admin/api/users/:username", requireAdmin, async (req, res) => {
 });
 
 app.use(express.static(path.join(__dirname, "public")));
+// Serve the Admin UI (React build will live here)
+app.use(
+  "/admin",
+  requireAdmin,
+  express.static(path.join(__dirname, "admin", "dist"))
+);
+
+app.get("/admin/*", requireAdmin, (req, res) => {
+  res.sendFile(path.join(__dirname, "admin", "dist", "index.html"));
+});
+
 
 // Explicit route for "/"
 app.get("/", (req, res) => {
