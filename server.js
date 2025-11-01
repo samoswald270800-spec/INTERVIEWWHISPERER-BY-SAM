@@ -21,42 +21,43 @@ app.use(express.json({ limit: "1mb" })); // for /set-jd and login
     ✅ Redis Session Store (Using connect-redis v8 and ioredis v5)
    ======================================================================== */
 
+// ✅ put these at the very top with other imports
 import Redis from "ioredis";
-import RedisStore from "connect-redis";
 import session from "express-session";
+import connectRedis from "connect-redis";    // <-- NO default import
 
-// Connect to Redis Cloud (IMPORTANT: TLS must be enabled)
+
+/* ---------- Redis Session Store (secure, persistent) ---------- */
+
+// Create RedisStore class from connect-redis (v6/v7/v8 compatible)
+const RedisStore = connectRedis(session);
+
+// Connect to Redis Cloud (TLS must be enabled)
 const redisClient = new Redis(process.env.REDIS_URL, {
-  tls: {},  // <-- required for Redis Cloud, fixes SSL wrong version error
+  tls: {
+    rejectUnauthorized: false,
+  },
 });
 
-// Debug logs
-redisClient.on("connect", () => console.log("✅ Connected to Redis Cloud"));
-redisClient.on("error", (err) => console.error("❌ Redis session error:", err));
+// Logs
+redisClient.on("connect", () => console.log("✅ Redis connected"));
+redisClient.on("error", (err) => console.error("❌ Redis error", err));
 
-// Create session store (v8 syntax)
-const store = new RedisStore({
-  client: redisClient,
-  prefix: "iw:",    // optional prefix (your session keys in redis start with iw:)
-});
-
-// Apply session middleware (stores session in Redis)
+// Use Redis store for Express sessions
 app.use(
   session({
-    store,
+    store: new RedisStore({ client: redisClient }),
     secret: process.env.SESSION_SECRET,
     resave: false,
     saveUninitialized: false,
     cookie: {
-      maxAge: 1000 * 60 * 60 * 6, // ⏱ auto logout after 6 hours
+      maxAge: 6 * 60 * 60 * 1000, // 6 hours
       httpOnly: true,
       sameSite: "lax",
-      secure: process.env.NODE_ENV === "production", // HTTPS-only in prod
+      secure: process.env.NODE_ENV === "production",
     },
   })
 );
-
-
 
 
 
