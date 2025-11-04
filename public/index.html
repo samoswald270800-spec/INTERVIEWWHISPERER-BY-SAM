@@ -317,15 +317,25 @@
     pillOn(pListening,false); pillOn(pProcessing,false); setStatus('idle');
   };
 })();
-</script>
 
-  <!-- ✅ LOGOUT BUTTON (add this block) -->
+</script>
+<!-- ✅ LOGOUT BUTTON -->
+
+<style>
+  /* Hover style must be in <style>, not inside inline style */
+  #logoutBtn:hover {
+    transform: scale(1.05);
+    opacity: 0.9;
+  }
+</style>
+
 <button
+  id="logoutBtn"
   onclick="logout()"
   style="
     position: fixed;
     top: 20px;
-    right: 80px;
+    right: 40px;      /* ⬅️ adjust spacing */
     padding: 10px 18px;
     background: crimson;
     color: white;
@@ -335,10 +345,6 @@
     font-weight: bold;
     z-index: 9999999;
     transition: transform .2s, opacity .2s;
-button:hover {
-  transform: scale(1.05);
-}
-
   "
 >
   Logout
@@ -346,10 +352,10 @@ button:hover {
 
 <script>
   async function logout() {
-    await fetch("/api/logout", { method: "POST" });
-    window.location.href = "/login";
+    await fetch('/api/logout', { method: 'POST' });
+    window.location.href = '/login';
   }
 </script>
-<!-- ✅ END LOGOUT BUTTON -->
-  </body>
+</body>
 </html>
+
