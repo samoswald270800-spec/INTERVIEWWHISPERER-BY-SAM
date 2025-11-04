@@ -318,5 +318,33 @@
   };
 })();
 </script>
-</body>
+
+  <!-- ✅ LOGOUT BUTTON (add this block) -->
+<button
+  onclick="logout()"
+  style="
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    padding: 10px 18px;
+    background: crimson;
+    color: white;
+    border-radius: 6px;
+    border: none;
+    cursor: pointer;
+    font-weight: bold;
+    z-index: 9999999;
+  "
+>
+  Logout
+</button>
+
+<script>
+  async function logout() {
+    await fetch("/api/logout", { method: "POST" });
+    window.location.href = "/login";
+  }
+</script>
+<!-- ✅ END LOGOUT BUTTON -->
+  </body>
 </html>
