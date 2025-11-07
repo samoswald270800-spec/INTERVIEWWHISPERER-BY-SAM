@@ -12,6 +12,40 @@
 button {
   transition: transform .15s ease-out, opacity .15s ease-out !important;
 }
+/* ✅ Neon green glow on hover — matching login glow */
+button:hover {
+  box-shadow:
+    0 0 12px rgba(82,255,144,.4),
+    0 0 22px rgba(82,255,144,.35),
+    inset 0 0 8px rgba(82,255,144,.2);
+  border-color: rgba(82,255,144,.6);
+}
+
+/* ✅ Optional breathing animation while hover persists */
+button:hover {
+  animation: btnGlowPulse 2.6s ease-in-out infinite;
+}
+
+@keyframes btnGlowPulse {
+  0% {
+    box-shadow:
+      0 0 10px rgba(82,255,144,.35),
+      0 0 22px rgba(82,255,144,.25),
+      inset 0 0 6px rgba(82,255,144,.15);
+  }
+  50% {
+    box-shadow:
+      0 0 20px rgba(82,255,144,.75),
+      0 0 50px rgba(82,255,144,.5),
+      inset 0 0 12px rgba(82,255,144,.35);
+  }
+  100% {
+    box-shadow:
+      0 0 10px rgba(82,255,144,.35),
+      0 0 22px rgba(82,255,144,.25),
+      inset 0 0 6px rgba(82,255,144,.15);
+  }
+}
 
 button:hover {
   transform: scale(1.05);
