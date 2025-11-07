@@ -1,39 +1,200 @@
-<!doctype html>
-<html>
+<!DOCTYPE html>
+<html lang="en">
 <head>
-  <meta charset="utf-8" />
-  <title>Sign in</title>
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <meta charset="UTF-8">
+  <title>Interview Whisperer — Login</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+
+  <!-- Fonts + Icons -->
+  <link href="https://fonts.googleapis.com/css?family=Poppins:300,400,500,600,700&display=swap" rel="stylesheet">
+  <link href="https://use.fontawesome.com/releases/v6.5.1/css/all.css" rel="stylesheet">
+
   <style>
-    body { margin:0; height:100vh; display:grid; place-items:center; background:#0b0b0b; color:#eaeaea; font-family:system-ui,Segoe UI,Roboto,Arial; }
-    .card { width: 320px; padding:24px; border-radius:14px; background:#151515; box-shadow:0 10px 30px rgba(0,0,0,.4); }
-    h1 { font-size:18px; margin:0 0 14px; }
-    label { font-size:12px; opacity:.8 }
-    input { width:100%; padding:10px 12px; border-radius:10px; border:1px solid #333; background:#0f0f0f; color:#fff; margin:6px 0 12px; }
-    button { width:100%; padding:10px 14px; border:0; border-radius:10px; background:#4c8bf5; color:#fff; font-weight:600; cursor:pointer }
-    .err { color:#ff6b6b; font-size:12px; min-height:16px; margin-bottom:6px; }
+    /* ========== GLOBAL ========== */
+    body {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      min-height: 100vh;
+      margin: 0;
+      background: #0b0b0b;
+      font-family: "Poppins", sans-serif;
+    }
+
+    @property --a {
+      syntax: "<angle>";
+      inherits: false;
+      initial-value: 0deg;
+    }
+
+    /* ========== ANIMATED LOGIN CARD ========== */
+    .box {
+      position: relative;
+      width: 420px;
+      height: 220px;
+      background: repeating-conic-gradient(
+        from var(--a),
+        #ff2770 0%,
+        #ff2770 5%,
+        transparent 5%,
+        transparent 40%,
+        #ff2770 50%
+      );
+      filter: drop-shadow(0 0 40px #ff2770);
+      border-radius: 22px;
+      animation: rotating 4s linear infinite;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      transition: .5s;
+    }
+
+    @keyframes rotating {
+      0% { --a: 0deg; }
+      100% { --a: 360deg; }
+    }
+
+    .box::before {
+      content: "";
+      position: absolute;
+      width: 100%;
+      height: 100%;
+      background: repeating-conic-gradient(
+        from var(--a),
+        #45f3ff 0%,
+        #45f3ff 5%,
+        transparent 5%,
+        transparent 40%,
+        #45f3ff 50%
+      );
+      filter: drop-shadow(0 0 40px #45f3ff);
+      border-radius: 22px;
+      animation: rotating 4s linear infinite;
+      animation-delay: -1s;
+    }
+
+    .box::after {
+      content: "";
+      position: absolute;
+      inset: 4px;
+      background: #1a1a1a;
+      border-radius: 18px;
+      border: 6px solid #101010;
+    }
+
+    .box:hover {
+      width: 460px;
+      height: 500px;
+    }
+
+    /* content inside */
+    .login {
+      position: absolute;
+      inset: 60px;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      flex-direction: column;
+      color: white;
+      z-index: 10;
+      padding: 10px;
+      text-align: center;
+    }
+
+    h2 {
+      margin: 0;
+      font-size: 26px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 3px;
+      color: #ff2770;
+      text-shadow: 0 0 10px #ff2770;
+    }
+
+    input {
+      width: 100%;
+      padding: 12px 18px;
+      border-radius: 24px;
+      border: none;
+      background: rgba(255,255,255,.05);
+      border: 1px solid rgba(255,255,255,.2);
+      color: #fff;
+      margin-top: 14px;
+      font-size: 14px;
+      outline: none;
+      transition: .2s;
+    }
+
+    input:focus {
+      border-color: #45f3ff;
+      box-shadow: 0 0 12px #45f3ff;
+    }
+
+    button {
+      width: 100%;
+      padding: 12px;
+      border-radius: 24px;
+      border: none;
+      margin-top: 18px;
+      background: #45f3ff;
+      color: #111;
+      font-size: 16px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: .3s;
+    }
+
+    button:hover {
+      box-shadow: 0 0 15px #45f3ff;
+      transform: scale(1.05);
+    }
+
+    .err {
+      margin-top: 10px;
+      color: #ff6b6b;
+      font-size: 14px;
+      min-height: 20px;
+    }
   </style>
 </head>
+
 <body>
-  <div class="card">
-    <h1>Sign in</h1>
-    <div class="err" id="err"></div>
-    <label>Username</label>
-    <input id="u" autocomplete="username" />
-    <label>Password</label>
-    <input id="p" type="password" autocomplete="current-password" />
-    <button id="login">Log in</button>
+
+  <div class="box">
+    <div class="login">
+      <h2>Login</h2>
+
+      <div class="err" id="err"></div>
+
+      <input id="u" type="text" placeholder="Username" autocomplete="username" />
+      <input id="p" type="password" placeholder="Password" autocomplete="current-password" />
+
+      <button id="login">Sign in</button>
+    </div>
   </div>
+
 <script>
 document.getElementById('login').onclick = async () => {
-  const body = { username: document.getElementById('u').value.trim(), password: document.getElementById('p').value };
-  const r = await fetch('/api/login', { method: 'POST', headers: { 'Content-Type':'application/json' }, body: JSON.stringify(body), credentials:'include' });
-  if (r.ok) location.href = '/';
-  else {
-    const j = await r.json().catch(()=>({error:'Login failed'}));
+  const body = {
+    username: document.getElementById('u').value.trim(),
+    password: document.getElementById('p').value
+  };
+
+  const r = await fetch('/api/login', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+    credentials: 'include'
+  });
+
+  if (r.ok) {
+    location.href = '/'; // redirect to dashboard
+  } else {
+    const j = await r.json().catch(() => ({ error: 'Login failed' }));
     document.getElementById('err').textContent = j.error || 'Invalid username or password';
   }
 };
 </script>
+
 </body>
 </html>
