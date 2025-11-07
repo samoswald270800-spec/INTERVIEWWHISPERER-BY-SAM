@@ -4,6 +4,54 @@
   <meta charset="UTF-8" />
   <title>Interview Whisperer — Realtime Q/A</title>
   <style>
+    /* ====== GLASSMORPHIC MODE SWITCH (Smart Detail ↔ GodMode) ====== */
+.mode-switch {
+  position: relative;
+  display: flex;
+  padding: 6px;
+  border-radius: 40px;
+  backdrop-filter: blur(18px);
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  width: 260px;
+  box-shadow: inset 0 0 10px rgba(255,255,255,0.15);
+}
+
+.mode-switch .mode-btn {
+  flex: 1;
+  padding: 10px 0;
+  border-radius: 30px;
+  border: none;
+  background: transparent;
+  color: #d3d3d3;
+  font-weight: 500;
+  cursor: pointer;
+  position: relative;
+  z-index: 2;
+  transition: color .25s ease;
+}
+
+.mode-switch .mode-btn.active {
+  color: #000000;
+  font-weight: 600;
+}
+
+.mode-pill {
+  position: absolute;
+  top: 4px;
+  left: 4px;
+  height: calc(100% - 8px);
+  width: calc(50% - 6px);
+  background: linear-gradient(135deg, #52ff90, #2fa962);
+  border-radius: 30px;
+  transition: transform .30s cubic-bezier(.2, .7, .3, 1);
+  z-index: 1;
+
+  /* ✅ Premium glow */
+  box-shadow:
+    0 0 10px rgba(82,255,144, 0.7),
+    0 0 20px rgba(82,255,144, 0.4);
+}
     :root{
       --bg:#0b0b0b;--panel:#131313;--line:#222;--text:#e9e9e9;
       --q:#67b1ff; --a:#6be28c; --muted:#9aa; --badge:#222;
@@ -80,6 +128,12 @@ button:hover {
     <button id="stopBtn" disabled>Stop</button>
     <button id="muteBtn" disabled>Mute</button>
     <button id="clearBtn">Clear Answers</button>
+    <!-- 💡 Mode Switch (Smart Detail / GodMode) -->
+<div class="mode-switch">
+  <div class="mode-pill" id="modePill"></div>
+  <button class="mode-btn active" data-mode="smart">Smart Detail</button>
+  <button class="mode-btn" data-mode="god">GodMode</button>
+</div>
     <span class="pill" id="pListening">listening</span>
     <span class="pill" id="pProcessing">processing</span>
     <div id="status">idle</div>
