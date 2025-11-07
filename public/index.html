@@ -5,48 +5,47 @@
   <title>Interview Whisperer — Realtime Q/A</title>
   <style>
     /* ====== GLASSMORPHIC MODE SWITCH (Smart Detail ↔ GodMode) ====== */
-/* ============ MODE SWITCH UI (Glassmorphic toggle) ============ */
 .mode-switch {
   position: relative;
   display: flex;
-  background: rgba(255, 255, 255, 0.08);
-  backdrop-filter: blur(16px);
+  padding: 6px;
   border-radius: 40px;
-  padding: 4px;
-  gap: 4px;
-  align-items: center;
-  margin-left: 10px;
+  backdrop-filter: blur(18px);
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  width: 260px;
+  box-shadow: inset 0 0 10px rgba(255,255,255,0.15);
 }
 
-.mode-btn {
-  position: relative;
-  z-index: 2;
-  padding: 6px 16px;
-  border-radius: 40px;
+.mode-switch .mode-btn {
+  flex: 1;
+  padding: 10px 0;
+  border-radius: 30px;
   border: none;
   background: transparent;
-  color: #ccc;
-  font-size: 12px;
+  color: #d3d3d3;
+  font-weight: 500;
   cursor: pointer;
+  position: relative;
+  z-index: 2;
+  transition: color .25s ease;
+}
+
+.mode-switch .mode-btn.active {
+  color: #000000;
   font-weight: 600;
-  letter-spacing: .3px;
 }
 
-.mode-btn.active {
-  color: #111;
-}
-
-/* ✅ The moving pill (glass look) */
 .mode-pill {
   position: absolute;
-  height: 26px;
-  width: 90px;
-  border-radius: 40px;
-  background: linear-gradient(90deg, #52ff90, #35c56b);
-  box-shadow: 0 0 12px rgba(82,255,144,0.7);
-  transition: transform .25s ease;
+  top: 4px;
+  left: 4px;
+  height: calc(100% - 8px);
+  width: calc(50% - 6px);
+  background: linear-gradient(135deg, #52ff90, #2fa962);
+  border-radius: 30px;
+  transition: transform .30s cubic-bezier(.2, .7, .3, 1);
   z-index: 1;
-}
 
   /* ✅ Premium glow */
   box-shadow:
@@ -129,7 +128,7 @@ button:hover {
     <button id="stopBtn" disabled>Stop</button>
     <button id="muteBtn" disabled>Mute</button>
     <button id="clearBtn">Clear Answers</button>
-    <!-- ✅ Mode Switch -->
+    <!-- 💡 Mode Switch (Smart Detail / GodMode) -->
 <div class="mode-switch">
   <div class="mode-pill" id="modePill"></div>
   <button class="mode-btn active" data-mode="smart">Smart Detail</button>
@@ -415,22 +414,7 @@ button:hover {
     pillOn(pListening,false); pillOn(pProcessing,false); setStatus('idle');
   };
 })();
-/* ========= UI ONLY: pill movement (NO BACKEND LOGIC) ========= */
-const pill = document.getElementById("modePill");
-const modeButtons = document.querySelectorAll(".mode-btn");
 
-modeButtons.forEach((btn, index) => {
-  btn.addEventListener("click", () => {
-    document.querySelector(".mode-btn.active")?.classList.remove("active");
-    btn.classList.add("active");
-
-    // Move pill
-    pill.style.transform = `translateX(${index * 92}px)`;
-  });
-});
-
-// Default position
-pill.style.transform = "translateX(0px)";
 </script>
 <!-- ✅ LOGOUT BUTTON -->
 
@@ -471,4 +455,3 @@ pill.style.transform = "translateX(0px)";
 </script>
 </body>
 </html>
-
