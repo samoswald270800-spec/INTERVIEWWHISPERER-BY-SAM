@@ -41,15 +41,14 @@
     .glow{
       position:absolute; inset:-8px;
       border-radius:28px;
-      background:
-       conic-gradient(from var(--a),
-    var(--green) 0 30%, transparent 30% 65%,
-    var(--green-soft) 65% 100%);
-      filter: blur(10px) saturate(1.2);
-      animation: spin 4s linear infinite;     /* ✅ always spinning */
-      z-index:0; pointer-events:none;
-    }
-    @keyframes spin { from{ --a:0deg } to{ --a:360deg } }
+     background: radial-gradient(circle, rgba(82,255,144,.55), rgba(82,255,144,.18), transparent 70%);
+  box-shadow:
+    0 0 30px rgba(82,255,144,.5),
+    0 0 60px rgba(82,255,144,.35),
+    inset 0 0 20px rgba(82,255,144,.4);
+  z-index:0;
+  pointer-events:none;
+}
 
     /* solid panel (no transparency) */
     .panel{
