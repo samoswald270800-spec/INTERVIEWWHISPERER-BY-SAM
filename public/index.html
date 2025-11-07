@@ -452,6 +452,49 @@ button:hover {
     await fetch('/api/logout', { method: 'POST' });
     window.location.href = '/login';
   }
+  /* ====== Smart Detail / GodMode — UI Pill Animation ====== */
+
+(() => {
+  const modeContainer = document.querySelector(".mode-switch");
+  if (!modeContainer) return;  // safety
+
+  const pill = document.getElementById("modePill");
+  const buttons = modeContainer.querySelectorAll(".mode-btn");
+
+  function activateMode(btn) {
+    // Remove active class from all
+    buttons.forEach(b => b.classList.remove("active"));
+
+    // Add active class to clicked one
+    btn.classList.add("active");
+
+    // Move pill under the clicked button
+    const { offsetLeft, offsetWidth } = btn;
+    pill.style.transform = `translateX(${offsetLeft - 4}px)`;  // slight inset
+    pill.style.width = `${offsetWidth}px`;
+
+    // Save mode globally (frontend)
+    window.currentAIStrategy = btn.dataset.mode;   // "smart" or "god"
+    console.log(`Mode switched → ${window.currentAIStrategy}`);
+  }
+
+  // On button click → change mode
+  buttons.forEach(btn =>
+    btn.addEventListener("click", () => activateMode(btn))
+  );
+
+  // When page loads, align pill to the default active button
+  window.addEventListener("DOMContentLoaded", () => {
+    const activeBtn = document.querySelector(".mode-btn.active");
+    if (activeBtn) activateMode(activeBtn);
+  });
+
+  // Realign if window resizes
+  window.addEventListener("resize", () => {
+    const activeBtn = document.querySelector(".mode-btn.active");
+    if (activeBtn) activateMode(activeBtn);
+  });
+})();
 </script>
 </body>
 </html>
