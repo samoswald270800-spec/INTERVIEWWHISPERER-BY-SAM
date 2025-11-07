@@ -1,232 +1,201 @@
 <!doctype html>
 <html lang="en">
+
 <head>
-<meta charset="utf-8" />
-<title>Sign in</title>
-<meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta charset="UTF-8" />
+  <title>Login</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
 
-<style>
-/* ======= Premium Theme ======= */
-:root{
-  --bg:#0a0a0a;
-  --panel:#121212;
-  --glass:#151515cc;
-  --line:#262626;
-  --text:#e9e6df;
+  <style>
+    @import url("https://fonts.googleapis.com/css?family=Poppins:300,400,500&display=swap");
 
-  --gold:#f7c86c;       /* primary accent */
-  --gold-2:#ffb54a;     /* warm edge */
-  --teal:#31e2ff;       /* subtle secondary glow */
-}
+    :root {
+      --gold: #f6c56b;
+      --blue: #4cd8ff;
+    }
 
-/* conic angle var for spinning border */
-@property --a {
-  syntax:"<angle>";
-  inherits:false;
-  initial-value:0deg;
-}
+    * {
+      font-family: "Poppins", sans-serif;
+      box-sizing: border-box;
+    }
 
-*{box-sizing:border-box}
-html,body{height:100%}
-body{
-  margin:0;
-  display:grid;
-  place-items:center;
-  background:
-    radial-gradient(1200px 600px at 50% -10%, rgba(247,200,108,.12), transparent 60%),
-    radial-gradient(800px 400px at 50% 110%, rgba(247,200,108,.08), transparent 60%),
-    #000;
-  color:var(--text);
-  font:14px/1.4 system-ui, Segoe UI, Roboto, Arial;
-  -webkit-font-smoothing:antialiased;
-}
+    body {
+      margin: 0;
+      height: 100vh;
+      background: radial-gradient(circle at center, #0b0b0b, #000);
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      overflow: hidden;
+    }
 
-/* ======= Outer neon frame (spins slowly) ======= */
-.box{
-  position:relative;
-  width:420px;
-  height:140px;                  /* collapsed height: only title visible */
-  border-radius:24px;
-  background:repeating-conic-gradient(
-    from var(--a),
-    var(--gold) 0% 6%,
-    transparent 6% 42%,
-    var(--teal) 50%
-  );
-  filter:drop-shadow(0 10px 40px rgba(247,200,108,.18));
-  animation:spin 10s linear infinite;
-  transition:height .5s cubic-bezier(.2,.7,.2,1), transform .5s, filter .5s;
-}
+    /* ====== CONTAINER (animated border) ====== */
+    .box {
+      --a: 0deg;
+      width: 360px;
+      height: 160px;
+      position: relative;
+      border-radius: 24px;
+      transition: 0.5s ease;
+      animation: rotating 4s linear infinite;
+    }
 
-/* open state (on hover or when .open class is added for mobile) */
-.box:hover,
-.box.open{
-  height:520px;
-  transform:translateZ(0) scale(1.02);
-  filter:drop-shadow(0 20px 80px rgba(247,200,108,.28));
-  animation-duration:4s; /* faster spin on reveal */
-}
+    /* Animated border behind */
+    .box::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      border-radius: 24px;
+      background: repeating-conic-gradient(
+          from var(--a),
+          var(--gold) 0%,
+          var(--gold) 10%,
+          transparent 10%,
+          transparent 50%,
+          var(--blue) 60%
+      );
+      animation: rotating 4s linear infinite;
+      z-index: 0;
+    }
 
-@keyframes spin { 0%{--a:0deg} 100%{--a:360deg} }
+    /* Inner login panel (solid, not transparent) */
+    .box::after {
+      content: "";
+      position: absolute;
+      inset: 6px;
+      background: #0d0d0d;   /* OPAQUE FIX ✅ */
+      border-radius: 20px;
+      z-index: 1;
+    }
 
-/* inner glass card */
-.box::after{
-  content:"";
-  position:absolute;
-  inset:6px;
-  background: #0f0f0ff0;
-  border-radius:20px;
-  border:1px solid #1e1e1e;
-  box-shadow:
-    inset 0 0 0 1px #0d0d0d,
-    inset 0 20px 40px rgba(0,0,0,.55);
-  z-index:-1;
-}
+    @keyframes rotating {
+      0% {
+        --a: 0deg;
+      }
+      100% {
+        --a: 360deg;
+      }
+    }
 
-/* ======= Login content ======= */
-.login{
-  position:absolute; inset:0;
-  display:flex; justify-content:center; align-items:flex-start;
-  padding-top:48px;
-  z-index: 10;
-}
+    /* ====== HOVER EXPANDS PANEL ====== */
+    .box:hover {
+      width: 450px;
+      height: 480px;
+    }
 
-.loginBx{
-  width:74%;
-  display:flex; flex-direction:column;
-  gap:22px;
-  transform:translateY(120px);   /* hidden by default */
-  opacity:0;
-  transition:transform .55s cubic-bezier(.2,.7,.2,1), opacity .45s ease;
-}
+    /* ====== LOGIN CONTENT ====== */
+    .login {
+      position: absolute;
+      inset: 0;
+      z-index: 10;
+      display: flex;
+      justify-content: center;
+      align-items: flex-start;
+      flex-direction: column;
+      padding: 60px;
+      opacity: 0;
+      transform: translateY(50px);
+      transition: 0.6s ease;
+    }
 
-/* reveal inputs when expanded */
-.box:hover .loginBx,
-.box.open .loginBx{
-  transform:translateY(0);
-  opacity:1;
-}
+    .box:hover .login {
+      opacity: 1;
+      transform: translateY(0);
+    }
 
-/* title always visible, centered */
-h2{
-  position:absolute; top:24px; left:50%; transform:translateX(-50%);
-  margin:0;
-  letter-spacing:.28em;
-  font-weight:700;
-  color:var(--gold);
-  text-shadow:
-    0 0 8px rgba(247,200,108,.6),
-    0 0 28px rgba(247,200,108,.35);
-  transition:text-shadow .45s ease, transform .45s ease;
-}
+    /* Title */
+    h2 {
+      width: 100%;
+      text-align: center;
+      color: var(--gold);
+      font-size: 24px;
+      letter-spacing: 6px;
+      font-weight: 500;
+      margin-bottom: 32px;
+      text-shadow: 0 0 18px rgba(246, 197, 107, 0.7);
+    }
 
-/* subtle lift on expand */
-.box:hover h2, .box.open h2{
-  transform:translateX(-50%) translateY(-2px);
-  text-shadow:
-    0 0 14px rgba(247,200,108,.85),
-    0 0 40px rgba(49,226,255,.25);
-}
+    /* Inputs */
+    input {
+      width: 100%;
+      padding: 12px 20px;
+      border-radius: 30px;
+      background: #1b1b1b;
+      border: 1px solid #333;
+      color: #e6e6e6;
+      margin-bottom: 18px;
+      font-size: 14px;
+    }
 
-/* inputs */
-.input{
-  width:100%;
-  padding:14px 18px;
-  border-radius:999px;
-  border:1px solid #2a2a2a;
-  background:#1a1a1a;
-  color:#fff;
-  font-size:15px;
-  outline:none;
-  transition:border-color .25s, box-shadow .25s, background .25s;
-}
-.input::placeholder{color:#8c8c8c}
-.input:focus{
-  border-color:var(--gold);
-  box-shadow:0 0 0 3px rgba(247,200,108,.15), 0 0 18px rgba(247,200,108,.25);
-  background:#171717;
-}
+    input::placeholder {
+      color: #888;
+    }
 
-/* sign-in button */
-button{
-  padding:14px 16px;
-  border:none;
-  border-radius:999px;
-  background:linear-gradient(135deg, var(--gold), var(--gold-2));
-  color:#111;
-  font-weight:800;
-  letter-spacing:.02em;
-  cursor:pointer;
-  transition:transform .18s ease, box-shadow .25s ease, filter .25s ease;
-}
-button:hover{
-  transform:translateY(-1px);
-  box-shadow:0 10px 30px rgba(247,200,108,.35);
-  filter:saturate(1.05);
-}
-.err{
-  color:#ff6b6b; font-size:12px; min-height:16px; margin-top:-6px;
-  text-align:center;
-}
+    /* Button */
+    button {
+      width: 100%;
+      padding: 14px;
+      border-radius: 30px;
+      background: var(--gold);
+      border: none;
+      cursor: pointer;
+      font-size: 16px;
+      font-weight: 600;
+      transition: 0.3s ease;
+    }
 
-/* mobile/touch helper: show “Tap to open” hint when collapsed */
-.tapHint{
-  position:absolute; bottom:16px; left:50%; transform:translateX(-50%);
-  font-size:12px; color:#aaa; opacity:.7;
-  pointer-events:none;
-}
-.box:hover .tapHint, .box.open .tapHint{ display:none }
-</style>
+    button:hover {
+      background: #ffd282;
+      box-shadow: 0 0 12px var(--gold);
+    }
+
+    .err {
+      color: #ff6b6b;
+      font-size: 12px;
+      min-height: 16px;
+      margin-bottom: 6px;
+    }
+  </style>
 </head>
 
 <body>
-  <div class="box" id="box">
+
+  <div class="box">
     <div class="login">
       <h2>LOGIN</h2>
 
-      <div class="loginBx">
-        <div class="err" id="err"></div>
-        <input id="u" class="input" type="text" placeholder="Username" autocomplete="username" />
-        <input id="p" class="input" type="password" placeholder="Password" autocomplete="current-password" />
-        <button id="loginBtn">Sign in</button>
-      </div>
+      <div class="err" id="err"></div>
 
-      <div class="tapHint">Tap or hover to sign in</div>
+      <input id="u" autocomplete="username" placeholder="Username" />
+      <input id="p" type="password" autocomplete="current-password" placeholder="Password" />
+
+      <button id="login">Sign in</button>
     </div>
   </div>
 
-<script>
-/* Click-to-open for touch devices (hover unavailable) */
-const box = document.getElementById('box');
-const openBox = () => box.classList.add('open');
-const closeBox = (e) => {
-  // keep open while focusing inputs
-  if (e && (e.target.closest('.loginBx') || e.target === box)) return;
-  box.classList.remove('open');
-};
-box.addEventListener('click', openBox);
-document.addEventListener('click', closeBox);
+  <script>
+    document.getElementById("login").onclick = async () => {
+      const body = {
+        username: document.getElementById("u").value.trim(),
+        password: document.getElementById("p").value,
+      };
 
-/* Login call (unchanged backend) */
-document.getElementById('loginBtn').onclick = async () => {
-  const body = {
-    username: document.getElementById('u').value.trim(),
-    password: document.getElementById('p').value
-  };
+      const r = await fetch("/api/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+        credentials: "include",
+      });
 
-  const r = await fetch('/api/login', {
-    method:'POST',
-    headers:{'Content-Type':'application/json'},
-    body:JSON.stringify(body),
-    credentials:'include'
-  });
+      if (r.ok) location.href = "/";
+      else {
+        const j = await r.json().catch(() => ({ error: "Login failed" }));
+        document.getElementById("err").textContent =
+          j.error || "Invalid username or password";
+      }
+    };
+  </script>
 
-  if (r.ok) location.href = '/';
-  else {
-    const j = await r.json().catch(()=>({error:'Invalid credentials'}));
-    document.getElementById('err').textContent = j.error || 'Invalid username or password';
-  }
-};
-</script>
 </body>
+
 </html>
