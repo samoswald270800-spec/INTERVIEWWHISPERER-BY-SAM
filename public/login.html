@@ -1,200 +1,162 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <title>Interview Whisperer — Login</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1">
+<meta charset="UTF-8" />
+<title>Login</title>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
 
-  <!-- Fonts + Icons -->
-  <link href="https://fonts.googleapis.com/css?family=Poppins:300,400,500,600,700&display=swap" rel="stylesheet">
-  <link href="https://use.fontawesome.com/releases/v6.5.1/css/all.css" rel="stylesheet">
+<link rel="stylesheet"
+ href="https://use.fontawesome.com/releases/v6.5.1/css/all.css"
+/>
 
-  <style>
-    /* ========== GLOBAL ========== */
-    body {
-      display: flex;
-      justify-content: center;
-      align-items: center;
-      min-height: 100vh;
-      margin: 0;
-      background: #0b0b0b;
-      font-family: "Poppins", sans-serif;
-    }
+<style>
+@import url("https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600&display=swap");
 
-    @property --a {
-      syntax: "<angle>";
-      inherits: false;
-      initial-value: 0deg;
-    }
+:root{
+  --pink:#ff2770;
+  --cyan:#45f3ff;
+  --bg:#0b0b0b;
+}
 
-    /* ========== ANIMATED LOGIN CARD ========== */
-    .box {
-      position: relative;
-      width: 420px;
-      height: 220px;
-      background: repeating-conic-gradient(
-        from var(--a),
-        #ff2770 0%,
-        #ff2770 5%,
-        transparent 5%,
-        transparent 40%,
-        #ff2770 50%
-      );
-      filter: drop-shadow(0 0 40px #ff2770);
-      border-radius: 22px;
-      animation: rotating 4s linear infinite;
-      display: flex;
-      justify-content: center;
-      align-items: center;
-      transition: .5s;
-    }
+*{ box-sizing:border-box; font-family:Poppins, sans-serif; }
 
-    @keyframes rotating {
-      0% { --a: 0deg; }
-      100% { --a: 360deg; }
-    }
+body{
+  display:flex;
+  justify-content:center;
+  align-items:center;
+  height:100vh;
+  background:radial-gradient(circle at center, #3a0d17 0%, #050505 60%, #000000 100%);
+  overflow:hidden;
+}
 
-    .box::before {
-      content: "";
-      position: absolute;
-      width: 100%;
-      height: 100%;
-      background: repeating-conic-gradient(
-        from var(--a),
-        #45f3ff 0%,
-        #45f3ff 5%,
-        transparent 5%,
-        transparent 40%,
-        #45f3ff 50%
-      );
-      filter: drop-shadow(0 0 40px #45f3ff);
-      border-radius: 22px;
-      animation: rotating 4s linear infinite;
-      animation-delay: -1s;
-    }
+/* 🟣 Outer neon animated border */
+.box{
+  position:relative;
+  width:420px;
+  height:480px;
+  border-radius:25px;
+  animation:rotate 4s linear infinite;
+  padding:0;
+  margin:0;
+}
 
-    .box::after {
-      content: "";
-      position: absolute;
-      inset: 4px;
-      background: #1a1a1a;
-      border-radius: 18px;
-      border: 6px solid #101010;
-    }
+@property --a {
+  syntax: "<angle>";
+  inherits: false;
+  initial-value: 0deg;
+}
 
-    .box:hover {
-      width: 460px;
-      height: 500px;
-    }
+.box{
+  background: repeating-conic-gradient(
+    from var(--a),
+    var(--pink) 0%, var(--pink) 8%,
+    transparent 8%, transparent 43%,
+    var(--cyan) 50%
+  );
+  filter:drop-shadow(0 0 80px var(--pink));
+}
 
-    /* content inside */
-    .login {
-      position: absolute;
-      inset: 60px;
-      display: flex;
-      justify-content: center;
-      align-items: center;
-      flex-direction: column;
-      color: white;
-      z-index: 10;
-      padding: 10px;
-      text-align: center;
-    }
+@keyframes rotate {
+  0% { --a:0deg; }
+  100% { --a:360deg; }
+}
 
-    h2 {
-      margin: 0;
-      font-size: 26px;
-      font-weight: 600;
-      text-transform: uppercase;
-      letter-spacing: 3px;
-      color: #ff2770;
-      text-shadow: 0 0 10px #ff2770;
-    }
+/* ✨ Card (glass panel) */
+.box::after{
+  content:"";
+  position:absolute;
+  inset:6px;
+  background:#141414;
+  border-radius:20px;
+}
 
-    input {
-      width: 100%;
-      padding: 12px 18px;
-      border-radius: 24px;
-      border: none;
-      background: rgba(255,255,255,.05);
-      border: 1px solid rgba(255,255,255,.2);
-      color: #fff;
-      margin-top: 14px;
-      font-size: 14px;
-      outline: none;
-      transition: .2s;
-    }
+/* 🔐 Login content */
+.login{
+  position:absolute;
+  inset:0;
+  display:flex;
+  justify-content:center;
+  align-items:center;
+}
 
-    input:focus {
-      border-color: #45f3ff;
-      box-shadow: 0 0 12px #45f3ff;
-    }
+.loginBx{
+  display:flex;
+  flex-direction:column;
+  width:70%;
+  gap:25px;
+  z-index:10;
+}
 
-    button {
-      width: 100%;
-      padding: 12px;
-      border-radius: 24px;
-      border: none;
-      margin-top: 18px;
-      background: #45f3ff;
-      color: #111;
-      font-size: 16px;
-      font-weight: 600;
-      cursor: pointer;
-      transition: .3s;
-    }
+h2{
+  font-weight:600;
+  text-align:center;
+  color:var(--pink);
+  letter-spacing:0.15em;
+  margin-bottom:15px;
+  text-shadow:0 0 15px var(--pink), 0 0 40px var(--pink);
+}
 
-    button:hover {
-      box-shadow: 0 0 15px #45f3ff;
-      transform: scale(1.05);
-    }
+/* 🔹 Inputs */
+input{
+  width:100%;
+  padding:14px 22px;
+  background:#111;
+  border:2px solid #2a2a2a;
+  border-radius:30px;
+  color:#fff;
+  font-size:1rem;
+}
+input::placeholder{ color:#777; }
 
-    .err {
-      margin-top: 10px;
-      color: #ff6b6b;
-      font-size: 14px;
-      min-height: 20px;
-    }
-  </style>
+/* 🔥 Login button */
+button{
+  padding:14px;
+  border:none;
+  border-radius:30px;
+  background:var(--cyan);
+  color:#000;
+  font-weight:bold;
+  cursor:pointer;
+  transition:0.2s ease;
+}
+button:hover{
+  transform:scale(1.05);
+  box-shadow:0 0 20px var(--cyan);
+}
+</style>
 </head>
 
 <body>
-
   <div class="box">
     <div class="login">
-      <h2>Login</h2>
+      <div class="loginBx">
+        <h2>LOGIN</h2>
 
-      <div class="err" id="err"></div>
+        <input id="u" type="text" placeholder="Username" autocomplete="username">
+        <input id="p" type="password" placeholder="Password" autocomplete="current-password">
 
-      <input id="u" type="text" placeholder="Username" autocomplete="username" />
-      <input id="p" type="password" placeholder="Password" autocomplete="current-password" />
-
-      <button id="login">Sign in</button>
+        <button id="loginBtn">Sign in</button>
+      </div>
     </div>
   </div>
 
 <script>
-document.getElementById('login').onclick = async () => {
+document.getElementById('loginBtn').onclick = async () => {
   const body = {
     username: document.getElementById('u').value.trim(),
     password: document.getElementById('p').value
   };
 
   const r = await fetch('/api/login', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
-    credentials: 'include'
+    method:'POST',
+    headers:{ 'Content-Type':'application/json' },
+    body:JSON.stringify(body),
+    credentials:'include'
   });
 
-  if (r.ok) {
-    location.href = '/'; // redirect to dashboard
-  } else {
-    const j = await r.json().catch(() => ({ error: 'Login failed' }));
-    document.getElementById('err').textContent = j.error || 'Invalid username or password';
-  }
+  if (r.ok) location.href = "/";
+  else alert("Invalid credentials");
 };
 </script>
-
 </body>
 </html>
