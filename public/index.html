@@ -241,13 +241,39 @@ button:hover {
     return '';
   }
 
-  function askForAnswer() {
+function askForAnswer() {
     if (!dc || !dcOpen) return;
-    // Only request an answer once per spoken turn
     if (gotAnswerThisTurn) return;
     gotAnswerThisTurn = true;
     pillOn(pProcessing, true);
-    dc.send(JSON.stringify({ type:'response.create', response:{ modalities:['text'] }}));
+
+    const mode = (window.currentAIStrategy || "smart").toLowerCase();
+    const modeInstructions = `
+MODE ACTIVE: ${mode === "god" ? "GODMODE (ULTRA DETAILED)" : "SMART DETAIL"}
+
+${mode === "god" ? `
+- Speak 3–5 minutes with exhaustive depth.
+- Full storyline: business context → hypothesis → tools → data → steps → QA → rollout → metrics → lessons → next steps.
+- Call out stakeholders, constraints, trade-offs, risks, mitigations.
+- Show ownership and seniority; anticipate follow-ups.
+` : `
+- Speak ~60–90 seconds, crisp and complete.
+- Use STAR/SOAR; lead with outcome + metrics.
+- Focus on what the interviewer needs; no fluff.
+`}
+`.trim();
+
+    // 1) Update session behavior for this turn
+    dc.send(JSON.stringify({
+      type: "session.update",
+      session: { instructions: modeInstructions }
+    }));
+
+    // 2) Ask for the response
+    dc.send(JSON.stringify({
+      type: "response.create",
+      response: { modalities: ["text"] }
+    }));
   }
 
   function attachChannel(ch) {
@@ -355,43 +381,7 @@ button:hover {
     if (!token) { setStatus('token failed'); logDbg(session); return; }
 
     pc = new RTCPeerConnection();
-    window.pc = pc; // for console debugging
-
-    attachChannel(pc.createDataChannel('oai-events'));
-    pc.ondatachannel = (e) => attachChannel(e.channel);
-    /* =========================
-   MODE SWITCH (UI + realtime)
-   ========================= */
-let CURRENT_MODE = "smart";  // default
-
-const pill = document.getElementById("modePill");
-const buttons = document.querySelectorAll(".mode-btn");
-
-buttons.forEach(btn => {
-  btn.addEventListener("click", () => {
-    buttons.forEach(b => b.classList.remove("active"));
-    btn.classList.add("active");
-
-    CURRENT_MODE = btn.dataset.mode; // "smart" or "god"
-
-    // Move pill visually
-    pill.style.transform = CURRENT_MODE === "god"
-      ? "translateX(100%)"
-      : "translateX(0%)";
-
-    // ✅ Send mode update to GPT (realtime)
-    if (dc && dc.readyState === "open") {
-      dc.send(JSON.stringify({
-        type: "session.update",
-        session: {
-          instructions: `mode=${CURRENT_MODE}`
-        }
-      }));
-    }
-
-    console.log("MODE UPDATED →", CURRENT_MODE);
-  });
-});
+   
     pc.oniceconnectionstatechange = () => setStatus('ice: ' + pc.iceConnectionState);
 
     // Capture meeting tab/window with audio
@@ -485,44 +475,57 @@ buttons.forEach(btn => {
     await fetch('/api/logout', { method: 'POST' });
     window.location.href = '/login';
   }
-  /* ====== Smart Detail / GodMode — UI Pill Animation ====== */
-
+/* ====== Smart Detail / GodMode — UI Pill + Backend sync ====== */
 (() => {
   const modeContainer = document.querySelector(".mode-switch");
-  if (!modeContainer) return;  // safety
+  if (!modeContainer) return;
 
   const pill = document.getElementById("modePill");
   const buttons = modeContainer.querySelectorAll(".mode-btn");
 
-  function activateMode(btn) {
-    // Remove active class from all
-    buttons.forEach(b => b.classList.remove("active"));
-
-    // Add active class to clicked one
-    btn.classList.add("active");
-
-    // Move pill under the clicked button
-    const { offsetLeft, offsetWidth } = btn;
-    pill.style.transform = `translateX(${offsetLeft - 4}px)`;  // slight inset
-    pill.style.width = `${offsetWidth}px`;
-
-    // Save mode globally (frontend)
-    window.currentAIStrategy = btn.dataset.mode;   // "smart" or "god"
-    console.log(`Mode switched → ${window.currentAIStrategy}`);
+  async function updateServerMode(mode) {
+    try {
+      await fetch("/set-mode", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ mode })        // ✅ persist to session on server
+      });
+      console.log("✅ backend mode set:", mode);
+    } catch (e) {
+      console.error("❌ backend mode update failed:", e);
+    }
   }
 
-  // On button click → change mode
+  function activateMode(btn) {
+    // UI state
+    buttons.forEach(b => b.classList.remove("active"));
+    btn.classList.add("active");
+
+    // Move the pill under the active button
+    const { offsetLeft, offsetWidth } = btn;
+    pill.style.transform = `translateX(${offsetLeft - 4}px)`;
+    pill.style.width = `${offsetWidth}px`;
+
+    // Global mode for the main script
+    const selectedMode = btn.dataset.mode; // "smart" | "god"
+    window.currentAIStrategy = selectedMode;
+
+    // Persist mode to server session (affects new realtime sessions)
+    updateServerMode(selectedMode);
+  }
+
+  // Wire up clicks
   buttons.forEach(btn =>
     btn.addEventListener("click", () => activateMode(btn))
   );
 
-  // When page loads, align pill to the default active button
+  // Align on load to the default active button
   window.addEventListener("DOMContentLoaded", () => {
-    const activeBtn = document.querySelector(".mode-btn.active");
+    const activeBtn = document.querySelector(".mode-btn.active") || buttons[0];
     if (activeBtn) activateMode(activeBtn);
   });
 
-  // Realign if window resizes
+  // Keep pill aligned on resize
   window.addEventListener("resize", () => {
     const activeBtn = document.querySelector(".mode-btn.active");
     if (activeBtn) activateMode(activeBtn);
