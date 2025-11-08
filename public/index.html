@@ -189,7 +189,7 @@ button:hover {
   const logDbg = o => {
     try { debugEl.textContent += JSON.stringify(o, null, 2) + "\n"; }
     catch { debugEl.textContent += String(o) + "\n"; }
-     debugEl.style.display = 'block'; // uncomment to always show
+    // debugEl.style.display = 'block'; // uncomment to always show
     debugEl.scrollTop = debugEl.scrollHeight;
   };
 
@@ -241,42 +241,14 @@ button:hover {
     return '';
   }
 
-function askForAnswer() {
-  if (!dc || !dcOpen) return;
-  if (gotAnswerThisTurn) return;
-
-  gotAnswerThisTurn = true;
-  pillOn(pProcessing, true);
-
-  const mode = (window.CURRENT_MODE || "smart").toLowerCase();
-  const modeInstructions = `
-You are the candidate in a job interview. Answer in first person.
-
-MODE: ${mode === "god" ? "🔥 GODMODE (Ultra-Detailed)" : "🟢 SMART DETAIL"}
-
-SMART DETAIL:
-- 60–90 sec
-- crisp, STAR format
-- concise metrics & outcome
-
-GODMODE:
-- 3–5 mins
-- full breakdown: problem → actions → tools → metrics → collaboration → learnings
-- NEVER break character
-`;
-
-  // ✅ tell realtime model: use these instructions for THIS response
-  dc.send(JSON.stringify({
-    type: "session.update",
-    session: { instructions: modeInstructions }
-  }));
-
-  // ✅ ask model to respond
-  dc.send(JSON.stringify({
-    type: "response.create",
-    response: { modalities: ["text"] }
-  }));
-}
+  function askForAnswer() {
+    if (!dc || !dcOpen) return;
+    // Only request an answer once per spoken turn
+    if (gotAnswerThisTurn) return;
+    gotAnswerThisTurn = true;
+    pillOn(pProcessing, true);
+    dc.send(JSON.stringify({ type:'response.create', response:{ modalities:['text'] }}));
+  }
 
   function attachChannel(ch) {
     dc = ch;
@@ -289,7 +261,7 @@ GODMODE:
         type: 'session.update',
         session: {
           modalities: ['text'],
-          input_audio_transcription: { model: 'gpt-4o-transcribe'},
+          input_audio_transcription: { model: 'whisper-1' },
           turn_detection: {
             type: 'server_vad',
             threshold: 0.5,
@@ -305,7 +277,7 @@ GODMODE:
 
     dc.onmessage = (e) => {
       let msg; try { msg = JSON.parse(e.data); } catch { return; }
-      logDbg(msg);
+      // logDbg(msg);
 
       switch (msg.type) {
         // VAD lifecycle
@@ -375,30 +347,18 @@ GODMODE:
       }
     };
   }
-function lockModeSwitch() {
-  document.querySelectorAll(".mode-btn").forEach(btn => {
-    btn.disabled = true;
-    btn.style.opacity = "0.4";
-    btn.style.cursor = "not-allowed";
-  });
-}
 
-function unlockModeSwitch() {
-  document.querySelectorAll(".mode-btn").forEach(btn => {
-    btn.disabled = false;
-    btn.style.opacity = "1";
-    btn.style.cursor = "pointer";
-  });
-}
   async function startRealtime() {
-   lockModeSwitch();
-setStatus('requesting session…');
-    const session = await fetch(`/session?mode=${window.CURRENT_MODE}`, { method: 'POST' }).then(r => r.json()).catch(err => ({error:String(err)}));
+    setStatus('requesting session…');
+    const session = await fetch('/session', { method: 'POST' }).then(r => r.json()).catch(err => ({error:String(err)}));
     const token = session?.client_secret?.value;
     if (!token) { setStatus('token failed'); logDbg(session); return; }
 
     pc = new RTCPeerConnection();
-   
+    window.pc = pc; // for console debugging
+
+    attachChannel(pc.createDataChannel('oai-events'));
+    pc.ondatachannel = (e) => attachChannel(e.channel);
     pc.oniceconnectionstatechange = () => setStatus('ice: ' + pc.iceConnectionState);
 
     // Capture meeting tab/window with audio
@@ -446,8 +406,7 @@ setStatus('requesting session…');
 
   startBtn.onclick = startRealtime;
 
- stopBtn.onclick = () => {
-  unlockModeSwitch();
+  stopBtn.onclick = () => {
     try { if (tabStream) tabStream.getTracks().forEach(t => t.stop()); } catch {}
     try { if (pc) pc.close(); } catch {}
     try { if (meterCtx) meterCtx.close(); } catch {}
@@ -493,30 +452,45 @@ setStatus('requesting session…');
     await fetch('/api/logout', { method: 'POST' });
     window.location.href = '/login';
   }
-/* ====== Smart Detail / GodMode — UI Pill (NO backend push) ====== */
+  /* ====== Smart Detail / GodMode — UI Pill Animation ====== */
+
 (() => {
   const modeContainer = document.querySelector(".mode-switch");
-  if (!modeContainer) return;
-
-  window.CURRENT_MODE = "smart";   // <-- global mode selection
+  if (!modeContainer) return;  // safety
 
   const pill = document.getElementById("modePill");
   const buttons = modeContainer.querySelectorAll(".mode-btn");
 
   function activateMode(btn) {
+    // Remove active class from all
     buttons.forEach(b => b.classList.remove("active"));
+
+    // Add active class to clicked one
     btn.classList.add("active");
 
+    // Move pill under the clicked button
     const { offsetLeft, offsetWidth } = btn;
-    pill.style.transform = `translateX(${offsetLeft - 4}px)`;
+    pill.style.transform = `translateX(${offsetLeft - 4}px)`;  // slight inset
     pill.style.width = `${offsetWidth}px`;
 
-    window.CURRENT_MODE = btn.dataset.mode; // smart | god
+    // Save mode globally (frontend)
+    window.currentAIStrategy = btn.dataset.mode;   // "smart" or "god"
+    console.log(`Mode switched → ${window.currentAIStrategy}`);
   }
 
-  buttons.forEach(btn => btn.addEventListener("click", () => activateMode(btn)));
+  // On button click → change mode
+  buttons.forEach(btn =>
+    btn.addEventListener("click", () => activateMode(btn))
+  );
 
+  // When page loads, align pill to the default active button
   window.addEventListener("DOMContentLoaded", () => {
+    const activeBtn = document.querySelector(".mode-btn.active");
+    if (activeBtn) activateMode(activeBtn);
+  });
+
+  // Realign if window resizes
+  window.addEventListener("resize", () => {
     const activeBtn = document.querySelector(".mode-btn.active");
     if (activeBtn) activateMode(activeBtn);
   });
