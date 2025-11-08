@@ -359,6 +359,39 @@ button:hover {
 
     attachChannel(pc.createDataChannel('oai-events'));
     pc.ondatachannel = (e) => attachChannel(e.channel);
+    /* =========================
+   MODE SWITCH (UI + realtime)
+   ========================= */
+let CURRENT_MODE = "smart";  // default
+
+const pill = document.getElementById("modePill");
+const buttons = document.querySelectorAll(".mode-btn");
+
+buttons.forEach(btn => {
+  btn.addEventListener("click", () => {
+    buttons.forEach(b => b.classList.remove("active"));
+    btn.classList.add("active");
+
+    CURRENT_MODE = btn.dataset.mode; // "smart" or "god"
+
+    // Move pill visually
+    pill.style.transform = CURRENT_MODE === "god"
+      ? "translateX(100%)"
+      : "translateX(0%)";
+
+    // ✅ Send mode update to GPT (realtime)
+    if (dc && dc.readyState === "open") {
+      dc.send(JSON.stringify({
+        type: "session.update",
+        session: {
+          instructions: `mode=${CURRENT_MODE}`
+        }
+      }));
+    }
+
+    console.log("MODE UPDATED →", CURRENT_MODE);
+  });
+});
     pc.oniceconnectionstatechange = () => setStatus('ice: ' + pc.iceConnectionState);
 
     // Capture meeting tab/window with audio
