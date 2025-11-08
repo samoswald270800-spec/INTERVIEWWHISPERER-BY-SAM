@@ -264,10 +264,7 @@ ${mode === "god" ? `
 `.trim();
 
     // 1) Update session behavior for this turn
-    dc.send(JSON.stringify({
-      type: "session.update",
-      session: { instructions: modeInstructions }
-    }));
+  
 
     // 2) Ask for the response
     dc.send(JSON.stringify({
@@ -373,10 +370,25 @@ ${mode === "god" ? `
       }
     };
   }
+function lockModeSwitch() {
+  document.querySelectorAll(".mode-btn").forEach(btn => {
+    btn.disabled = true;
+    btn.style.opacity = "0.4";
+    btn.style.cursor = "not-allowed";
+  });
+}
 
+function unlockModeSwitch() {
+  document.querySelectorAll(".mode-btn").forEach(btn => {
+    btn.disabled = false;
+    btn.style.opacity = "1";
+    btn.style.cursor = "pointer";
+  });
+}
   async function startRealtime() {
-    setStatus('requesting session…');
-    const session = await fetch('/session', { method: 'POST' }).then(r => r.json()).catch(err => ({error:String(err)}));
+   lockModeSwitch();
+setStatus('requesting session…');
+    const session = await fetch(`/session?mode=${window.CURRENT_MODE}`, { method: 'POST' }).then(r => r.json()).catch(err => ({error:String(err)}));
     const token = session?.client_secret?.value;
     if (!token) { setStatus('token failed'); logDbg(session); return; }
 
@@ -429,7 +441,8 @@ ${mode === "god" ? `
 
   startBtn.onclick = startRealtime;
 
-  stopBtn.onclick = () => {
+ stopBtn.onclick = () => {
+  unlockModeSwitch();
     try { if (tabStream) tabStream.getTracks().forEach(t => t.stop()); } catch {}
     try { if (pc) pc.close(); } catch {}
     try { if (meterCtx) meterCtx.close(); } catch {}
@@ -475,58 +488,30 @@ ${mode === "god" ? `
     await fetch('/api/logout', { method: 'POST' });
     window.location.href = '/login';
   }
-/* ====== Smart Detail / GodMode — UI Pill + Backend sync ====== */
+/* ====== Smart Detail / GodMode — UI Pill (NO backend push) ====== */
 (() => {
   const modeContainer = document.querySelector(".mode-switch");
   if (!modeContainer) return;
 
+  window.CURRENT_MODE = "smart";   // <-- global mode selection
+
   const pill = document.getElementById("modePill");
   const buttons = modeContainer.querySelectorAll(".mode-btn");
 
-  async function updateServerMode(mode) {
-    try {
-      await fetch("/set-mode", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ mode })        // ✅ persist to session on server
-      });
-      console.log("✅ backend mode set:", mode);
-    } catch (e) {
-      console.error("❌ backend mode update failed:", e);
-    }
-  }
-
   function activateMode(btn) {
-    // UI state
     buttons.forEach(b => b.classList.remove("active"));
     btn.classList.add("active");
 
-    // Move the pill under the active button
     const { offsetLeft, offsetWidth } = btn;
     pill.style.transform = `translateX(${offsetLeft - 4}px)`;
     pill.style.width = `${offsetWidth}px`;
 
-    // Global mode for the main script
-    const selectedMode = btn.dataset.mode; // "smart" | "god"
-    window.currentAIStrategy = selectedMode;
-
-    // Persist mode to server session (affects new realtime sessions)
-    updateServerMode(selectedMode);
+    window.CURRENT_MODE = btn.dataset.mode; // smart | god
   }
 
-  // Wire up clicks
-  buttons.forEach(btn =>
-    btn.addEventListener("click", () => activateMode(btn))
-  );
+  buttons.forEach(btn => btn.addEventListener("click", () => activateMode(btn)));
 
-  // Align on load to the default active button
   window.addEventListener("DOMContentLoaded", () => {
-    const activeBtn = document.querySelector(".mode-btn.active") || buttons[0];
-    if (activeBtn) activateMode(activeBtn);
-  });
-
-  // Keep pill aligned on resize
-  window.addEventListener("resize", () => {
     const activeBtn = document.querySelector(".mode-btn.active");
     if (activeBtn) activateMode(activeBtn);
   });
