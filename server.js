@@ -429,7 +429,7 @@ app.post("/set-mode", (req, res) => {
 /* Mint ephemeral session token for the browser — MODE AWARE */
 app.post("/session", async (req, res) => {
   try {
-    const currentMode = req.session?.mode || "smart"; // "smart" | "god"
+    const currentMode = req.query.mode || "smart";
 
     const instructions =
       currentMode === "god"
