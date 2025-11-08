@@ -242,36 +242,41 @@ button:hover {
   }
 
 function askForAnswer() {
-    if (!dc || !dcOpen) return;
-    if (gotAnswerThisTurn) return;
-    gotAnswerThisTurn = true;
-    pillOn(pProcessing, true);
+  if (!dc || !dcOpen) return;
+  if (gotAnswerThisTurn) return;
 
-    const mode = (window.currentAIStrategy || "smart").toLowerCase();
-    const modeInstructions = `
-MODE ACTIVE: ${mode === "god" ? "GODMODE (ULTRA DETAILED)" : "SMART DETAIL"}
+  gotAnswerThisTurn = true;
+  pillOn(pProcessing, true);
 
-${mode === "god" ? `
-- Speak 3–5 minutes with exhaustive depth.
-- Full storyline: business context → hypothesis → tools → data → steps → QA → rollout → metrics → lessons → next steps.
-- Call out stakeholders, constraints, trade-offs, risks, mitigations.
-- Show ownership and seniority; anticipate follow-ups.
-` : `
-- Speak ~60–90 seconds, crisp and complete.
-- Use STAR/SOAR; lead with outcome + metrics.
-- Focus on what the interviewer needs; no fluff.
-`}
-`.trim();
+  const mode = (window.CURRENT_MODE || "smart").toLowerCase();
+  const modeInstructions = `
+You are the candidate in a job interview. Answer in first person.
 
-    // 1) Update session behavior for this turn
-  
+MODE: ${mode === "god" ? "🔥 GODMODE (Ultra-Detailed)" : "🟢 SMART DETAIL"}
 
-    // 2) Ask for the response
-    dc.send(JSON.stringify({
-      type: "response.create",
-      response: { modalities: ["text"] }
-    }));
-  }
+SMART DETAIL:
+- 60–90 sec
+- crisp, STAR format
+- concise metrics & outcome
+
+GODMODE:
+- 3–5 mins
+- full breakdown: problem → actions → tools → metrics → collaboration → learnings
+- NEVER break character
+`;
+
+  // ✅ tell realtime model: use these instructions for THIS response
+  dc.send(JSON.stringify({
+    type: "session.update",
+    session: { instructions: modeInstructions }
+  }));
+
+  // ✅ ask model to respond
+  dc.send(JSON.stringify({
+    type: "response.create",
+    response: { modalities: ["text"] }
+  }));
+}
 
   function attachChannel(ch) {
     dc = ch;
@@ -290,7 +295,7 @@ ${mode === "god" ? `
             threshold: 0.5,
             prefix_padding_ms: 300,
             silence_duration_ms: 700,
-            create_response: true,         // <- prevent unsolicited answers
+            create_response: false,         // <- prevent unsolicited answers
             interrupt_response: true
           }
         }
