@@ -189,7 +189,7 @@ button:hover {
   const logDbg = o => {
     try { debugEl.textContent += JSON.stringify(o, null, 2) + "\n"; }
     catch { debugEl.textContent += String(o) + "\n"; }
-    // debugEl.style.display = 'block'; // uncomment to always show
+     debugEl.style.display = 'block'; // uncomment to always show
     debugEl.scrollTop = debugEl.scrollHeight;
   };
 
