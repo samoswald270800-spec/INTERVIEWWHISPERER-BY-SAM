@@ -162,6 +162,9 @@ button:hover {
 
 <script>
 (() => {
+  // --- Mode state lives at top-level of this IIFE ---
+  let CURRENT_MODE = "smart";
+  const startBtn = document.getElementById('startBtn');
   const startBtn = document.getElementById('startBtn');
   const stopBtn  = document.getElementById('stopBtn');
   const muteBtn  = document.getElementById('muteBtn');
@@ -175,6 +178,52 @@ button:hover {
   const jdEl = document.getElementById('jd');
   const saveJD = document.getElementById('saveJD');
   const savedTag = document.getElementById('savedTag');
+  // =====================================================
+// MODE SWITCH SETUP (Smart Detail / GodMode pill toggle)
+// =====================================================
+function setupModeSwitch() {
+  const modeContainer = document.querySelector(".mode-switch");
+  if (!modeContainer) return;
+
+  const pill = document.getElementById("modePill");
+  const buttons = modeContainer.querySelectorAll(".mode-btn");
+
+  function activate(btn) {
+    buttons.forEach(b => b.classList.remove("active"));
+    btn.classList.add("active");
+
+    CURRENT_MODE = btn.dataset.mode; // 👉 "smart" or "god"
+
+    const { offsetLeft, offsetWidth } = btn;
+    pill.style.transform = `translateX(${offsetLeft - 4}px)`;
+    pill.style.width = `${offsetWidth}px`;
+
+    // Send live update to GPT session
+    if (dc && dc.readyState === "open") {
+      dc.send(JSON.stringify({
+        type: "session.update",
+        session: { instructions: `mode=${CURRENT_MODE}` }
+      }));
+    }
+  }
+
+  buttons.forEach(btn =>
+    btn.addEventListener("click", () => activate(btn))
+  );
+
+  const active = modeContainer.querySelector(".mode-btn.active") || buttons[0];
+  activate(active);
+
+  window.addEventListener("resize", () => {
+    const activeNow = modeContainer.querySelector(".mode-btn.active");
+    if (activeNow) activate(activeNow);
+  });
+}
+
+// ✅ Call it once
+setupModeSwitch();
+  function newCard() {
+    const root = document.createElement('div'); root.className = 'qa';
 
   let pc, dc, tabStream, audioTrack, meterNode, meterCtx;
   let dcOpen = false;
@@ -241,15 +290,41 @@ button:hover {
     return '';
   }
 
-  function askForAnswer() {
-    if (!dc || !dcOpen) return;
-    // Only request an answer once per spoken turn
-    if (gotAnswerThisTurn) return;
-    gotAnswerThisTurn = true;
-    pillOn(pProcessing, true);
-    dc.send(JSON.stringify({ type:'response.create', response:{ modalities:['text'] }}));
-  }
+function askForAnswer() {
+  if (!dc || !dcOpen) return;
+  if (gotAnswerThisTurn) return;
+  gotAnswerThisTurn = true;
+  pillOn(pProcessing, true);
 
+  // 1) Update server-side instructions for this turn based on CURRENT_MODE
+  const modeInstructions = `
+MODE ACTIVE: ${CURRENT_MODE}
+
+${CURRENT_MODE === "smart"
+  ? `SMART DETAIL MODE ✅
+- Polished, focused answers (~60–90s)
+- STAR/SOAR structure
+- Lead with outcome + key metrics
+- Trim filler; answer what the interviewer needs`
+  : `🟩 GODMODE (ULTRA DETAILED) ✅
+- 3–5 minute full narrative
+- Problem → tools → steps → challenges → collab → impact
+- Lots of numbers, decisions, trade-offs, lessons
+- Strong ownership and confidence; anticipate follow-ups`
+}
+`.trim();
+
+  dc.send(JSON.stringify({
+    type: "session.update",
+    session: { instructions: modeInstructions }
+  }));
+
+  // 2) Ask for a response now
+  dc.send(JSON.stringify({
+    type: "response.create",
+    response: { modalities: ["text"] }
+  }));
+}
   function attachChannel(ch) {
     dc = ch;
     dc.onopen = () => {
@@ -359,39 +434,7 @@ button:hover {
 
     attachChannel(pc.createDataChannel('oai-events'));
     pc.ondatachannel = (e) => attachChannel(e.channel);
-    /* =========================
-   MODE SWITCH (UI + realtime)
-   ========================= */
-let CURRENT_MODE = "smart";  // default
-
-const pill = document.getElementById("modePill");
-const buttons = document.querySelectorAll(".mode-btn");
-
-buttons.forEach(btn => {
-  btn.addEventListener("click", () => {
-    buttons.forEach(b => b.classList.remove("active"));
-    btn.classList.add("active");
-
-    CURRENT_MODE = btn.dataset.mode; // "smart" or "god"
-
-    // Move pill visually
-    pill.style.transform = CURRENT_MODE === "god"
-      ? "translateX(100%)"
-      : "translateX(0%)";
-
-    // ✅ Send mode update to GPT (realtime)
-    if (dc && dc.readyState === "open") {
-      dc.send(JSON.stringify({
-        type: "session.update",
-        session: {
-          instructions: `mode=${CURRENT_MODE}`
-        }
-      }));
-    }
-
-    console.log("MODE UPDATED →", CURRENT_MODE);
-  });
-});
+   
     pc.oniceconnectionstatechange = () => setStatus('ice: ' + pc.iceConnectionState);
 
     // Capture meeting tab/window with audio
@@ -480,54 +523,6 @@ buttons.forEach(btn => {
   Logout
 </button>
 
-<script>
-  async function logout() {
-    await fetch('/api/logout', { method: 'POST' });
-    window.location.href = '/login';
-  }
-  /* ====== Smart Detail / GodMode — UI Pill Animation ====== */
 
-(() => {
-  const modeContainer = document.querySelector(".mode-switch");
-  if (!modeContainer) return;  // safety
-
-  const pill = document.getElementById("modePill");
-  const buttons = modeContainer.querySelectorAll(".mode-btn");
-
-  function activateMode(btn) {
-    // Remove active class from all
-    buttons.forEach(b => b.classList.remove("active"));
-
-    // Add active class to clicked one
-    btn.classList.add("active");
-
-    // Move pill under the clicked button
-    const { offsetLeft, offsetWidth } = btn;
-    pill.style.transform = `translateX(${offsetLeft - 4}px)`;  // slight inset
-    pill.style.width = `${offsetWidth}px`;
-
-    // Save mode globally (frontend)
-    window.currentAIStrategy = btn.dataset.mode;   // "smart" or "god"
-    console.log(`Mode switched → ${window.currentAIStrategy}`);
-  }
-
-  // On button click → change mode
-  buttons.forEach(btn =>
-    btn.addEventListener("click", () => activateMode(btn))
-  );
-
-  // When page loads, align pill to the default active button
-  window.addEventListener("DOMContentLoaded", () => {
-    const activeBtn = document.querySelector(".mode-btn.active");
-    if (activeBtn) activateMode(activeBtn);
-  });
-
-  // Realign if window resizes
-  window.addEventListener("resize", () => {
-    const activeBtn = document.querySelector(".mode-btn.active");
-    if (activeBtn) activateMode(activeBtn);
-  });
-})();
-</script>
 </body>
 </html>
