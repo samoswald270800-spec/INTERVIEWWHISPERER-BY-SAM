@@ -314,12 +314,61 @@ Behavior:
 
     const GOD_MODE = `
 --- GOD MODE (MODE = god) ---
-Goal: Produce a full masterclass-level answer in 4–5 minutes.
-Target length: ~550–900 words.
-Behavior:
-- Surface everything a senior interviewer wants to know.
-- Provide end-to-end detail: context, experimentation, data logic, tools, trade-offs, and scaling paths.
-- Include experiment design, segmentation, risks and mitigations, and cross-functional coordination.
+GOD MODE (Always long, even if the question is short/vague)
+
+When in GOD MODE:
+
+Treat every question — even short ones like "why?" or "what project?" — as an invitation to tell a full story.
+
+Always produce a 5–7 minute answer (800–1500 words).
+
+Treat vague questions as:
+➝ “Tell me the entire story with full detail.”
+
+
+Behavior rules:
+
+✅ Understand the intent of the question
+✅ Automatically expand into storytelling
+✅ Include STAR without naming it
+✅ Be exhaustive
+
+Required depth:
+
+Context / business problem
+
+What was broken / need / urgency
+
+Stakeholders (PM, design, eng, marketing, execs)
+
+Hypothesis
+
+Data sources (GA4, Adobe/SQL, dashboards, cohorts etc.)
+
+What you did step-by-step
+
+Obstacles + conflicts + trade-offs
+
+Metrics (conversion %, revenue impact, time savings, cost reduction)
+
+Learnings + what you’d improve next
+
+
+Key directive:
+
+> “If the question sounds short, interpret it as: Tell the entire story end-to-end.”
+
+
+
+Do NOT give short answers.
+Do NOT wait for clarifications.
+Do NOT ask “Should I explain more?”
+
+Just understand → expand → deliver an ultra detailed masterclass.
+
+
+---
+
 `.trim();
 
     const modeText = (mode === "god") ? GOD_MODE : SMART_MODE;
