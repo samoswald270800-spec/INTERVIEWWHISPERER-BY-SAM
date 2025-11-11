@@ -413,6 +413,45 @@ button:hover {
     startBtn.disabled = false; stopBtn.disabled = true; muteBtn.disabled = true;
     pillOn(pListening,false); pillOn(pProcessing,false); setStatus('idle');
   };
+  // Add this INSIDE the main <script> block, just before the final })();
+
+  /* ====== Mode Switch Pill Animation ====== */
+  (() => {
+    if (window.__modeSwitchInit) return;
+    window.__modeSwitchInit = true;
+
+    const modeContainer = document.querySelector(".mode-switch");
+    if (!modeContainer) return;
+
+    const pill = document.getElementById("modePill");
+    const buttons = Array.from(modeContainer.querySelectorAll(".mode-btn"));
+
+    function activateMode(btn) {
+      buttons.forEach(b => b.classList.remove("active"));
+      btn.classList.add("active");
+
+      const containerRect = modeContainer.getBoundingClientRect();
+      const btnRect = btn.getBoundingClientRect();
+      const translateX = btnRect.left - containerRect.left + modeContainer.scrollLeft - 4;
+      pill.style.transform = `translateX(${translateX}px)`;
+      pill.style.width = `${btnRect.width}px`;
+
+      window.currentAIStrategy = btn.dataset.mode || 'smart';
+      console.log(`Mode switched → ${window.currentAIStrategy}`);
+    }
+
+    buttons.forEach(btn => btn.addEventListener("click", () => activateMode(btn)));
+
+    const activeBtn = modeContainer.querySelector(".mode-btn.active") || buttons[0];
+    if (activeBtn) {
+      requestAnimationFrame(() => activateMode(activeBtn));
+    }
+
+    window.addEventListener("resize", () => {
+      const active = modeContainer.querySelector(".mode-btn.active");
+      if (active) requestAnimationFrame(() => activateMode(active));
+    });
+  })();
 })();
 
 </script>
