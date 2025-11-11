@@ -216,6 +216,93 @@ app.delete("/admin/api/users/:username", requireAdmin, async (req, res) => {
   await deleteTempUser(req.params.username);
   res.json({ ok: true });
 });
+// ...existing code above...
+
+/* ---------- Admin: session management endpoints ---------- */
+/* Return list of active sessions (sessionId, userId, ip, loginAt, ttlSeconds) */
+app.get("/admin/api/sessions", requireAdmin, async (_req, res) => {
+  try {
+    const sessions = [];
+
+    // The session keys stored by connect-redis use the prefix we configured ("sess:")
+    for await (const key of redisClient.scanIterator({ MATCH: "sess:*" })) {
+      try {
+        const raw = await redisClient.get(key);
+        if (!raw) continue;
+
+        // Some session stores store JSON; parse it
+        let parsed;
+        try {
+          parsed = JSON.parse(raw);
+        } catch {
+          // If not JSON, skip
+          continue;
+        }
+
+        // sessionId is key without prefix
+        const sessionId = key.replace(/^sess:/, "");
+        const userId = parsed.userId || parsed.user || null;
+        const ip = parsed.ip || (parsed?.cookie?.ip) || null;
+        const loginAt = parsed.loginAt ? Number(parsed.loginAt) : null;
+
+        // TTL (seconds) - optional but useful
+        let ttlSeconds = null;
+        try {
+          const ttl = await redisClient.ttl(key);
+          ttlSeconds = typeof ttl === "number" ? ttl : null;
+        } catch {
+          ttlSeconds = null;
+        }
+
+        sessions.push({
+          sessionId,
+          userId,
+          ip,
+          loginAt,
+          ttlSeconds,
+        });
+      } catch (e) {
+        console.error("Error reading session key", key, e);
+      }
+    }
+
+    return res.json({ ok: true, sessions });
+  } catch (e) {
+    console.error("Failed to list sessions:", e);
+    return res.status(500).json({ error: "Failed to list sessions" });
+  }
+});
+
+/* Force-logout (destroy) a single session by sessionId */
+app.post("/admin/api/sessions/:sessionId/logout", requireAdmin, async (req, res) => {
+  try {
+    const { sessionId } = req.params;
+    if (!sessionId) return res.status(400).json({ error: "Missing sessionId" });
+
+    const key = `sess:${sessionId}`;
+
+    // Check existence
+    const exists = await redisClient.exists(key);
+    if (!exists) {
+      return res.status(404).json({ error: "Session not found" });
+    }
+
+    // Remove the session key (destroy session)
+    await redisClient.del(key);
+
+    // Optionally, if you prefer to use the store API:
+    // if (store && typeof store.destroy === 'function') {
+    //   await new Promise((resolve, reject) => store.destroy(sessionId, (err) => (err ? reject(err) : resolve())));
+    // }
+
+    return res.json({ ok: true, sessionId });
+  } catch (e) {
+    console.error("Failed to logout session:", e);
+    return res.status(500).json({ error: "Failed to logout session" });
+  }
+});
+
+// ...existing code continues (static serving etc.)...
 // Serve the Admin UI (React SPA build)
 
 
