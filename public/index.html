@@ -4,96 +4,6 @@
   <meta charset="UTF-8" />
   <title>Interview Whisperer — Realtime Q/A</title>
   <style>
-    /* ====== GLASSMORPHIC MODE SWITCH (Smart Detail ↔ GodMode) ====== */
-    .mode-switch {
-      position: relative;
-      display: flex;
-      padding: 6px;
-      border-radius: 40px;
-      backdrop-filter: blur(18px);
-      background: rgba(255, 255, 255, 0.08);
-      border: 1px solid rgba(255, 255, 255, 0.18);
-      width: 260px;
-      box-shadow: inset 0 0 10px rgba(255, 255, 255, 0.15);
-    }
-
-    .mode-switch .mode-btn {
-      flex: 1;
-      padding: 10px 0;
-      border-radius: 30px;
-      border: none;
-      background: transparent;
-      color: #d3d3d3;
-      font-weight: 500;
-      cursor: pointer;
-      position: relative;
-      z-index: 2;
-      transition: color 0.25s ease;
-    }
-
-    .mode-switch .mode-btn.active {
-      color: #000000;
-      font-weight: 600;
-    }
-
-    /* When session is active, lock the buttons */
-    .mode-switch.locked .mode-btn {
-      cursor: not-allowed;
-      opacity: 0.5;
-      pointer-events: none;
-    }
-
-    /* ✅ PILL GRADIENT: GREEN for smart, RED for god */
-    .mode-pill {
-      position: absolute;
-      top: 4px;
-      left: 4px;
-      height: calc(100% - 8px);
-      width: calc(50% - 6px);
-      background: linear-gradient(135deg, #52ff90, #2fa962);
-      border-radius: 30px;
-      transition: background 0.6s ease, transform 0.3s cubic-bezier(0.2, 0.7, 0.3, 1),
-        box-shadow 0.6s ease;
-      z-index: 1;
-
-      /* ✅ Premium glow */
-      box-shadow:
-        0 0 10px rgba(82, 255, 144, 0.7),
-        0 0 20px rgba(82, 255, 144, 0.4);
-    }
-
-    /* ✅ RED THEME: pill and glows turn red when GodMode */
-    body.god-mode .mode-pill {
-      background: linear-gradient(135deg, #ff3333, #cc0000);
-      box-shadow:
-        0 0 10px rgba(255, 51, 51, 0.7),
-        0 0 20px rgba(255, 51, 51, 0.4);
-    }
-
-    /* Mode status badge */
-    #modeStatus {
-      font-size: 11px;
-      color: #52ff90;
-      font-weight: 600;
-      margin-left: 8px;
-      padding: 2px 6px;
-      background: rgba(82, 255, 144, 0.15);
-      border-radius: 4px;
-      border: 1px solid rgba(82, 255, 144, 0.3);
-      white-space: nowrap;
-      min-height: 16px;
-      display: flex;
-      align-items: center;
-      transition: color 0.6s ease, background 0.6s ease, border-color 0.6s ease;
-    }
-
-    /* ✅ RED badge for GodMode */
-    body.god-mode #modeStatus {
-      color: #ff6b6b;
-      background: rgba(255, 51, 51, 0.15);
-      border-color: rgba(255, 51, 51, 0.3);
-    }
-
     :root {
       --bg: #0b0b0b;
       --panel: #131313;
@@ -105,66 +15,12 @@
       --badge: #222;
       --accent: #52ff90;
       --accent-glow: rgba(82, 255, 144, 0.4);
-
-      /* ensure --theme-transition-duration exists (default) */
       --theme-transition-duration: 0.6s;
     }
-
-    /* ✅ RED THEME CSS VARIABLES for GodMode */
     body.god-mode {
       --accent: #8f5fff;
       --accent-glow: rgba(143, 95, 255, 0.4);
     }
-
-    /* ✅ Hover animations for ALL buttons */
-    button {
-      transition: transform 0.15s ease-out, opacity 0.15s ease-out !important;
-    }
-
-    /* ✅ Neon glow on hover — uses CSS variable for color */
-    button:hover {
-      box-shadow:
-        0 0 12px var(--accent-glow),
-        0 0 22px var(--accent-glow),
-        inset 0 0 8px var(--accent-glow);
-      border-color: var(--accent-glow);
-    }
-
-    /* ✅ Optional breathing animation while hover persists */
-    button:hover {
-      animation: btnGlowPulse 2.6s ease-in-out infinite;
-    }
-
-    @keyframes btnGlowPulse {
-      0% {
-        box-shadow:
-          0 0 10px var(--accent-glow),
-          0 0 22px var(--accent-glow),
-          inset 0 0 6px var(--accent-glow);
-      }
-      50% {
-        box-shadow:
-          0 0 20px var(--accent-glow),
-          0 0 50px var(--accent-glow),
-          inset 0 0 12px var(--accent-glow);
-      }
-      100% {
-        box-shadow:
-          0 0 10px var(--accent-glow),
-          0 0 22px var(--accent-glow),
-          inset 0 0 6px var(--accent-glow);
-      }
-    }
-
-    button:hover {
-      transform: scale(1.05);
-      opacity: 0.9;
-    }
-
-    * {
-      box-sizing: border-box;
-    }
-
     body {
       margin: 0;
       background: var(--bg);
@@ -172,7 +28,6 @@
       font-family: system-ui, Segoe UI, Arial;
       transition: background 0.6s ease;
     }
-
     #top {
       position: sticky;
       top: 0;
@@ -184,9 +39,7 @@
       align-items: center;
       z-index: 2;
       flex-wrap: wrap;
-      transition: background 0.6s ease, border-color 0.6s ease;
     }
-
     button {
       border: 1px solid #333;
       background: #1a1a1a;
@@ -194,225 +47,139 @@
       padding: 8px 12px;
       border-radius: 8px;
       cursor: pointer;
-      transition: background 0.6s ease, border 0.6s ease;
+      transition: background 0.6s, border 0.6s, transform 0.15s, opacity 0.15s;
     }
-
     button:disabled {
       opacity: 0.5;
       cursor: not-allowed;
     }
-
-    #status {
-      margin-left: auto;
-      font-size: 12px;
-      color: var(--muted);
-      white-space: pre;
+    button:hover {
+      box-shadow: 0 0 12px var(--accent-glow), 0 0 22px var(--accent-glow), inset 0 0 8px var(--accent-glow);
+      border-color: var(--accent-glow);
+      transform: scale(1.05);
+      opacity: 0.9;
+      animation: btnGlowPulse 2.6s ease-in-out infinite;
     }
-
-    #vuWrap {
-      padding: 10px 16px;
-      border-bottom: 1px solid var(--line);
+    @keyframes btnGlowPulse {
+      0%,100% { box-shadow: 0 0 10px var(--accent-glow), 0 0 22px var(--accent-glow), inset 0 0 6px var(--accent-glow);}
+      50% { box-shadow: 0 0 20px var(--accent-glow), 0 0 50px var(--accent-glow), inset 0 0 12px var(--accent-glow);}
+    }
+    .mode-switch {
+      position: relative;
       display: flex;
-      gap: 10px;
+      padding: 6px;
+      border-radius: 40px;
+      backdrop-filter: blur(18px);
+      background: rgba(255,255,255,0.08);
+      border: 1px solid rgba(255,255,255,0.18);
+      width: 260px;
+      box-shadow: inset 0 0 10px rgba(255,255,255,0.15);
+    }
+    .mode-switch .mode-btn {
+      flex: 1;
+      padding: 10px 0;
+      border-radius: 30px;
+      border: none;
+      background: transparent;
+      color: #d3d3d3;
+      font-weight: 500;
+      cursor: pointer;
+      position: relative;
+      z-index: 2;
+      transition: color 0.25s;
+    }
+    .mode-switch .mode-btn.active { color: #000; font-weight: 600; }
+    .mode-switch.locked .mode-btn { cursor: not-allowed; opacity: 0.5; pointer-events: none; }
+    .mode-pill {
+      position: absolute;
+      top: 4px; left: 4px;
+      height: calc(100% - 8px);
+      width: calc(50% - 6px);
+      background: linear-gradient(135deg, #52ff90, #2fa962);
+      border-radius: 30px;
+      transition: background 0.6s, transform 0.3s, box-shadow 0.6s;
+      z-index: 1;
+      box-shadow: 0 0 10px rgba(82,255,144,0.7), 0 0 20px rgba(82,255,144,0.4);
+    }
+    body.god-mode .mode-pill {
+      background: linear-gradient(135deg, #8f5fff, #5f3ccf);
+      box-shadow: 0 0 10px rgba(143,95,255,0.7), 0 0 20px rgba(143,95,255,0.4);
+    }
+    #modeStatus {
+      font-size: 11px;
+      color: #52ff90;
+      font-weight: 600;
+      margin-left: 8px;
+      padding: 2px 6px;
+      background: rgba(82,255,144,0.15);
+      border-radius: 4px;
+      border: 1px solid rgba(82,255,144,0.3);
+      white-space: nowrap;
+      min-height: 16px;
+      display: flex;
       align-items: center;
-      background: #101010;
-      transition: background 0.6s ease, border-color 0.6s ease;
+      transition: color 0.6s, background 0.6s, border-color 0.6s;
     }
-
-    #vu {
-      width: 220px;
-      height: 8px;
-      background: #222;
-      border-radius: 6px;
-      overflow: hidden;
+    body.god-mode #modeStatus {
+      color: #b89cff;
+      background: rgba(143,95,255,0.15);
+      border-color: rgba(143,95,255,0.3);
     }
-
-    #bar {
-      height: 100%;
-      width: 0%;
-      background: var(--accent);
-      transition: width 0.07s linear, background 0.6s ease;
-    }
-
-    .pill {
-      padding: 4px 8px;
-      border-radius: 999px;
-      font-size: 12px;
-      background: var(--badge);
-      transition: background 0.6s ease, color 0.6s ease;
-    }
-
-    .on {
-      background: #143c22;
-      color: #a9ffbf;
-    }
-
-    /* ✅ RED pill for GodMode */
-    body.god-mode .pill.on {
-      background: #3c1414;
-      color: #ffb3b3;
-    }
-
-    #jdBox {
-      padding: 12px 16px;
-      border-bottom: 1px solid var(--line);
-      display: grid;
-      gap: 8px;
-      background: #0f0f0f;
-      transition: background 0.6s ease, border-color 0.6s ease;
-    }
-
-    #jd {
-      width: 100%;
-      min-height: 120px;
-      background: #0e1111;
-      color: #eaeaea;
-      border: 1px solid #2a2a2a;
-      border-radius: 8px;
-      padding: 10px;
-      transition: background 0.6s ease, border 0.6s ease;
-    }
-
-    #list {
-      padding: 18px;
-      display: flex;
-      flex-direction: column;
-      gap: 10px;
-    }
-
-    .qa {
-      padding: 12px 14px;
-      border: 1px solid var(--line);
-      border-radius: 10px;
-      background: #0f0f0f;
-      transition: background 0.6s ease, border-color 0.6s ease;
-    }
-
-    .q {
-      color: var(--q);
-      white-space: pre-wrap;
-      transition: color 0.6s ease;
-    }
-
-    /* ✅ KEEP ANSWER GREEN (no change) */
-    .a {
-      color: var(--a);
-      white-space: pre-wrap;
-      margin-top: 6px;
-    }
-
-    #hint {
-      padding: 6px 16px;
-      color: var(--muted);
-      border-bottom: 1px solid var(--line);
-      transition: color 0.6s ease, border-color 0.6s ease;
-    }
-
-    #debug {
-      padding: 10px 16px;
-      border-top: 1px solid var(--line);
-      font: 12px ui-monospace, Menlo, Consolas;
-      color: #9aa;
-      max-height: 160px;
-      overflow: auto;
-      display: none;
-      transition: border-color 0.6s ease;
-    }
-
-    /* Ripple overlay — centered at a point and expands to cover the viewport */
-    #themeRipple {
-      position: fixed;
-      left: 0;
-      top: 0;
-      width: 0;
-      height: 0;
-      border-radius: 50%;
-      pointer-events: none;
-      z-index: 9999;
-      transform: translate(-50%, -50%);
-      opacity: 0;
-      background: radial-gradient(circle at center,
-        rgba(255,51,51,0.28) 0%,
-        rgba(255,51,51,0.18) 25%,
-        rgba(255,51,51,0.08) 50%,
-        rgba(255,51,51,0.02) 75%,
-        transparent 100%);
-      mix-blend-mode: screen;
-      will-change: width, height, opacity, transform;
-    }
-
-    /* When .ripple-animate is added we expand to a very large circle and fade opacity */
-    #themeRipple.ripple-animate {
-      transition:
-        width 2.5s cubic-bezier(.22,.9,.27,1),
-        height 2.5s cubic-bezier(.22,.9,.27,1),
-        opacity 2.5s ease-out,
-        transform 2.5s cubic-bezier(.22,.9,.27,1);
-      width: 200vmax;
-      height: 200vmax;
-      opacity: 0;
-      transform: translate(-50%, -50%) scale(1);
-    }
-
-    /* Small starting state so the drop looks like it expands (tiny visible center) */
-    #themeRipple.ripple-start {
-      opacity: 1;
-      width: 30px;
-      height: 30px;
-      transform: translate(-50%, -50%) scale(1);
-    }
+    .pill { padding: 4px 8px; border-radius: 999px; font-size: 12px; background: var(--badge);}
+    .on { background: #143c22; color: #a9ffbf;}
+    body.god-mode .pill.on { background: #2d1a4d; color: #d1c2ff;}
+    #jdBox, #vuWrap, #hint, #list, .qa, .q, .a, #debug { margin-bottom: 10px;}
+    #jdBox { padding: 12px 16px; border-bottom: 1px solid var(--line); background: #0f0f0f;}
+    #jd { width: 100%; min-height: 120px; background: #0e1111; color: #eaeaea; border: 1px solid #2a2a2a; border-radius: 8px; padding: 10px;}
+    #vuWrap { padding: 10px 16px; border-bottom: 1px solid var(--line); display: flex; gap: 10px; align-items: center; background: #101010;}
+    #vu { width: 220px; height: 8px; background: #222; border-radius: 6px; overflow: hidden;}
+    #bar { height: 100%; width: 0%; background: var(--accent);}
+    #list { padding: 18px; display: flex; flex-direction: column; gap: 10px;}
+    .qa { padding: 12px 14px; border: 1px solid var(--line); border-radius: 10px; background: #0f0f0f;}
+    .q { color: var(--q);}
+    .a { color: var(--a); margin-top: 6px;}
+    #hint { padding: 6px 16px; color: var(--muted);}
+    #debug { padding: 10px 16px; font: 12px ui-monospace, Menlo, Consolas; color: #9aa; max-height: 160px; overflow: auto; display: none;}
+    #logoutBtn { position: fixed; top: 10px; right: 120px; padding: 10px 18px; background: #8f5fff; color: white; border-radius: 8px; border: none; cursor: pointer; font-weight: bold; z-index: 9999999; transition: transform 0.2s, opacity 0.2s;}
+    #logoutBtn:hover { transform: scale(1.05); opacity: 0.9;}
   </style>
 </head>
 <body>
   <div id="top">
-    <button type="button" id="startBtn">Start Tab Capture</button>
-    <button type="button" id="stopBtn" disabled>Stop</button>
-    <button type="button" id="muteBtn" disabled>Mute</button>
-    <button type="button" id="clearBtn">Clear Answers</button>
-    <!-- 💡 Mode Switch (Smart Detail / GodMode) -->
+    <button id="startBtn">Start Tab Capture</button>
+    <button id="stopBtn" disabled>Stop</button>
+    <button id="muteBtn" disabled>Mute</button>
+    <button id="clearBtn">Clear Answers</button>
     <div class="mode-switch" id="modeSwitch">
       <div class="mode-pill" id="modePill"></div>
-      <button type="button" class="mode-btn active" data-mode="smart">
-        Smart Detail
-      </button>
-      <button type="button" class="mode-btn" data-mode="god">GodMode</button>
+      <button class="mode-btn active" data-mode="smart">Smart Detail</button>
+      <button class="mode-btn" data-mode="god">GodMode</button>
     </div>
     <span class="pill" id="pListening">listening</span>
     <span class="pill" id="pProcessing">processing</span>
     <div id="modeStatus"></div>
     <div id="status">idle</div>
   </div>
-
   <div id="jdBox">
     <div style="display: flex; gap: 8px; align-items: center; justify-content: space-between">
       <strong>Job Description (tailor answers to this)</strong>
-      <span id="savedTag" class="pill" style="display: none; background: #153c1f; color: #adf5c0"
-        >JD saved</span
-      >
+      <span id="savedTag" class="pill" style="display: none; background: #153c1f; color: #adf5c0">JD saved</span>
     </div>
     <textarea id="jd" placeholder="Paste the JD here…"></textarea>
     <div style="display: flex; gap: 8px; align-items: center">
-      <button type="button" id="saveJD">Save JD</button>
-      <small style="color: #9aa"
-        >Tip: Save once; new sessions will auto-use it until you restart the
-        server.</small
-      >
+      <button id="saveJD">Save JD</button>
+      <small style="color: #9aa">Tip: Save once; new sessions will auto-use it until you restart the server.</small>
     </div>
   </div>
-
   <div id="vuWrap">
     <div id="vu"><div id="bar"></div></div>
-    <div style="font-size: 12px; color: #9aa">
-      Pick your Meet/Zoom/Teams tab and enable <b>Share tab audio</b>.
-    </div>
+    <div style="font-size: 12px; color: #9aa">Pick your Meet/Zoom/Teams tab and enable <b>Share tab audio</b>.</div>
   </div>
-
   <div id="hint">Q (blue) is what we hear from the meeting tab. A (green) is the answer for you to read.</div>
   <div id="list"></div>
   <pre id="debug"></pre>
-
   <div id="themeRipple" aria-hidden="true"></div>
-
+  <button id="logoutBtn" onclick="logout()">Logout</button>
   <script>
     (() => {
       const startBtn = document.getElementById("startBtn");
@@ -979,39 +746,7 @@ Behavior: Surface everything a senior interviewer wants to know; include experim
         });
       })();
     })();
-  </script>
-  <!-- ✅ LOGOUT BUTTON -->
 
-  <style>
-    /* Hover style must be in <style>, not inside inline style */
-    #logoutBtn:hover {
-      transform: scale(1.05);
-      opacity: 0.9;
-    }
-  </style>
-
-  <button
-    id="logoutBtn"
-    onclick="logout()"
-    style="
-      position: fixed;
-      top: 10px;
-      right: 120px;
-      padding: 10px 18px;
-      background: crimson;
-      color: white;
-      border-radius: 8px;
-      border: none;
-      cursor: pointer;
-      font-weight: bold;
-      z-index: 9999999;
-      transition: transform 0.2s, opacity 0.2s;
-    "
-  >
-    Logout
-  </button>
-
-  <script>
     async function logout() {
       await fetch("/api/logout", { method: "POST" });
       window.location.href = "/login";
