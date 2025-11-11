@@ -297,13 +297,18 @@
         <input id="u" autocomplete="username" placeholder="Username" />
 
         <label for="p">Password</label>
-        <input
-          id="p"
-          type="password"
-          autocomplete="current-password"
-          placeholder="Password"
-          title="No, you can't use your ex's birthday. Grow up"
-        />
+        <div class="btn-wrapper">
+          <input
+            id="p"
+            type="password"
+            autocomplete="current-password"
+            placeholder="Password"
+          />
+          <div class="tooltip" aria-hidden="true">
+            <div class="tooltip-box">No, you can't use your ex's birthday</div>
+            <div class="tooltip-arrow"></div>
+          </div>
+        </div>
 
         <div class="btn-wrapper">
           <button id="loginBtn" type="button">Sign in</button>
