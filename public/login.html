@@ -98,7 +98,7 @@
       letter-spacing:10px;
       font-weight:600;
       color:var(--green);
-      text-shadow:0 0 20px rgba(82,255,144,.65);
+text-shadow:0 0 20px rgba(82,255,144,.65);
       z-index:2;
     }
     #hint{
@@ -136,93 +136,15 @@
     }
     input::placeholder{color:#7b7b7b}
 
-    /* ✅ GRADIENT BUTTON WITH TOOLTIP (from Uiverse) */
-    #loginBtn {
-      position: relative;
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      width: 100%;
-      padding: 0.5rem;
-      margin-bottom: 0.5rem;
-      margin-right: 0.5rem;
-      font-size: 0.875rem;
-      font-weight: 700;
-      text-align: center;
-      color: #1f2937;
-      border-radius: 0.5rem;
-      border: none;
-      cursor: pointer;
-      background: linear-gradient(to right, #a855f7, #ec4899);
-      transition: all 0.2s;
+    button{
+      width:100%; padding:14px 18px; border-radius:28px; border:0;
+      background:var(--green); color:#0d0d0d; font-weight:700; font-size:16px;
+      cursor:pointer; transition:transform .15s, background .15s, box-shadow .2s;
     }
-
-    #loginBtn:hover {
-      background: linear-gradient(to right, #a855f7, #ec4899);
-      color: white;
-    }
-
-    #loginBtn:focus {
-      outline: none;
-      box-shadow: 0 0 0 4px rgba(168, 85, 247, 0.5);
-    }
-
-    #loginBtn span {
-      position: relative;
-      padding: 0.625rem 1.25rem;
-      transition: all 0.075s ease-in;
-      background: #0d0d0d;
-      border-radius: 0.375rem;
-    }
-
-    #loginBtn:hover span {
-      background-color: transparent;
-    }
-
-    /* ✅ TOOLTIP */
-    .tooltip-container {
-      position: relative;
-      display: contents;
-    }
-
-    .tooltip {
-      display: none;
-      position: absolute;
-      top: -3.5rem;
-      left: 50%;
-      z-index: 50;
-      flex-direction: column;
-      align-items: center;
-      transform: translateX(-50%);
-      font-size: 0.875rem;
-      text-align: center;
-    }
-
-    #loginBtn:hover .tooltip {
-      display: flex;
-    }
-
-    .tooltip-box {
-      border-radius: 0.375rem;
-      background: black;
-      padding: 0.25rem 0.5rem;
-      color: #cbd5e1;
-    }
-
-    .tooltip-box p {
-      white-space: nowrap;
-      margin: 0;
-      padding: 0;
-    }
-
-    .tooltip-arrow {
-      width: fit-content;
-      height: 0;
-      border-left: 0.5rem solid transparent;
-      border-right: 0.5rem solid transparent;
-      border-top: 0.5rem solid black;
-      margin-top: -0.125rem;
-    }
+    button:hover{
+  background:var(--green-soft);
+  box-shadow:0 0 14px var(--green); }
+    button:active{ transform:translateY(1px) }
 
     .err{ color:#ff6b6b; font-size:12px; min-height:16px; margin:6px 6px 10px }
 
@@ -249,18 +171,9 @@
         <input id="u" autocomplete="username" placeholder="Username" />
 
         <label for="p">Password</label>
-        <input id="p" type="password" autocomplete="current-password" placeholder="Password" title="No, you can't use your ex's birthday. Grow up" />
+        <input id="p" type="password" autocomplete="current-password" placeholder="Password" title="No, you can't use your ex's birthday. Grow up"./>
 
-        <!-- ✅ GRADIENT BUTTON WITH TOOLTIP -->
-        <button id="loginBtn" type="button">
-          <span>Sign in</span>
-          <div class="tooltip">
-            <div class="tooltip-box">
-              <p>Click to authenticate</p>
-            </div>
-            <div class="tooltip-arrow"></div>
-          </div>
-        </button>
+        <button id="loginBtn" type="button" title="Start lying Professionally">Sign in</button>
       </div>
     </div>
   </div>
