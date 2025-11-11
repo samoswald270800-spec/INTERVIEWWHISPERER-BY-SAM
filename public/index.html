@@ -112,8 +112,8 @@
 
     /* ✅ RED THEME CSS VARIABLES for GodMode */
     body.god-mode {
-      --accent: #ff3333;
-      --accent-glow: rgba(255, 51, 51, 0.4);
+      --accent: #8f5fff;
+      --accent-glow: rgba(143, 95, 255, 0.4);
     }
 
     /* ✅ Hover animations for ALL buttons */
@@ -331,7 +331,6 @@
       z-index: 9999;
       transform: translate(-50%, -50%);
       opacity: 0;
-      /* radial fill that fades toward edges for a water-drop feel */
       background: radial-gradient(circle at center,
         rgba(255,51,51,0.28) 0%,
         rgba(255,51,51,0.18) 25%,
@@ -475,28 +474,15 @@
         }
       }
 
-      /* ✅ APPLY THEME: god-mode class toggles entire theme */
+      /* ✅ APPLY THEME: god-mode class toggles entire theme with smooth 2.5s transition */
       function applyTheme(mode) {
         const body = document.body;
-        const durationMs = 2500; // ripple + theme spread duration
-
         if (mode === "god") {
-          // increase UI variable transition time while ripple runs
-          body.style.setProperty('--theme-transition-duration', `${durationMs}ms`);
-          // ensure class is applied immediately so some elements react quickly
+          body.style.setProperty('--theme-transition-duration', '2.5s');
           body.classList.add("god-mode");
-
-          // trigger the expanding ripple from the GodMode button center
-          const godBtn = modeSwitch.querySelector('.mode-btn[data-mode="god"]');
-          if (godBtn) {
-            triggerThemeRipple(godBtn, durationMs);
-          } else {
-            // fallback: ensure the transition duration resets after animation
-            setTimeout(() => body.style.setProperty('--theme-transition-duration', '0.6s'), durationMs + 80);
-          }
+          setTimeout(() => body.style.setProperty('--theme-transition-duration', '0.6s'), 2600);
         } else {
-          // revert: give a shorter revert animation, then reset to defaults
-          body.style.setProperty('--theme-transition-duration', '1200ms');
+          body.style.setProperty('--theme-transition-duration', '1.2s');
           body.classList.remove("god-mode");
           setTimeout(() => body.style.setProperty('--theme-transition-duration', '0.6s'), 1400);
         }
@@ -508,7 +494,6 @@
       */
       function triggerThemeRipple(sourceEl, durationMs = 2500) {
         try {
-          // ensure ripple node exists
           let ripple = document.getElementById('themeRipple');
           if (!ripple) {
             ripple = document.createElement('div');
@@ -516,48 +501,28 @@
             ripple.setAttribute('aria-hidden', 'true');
             document.body.appendChild(ripple);
           }
-
           const rect = sourceEl.getBoundingClientRect();
           const cx = rect.left + rect.width / 2;
           const cy = rect.top + rect.height / 2;
-
-          // position the ripple center
           ripple.style.left = cx + 'px';
           ripple.style.top = cy + 'px';
-
-          // reset classes/states
           ripple.classList.remove('ripple-animate', 'ripple-start');
           ripple.style.transition = 'none';
           ripple.style.opacity = '0';
-
-          // Force a reflow so the browser will start the fresh animation
-          // eslint-disable-next-line no-unused-expressions
           ripple.offsetWidth;
-
-          // start with a small visible "drop" in the center
           ripple.classList.add('ripple-start');
-
-          // next tick expand to full size with the main animate class
           requestAnimationFrame(() => {
-            // force reflow before applying animate so transitions run
-            // eslint-disable-next-line no-unused-expressions
             ripple.offsetWidth;
             ripple.classList.add('ripple-animate');
-
-            // remove the tiny start class quickly so only the animate class controls final stages
             setTimeout(() => ripple.classList.remove('ripple-start'), 40);
           });
-
-          // clean up after animation finishes
           setTimeout(() => {
             ripple.classList.remove('ripple-animate', 'ripple-start');
             ripple.style.opacity = '0';
-            // restore CSS transition duration variable to default
             document.body.style.setProperty('--theme-transition-duration', '0.6s');
           }, durationMs + 80);
         } catch (err) {
           console.warn("triggerThemeRipple failed:", err);
-          // fallback: ensure transition duration resets even if ripple fails
           setTimeout(() => document.body.style.setProperty('--theme-transition-duration', '0.6s'), 2600);
         }
       }
