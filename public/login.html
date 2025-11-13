@@ -41,13 +41,18 @@
       position: relative;
       width: 320px;
       height: 100px;
-      transition: width 0.45s cubic-bezier(0.2, 0.7, 0.2, 1),
-        height 0.45s cubic-bezier(0.2, 0.7, 0.2, 1);
+      will-change: width, height;
+      transition:
+        width 0.60s cubic-bezier(.16,1,.3,1),
+        height 0.70s cubic-bezier(.16,1,.3,1);
       border-radius: 24px;
       cursor: pointer;
+      transform: translateZ(0);
+      backface-visibility: hidden;
     }
 
-    .box:hover {
+    .box:hover,
+    .box.expanded {
       width: 400px;
       height: 440px;
     }
@@ -66,18 +71,13 @@
       height: 100% !important;
     }
 
-    /* Glassmorphic panel */
+    /* Transparent panel - only for layout */
     .panel {
       position: absolute;
       inset: 0;
-      background: rgba(13, 13, 13, 0.35);
-      border: 1px solid rgba(255, 255, 255, 0.12);
+      background: transparent;
+      border: none;
       border-radius: 24px;
-      box-shadow:
-        0 10px 40px rgba(0, 0, 0, 0.55),
-        inset 0 1px 0 rgba(255, 255, 255, 0.08);
-      backdrop-filter: blur(14px) saturate(140%);
-      -webkit-backdrop-filter: blur(14px) saturate(140%);
       z-index: 1;
       display: flex;
       flex-direction: column;
@@ -106,7 +106,8 @@
       z-index: 2;
     }
 
-    .box:hover #hint {
+    .box:hover #hint,
+    .box.expanded #hint {
       opacity: 0;
     }
 
@@ -116,12 +117,15 @@
       max-width: 340px;
       opacity: 0;
       transform: translateY(24px);
-      transition: opacity 0.45s, transform 0.45s;
+      transition: 
+        opacity 0.50s cubic-bezier(.16,1,.3,1),
+        transform 0.60s cubic-bezier(.16,1,.3,1);
       pointer-events: none;
       z-index: 2;
     }
 
-    .box:hover .form {
+    .box:hover .form,
+    .box.expanded .form {
       opacity: 1;
       transform: none;
       pointer-events: auto;
@@ -134,18 +138,22 @@
       margin: 0 12px 5px;
     }
 
-    /* Slightly translucent inputs to match glass look */
+    /* Glassmorphic inputs */
     input {
       width: 100%;
       padding: 12px 16px;
       border-radius: 28px;
-      background: rgba(27, 27, 27, 0.55);
-      border: 1px solid rgba(255, 255, 255, 0.08);
+      background: rgba(13, 13, 13, 0.45);
+      border: 1px solid rgba(255, 255, 255, 0.15);
       color: #e8e8e8;
       margin-bottom: 14px;
       font-size: 14px;
       outline: none;
-      transition: border-color 0.2s, box-shadow 0.2s, background-color 0.2s;
+      backdrop-filter: blur(12px) saturate(140%);
+      -webkit-backdrop-filter: blur(12px) saturate(140%);
+      box-shadow:
+        0 4px 16px rgba(0, 0, 0, 0.3),
+        inset 0 1px 0 rgba(255, 255, 255, 0.08);
     }
 
     input:focus {
