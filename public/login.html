@@ -37,7 +37,7 @@
     }
 
     /* ---------- shell ---------- */
-    /* Smoother hover expand/shrink (keep old behavior) */
+    /* Smoother hover expand/shrink (same behavior) */
 .box {
   position: relative;
   width: 320px;
@@ -48,6 +48,10 @@
   transition:
     width 0.60s cubic-bezier(.16,1,.3,1),
     height 0.70s cubic-bezier(.16,1,.3,1);
+  /* promote to its own layer to reduce jank during resize */
+  transform: translateZ(0);
+  backface-visibility: hidden;
+  overflow: hidden;
 }
 
 /* Restore original grow targets; also supports tap (.expanded) */
@@ -523,15 +527,16 @@
     };
     rafId = requestAnimationFrame(update);
 
-    // Tap-to-toggle for touch devices
+    // Tap-to-toggle only on touch/coarse pointers (prevents desktop click sticking)
     let expanded = false;
-    box.addEventListener('click', (e) => {
-      if (!expanded) {
-        expanded = true;
-        box.classList.add('expanded');
-        targetHover = 1;
-      }
-    }, { passive: true });
+    const isCoarse = window.matchMedia('(hover: none), (pointer: coarse)').matches;
+    if (isCoarse) {
+      box.addEventListener('click', () => {
+        expanded = !expanded;
+        box.classList.toggle('expanded', expanded);
+        targetHover = expanded ? 1 : 0;
+      }, { passive: true });
+    }
 
     // Login handler
     document.getElementById('loginBtn').onclick = async () => {
