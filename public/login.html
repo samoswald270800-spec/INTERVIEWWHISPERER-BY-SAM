@@ -41,20 +41,13 @@
       position: relative;
       width: 320px;
       height: 100px;
-      will-change: width, height;
-      transition:
-        width 0.55s cubic-bezier(.16,1,.3,1),
-        height 0.65s cubic-bezier(.16,1,.3,1);
+      transition: width 0.45s cubic-bezier(0.2, 0.7, 0.2, 1),
+        height 0.45s cubic-bezier(0.2, 0.7, 0.2, 1);
       border-radius: 24px;
       cursor: pointer;
-      transform: translateZ(0);
-      backface-visibility: hidden;
-      background: transparent; /* no card fill */
-      box-shadow: none;        /* no card shadow */
     }
 
-    .box:hover,
-    .box.expanded {
+    .box:hover {
       width: 400px;
       height: 440px;
     }
@@ -73,21 +66,23 @@
       height: 100% !important;
     }
 
-    /* Transparent panel - only for layout */
+    /* Glassmorphic panel */
     .panel {
       position: absolute;
       inset: 0;
-      background: transparent; /* card invisible */
-      border: none;
+      background: rgba(13, 13, 13, 0.35);
+      border: 1px solid rgba(255, 255, 255, 0.12);
       border-radius: 24px;
+      box-shadow:
+        0 10px 40px rgba(0, 0, 0, 0.55),
+        inset 0 1px 0 rgba(255, 255, 255, 0.08);
+      backdrop-filter: blur(14px) saturate(140%);
+      -webkit-backdrop-filter: blur(14px) saturate(140%);
       z-index: 1;
       display: flex;
       flex-direction: column;
       align-items: center;
       padding: 24px 22px;
-      backface-visibility: hidden;
-      transform: translateZ(0);
-      will-change: backdrop-filter;
     }
 
     h2 {
@@ -107,110 +102,29 @@
       font-size: 11px;
       color: var(--muted);
       margin-top: 2px;
-      transition: opacity 0.30s cubic-bezier(.2,.8,.2,1);
+      transition: opacity 0.35s;
       z-index: 2;
     }
 
-    .box:hover #hint,
-    .box.expanded #hint {
+    .box:hover #hint {
       opacity: 0;
     }
 
-    /* Glassmorphic inputs with animated glow */
-    input {
-      width: 100%;
-      padding: 12px 16px;
-      border-radius: 28px;
-      background: rgba(13, 13, 13, 0.35);
-      border: 1px solid rgba(255, 255, 255, 0.14);
-      color: #e8e8e8;
-      margin-bottom: 14px;
-      font-size: 14px;
-      outline: none;
-      position: relative;
-      backdrop-filter: blur(14px) saturate(140%);
-      -webkit-backdrop-filter: blur(14px) saturate(140%);
-      box-shadow:
-        0 6px 20px rgba(0, 0, 0, 0.35),
-        inset 0 1px 0 rgba(255, 255, 255, 0.08);
-      transition: border-color .2s, box-shadow .25s, background-color .25s;
-    }
-    input:hover,
-    input:focus {
-      border-color: rgba(216, 180, 254, 0.6);
-      background: rgba(27, 27, 27, 0.55);
-      box-shadow:
-        0 0 22px rgba(168, 85, 247, 0.25),
-        0 0 44px rgba(236, 72, 153, 0.18),
-        0 6px 22px rgba(0, 0, 0, 0.45),
-        inset 0 0 0 9999px rgba(255, 255, 255, 0.02);
-    }
-    input::placeholder { color: #7b7b7b; }
-
-    /* Button with glass + shimmer + glow */
-    button {
-      width: 100%;
-      padding: 12px 16px;
-      border-radius: 28px;
-      border: 1px solid rgba(255, 255, 255, 0.12);
-      background: linear-gradient(135deg, var(--purple) 0%, var(--pink) 100%);
-      color: #fff;
-      font-weight: 700;
-      font-size: 15px;
-      cursor: pointer;
-      position: relative;
-      overflow: hidden;
-      backdrop-filter: blur(8px) saturate(140%);
-      -webkit-backdrop-filter: blur(8px) saturate(140%);
-      box-shadow:
-        0 8px 24px rgba(0, 0, 0, 0.4),
-        inset 0 1px 0 rgba(255, 255, 255, 0.08);
-      transition: transform .15s, filter .15s, box-shadow .25s;
-    }
-    button::before {
-      content: '';
-      position: absolute;
-      inset: 0;
-      background: linear-gradient(120deg, transparent 0%, rgba(255,255,255,.25) 40%, transparent 60%);
-      transform: translateX(-120%);
-      animation: shimmer 2.2s infinite;
-      pointer-events: none;
-    }
-    button:hover,
-    button:focus-visible {
-      filter: brightness(1.12);
-      box-shadow:
-        0 0 28px rgba(168, 85, 247, 0.45),
-        0 0 54px rgba(236, 72, 153, 0.35),
-        0 10px 28px rgba(0, 0, 0, 0.5);
-    }
-    button:active { transform: translateY(1px); }
-
-    @keyframes shimmer {
-      0%   { transform: translateX(-120%); }
-      60%  { transform: translateX(120%); }
-      100% { transform: translateX(120%); }
-    }
-
-    /* Smoother form fade/slide keeps current positions */
     .form {
       margin-top: 28px;
       width: 100%;
       max-width: 340px;
       opacity: 0;
       transform: translateY(24px);
-      transition:
-        opacity 0.50s cubic-bezier(.16,1,.3,1),
-        transform 0.60s cubic-bezier(.16,1,.3,1);
+      transition: opacity 0.45s, transform 0.45s;
       pointer-events: none;
       z-index: 2;
     }
-    .box:hover .form,
-    .box.expanded .form {
+
+    .box:hover .form {
       opacity: 1;
       transform: none;
       pointer-events: auto;
-      transition-delay: .08s, .08s;
     }
 
     label {
@@ -218,6 +132,32 @@
       font-size: 11px;
       color: var(--muted);
       margin: 0 12px 5px;
+    }
+
+    /* Slightly translucent inputs to match glass look */
+    input {
+      width: 100%;
+      padding: 12px 16px;
+      border-radius: 28px;
+      background: rgba(27, 27, 27, 0.55);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      color: #e8e8e8;
+      margin-bottom: 14px;
+      font-size: 14px;
+      outline: none;
+      transition: border-color 0.2s, box-shadow 0.2s, background-color 0.2s;
+    }
+
+    input:focus {
+      border-color: rgba(216, 180, 254, 0.6);
+      box-shadow:
+        0 0 0 3px rgba(168, 85, 247, 0.18),
+        inset 0 0 0 9999px rgba(255, 255, 255, 0.02);
+      background: rgba(27, 27, 27, 0.65);
+    }
+
+    input::placeholder {
+      color: #7b7b7b;
     }
 
     .btn-wrapper {
@@ -228,6 +168,65 @@
     .btn-wrapper:is(:hover, :focus-within) .tooltip {
       opacity: 1;
       visibility: visible;
+    }
+
+    button {
+      width: 100%;
+      padding: 12px 16px;
+      border-radius: 28px;
+      border: 0;
+      background: linear-gradient(135deg, var(--purple) 0%, var(--pink) 100%);
+      color: #fff;
+      font-weight: 700;
+      font-size: 15px;
+      cursor: pointer;
+      transition: transform 0.15s, filter 0.15s, box-shadow 0.2s;
+      position: relative;
+    }
+
+    button:hover {
+      filter: brightness(1.15);
+      box-shadow: 0 0 20px rgba(168, 85, 247, 0.6),
+        0 0 40px rgba(236, 72, 153, 0.4);
+    }
+
+    button:active {
+      transform: translateY(1px);
+    }
+
+    .tooltip {
+      position: absolute;
+      top: -60px;
+      left: 50%;
+      transform: translateX(-50%);
+      opacity: 0;
+      visibility: hidden;
+      transition: opacity 0.2s, visibility 0.2s;
+      z-index: 50;
+      pointer-events: none;
+    }
+
+    .tooltip-box {
+      background: linear-gradient(135deg, var(--purple) 0%, var(--pink) 100%);
+      color: #fff;
+      padding: 8px 12px;
+      border-radius: 6px;
+      font-size: 12px;
+      white-space: nowrap;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+    }
+
+    .tooltip-arrow {
+      position: absolute;
+      bottom: -6px;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 0;
+      height: 0;
+      border-left: 6px solid transparent;
+      border-right: 6px solid transparent;
+      border-top: 6px solid #a855f7;
+      filter: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.3));
     }
 
     .err {
@@ -332,12 +331,14 @@
         float q = dot(c, vec3(0.211, -0.523, 0.312));
         return vec3(y, i, q);
       }
+      
       vec3 yiq2rgb(vec3 c) {
         float r = c.x + 0.956 * c.y + 0.621 * c.z;
         float g = c.x - 0.272 * c.y - 0.647 * c.z;
         float b = c.x - 1.106 * c.y + 1.703 * c.z;
         return vec3(r, g, b);
       }
+      
       vec3 adjustHue(vec3 color, float hueDeg) {
         float hueRad = hueDeg * 3.14159265 / 180.0;
         vec3 yiq = rgb2yiq(color);
@@ -349,11 +350,13 @@
         yiq.z = q;
         return yiq2rgb(yiq);
       }
+
       vec3 hash33(vec3 p3) {
         p3 = fract(p3 * vec3(0.1031, 0.11369, 0.13787));
         p3 += dot(p3, p3.yxz + 19.19);
         return -1.0 + 2.0 * fract(vec3(p3.x + p3.y, p3.x + p3.z, p3.y + p3.z) * p3.zyx);
       }
+
       float snoise3(vec3 p) {
         const float K1 = 0.333333333;
         const float K2 = 0.166666667;
@@ -374,28 +377,34 @@
         );
         return dot(vec4(31.316), n);
       }
+
       vec4 extractAlpha(vec3 colorIn) {
         float a = max(max(colorIn.r, colorIn.g), colorIn.b);
         return vec4(colorIn.rgb / (a + 1e-5), a);
       }
+
       const vec3 baseColor1 = vec3(0.611765, 0.262745, 0.996078);
       const vec3 baseColor2 = vec3(0.298039, 0.760784, 0.913725);
       const vec3 baseColor3 = vec3(0.062745, 0.078431, 0.600000);
       const float innerRadius = 0.6;
       const float noiseScale = 0.65;
+
       float light1(float intensity, float attenuation, float dist) {
         return intensity / (1.0 + dist * attenuation);
       }
       float light2(float intensity, float attenuation, float dist) {
         return intensity / (1.0 + dist * dist * attenuation);
       }
+
       vec4 draw(vec2 uv) {
         vec3 color1 = adjustHue(baseColor1, hue);
         vec3 color2 = adjustHue(baseColor2, hue);
         vec3 color3 = adjustHue(baseColor3, hue);
+        
         float ang = atan(uv.y, uv.x);
         float len = length(uv);
         float invLen = len > 0.0 ? 1.0 / len : 0.0;
+        
         float n0 = snoise3(vec3(uv * noiseScale, iTime * 0.5)) * 0.5 + 0.5;
         float r0 = mix(mix(innerRadius, 1.0, 0.4), mix(innerRadius, 1.0, 0.6), n0);
         float d0 = distance(uv, (r0 * invLen) * uv);
@@ -439,8 +448,7 @@
       void main() {
         vec2 fragCoord = vUv * iResolution.xy;
         vec4 col = mainImage(fragCoord);
-        /* Straight alpha (renderer premultipliedAlpha: false) */
-        gl_FragColor = vec4(col.rgb, col.a);
+        gl_FragColor = vec4(col.rgb * col.a, col.a);
       }
     `;
 
@@ -500,18 +508,13 @@
 
     // Tap-to-toggle for touch devices
     let expanded = false;
-    const isCoarse = window.matchMedia('(hover: none), (pointer: coarse)').matches;
-    if (isCoarse) {
-      box.addEventListener('click', (e) => {
-        // prevent toggling when clicking interactive children if needed
-        const tag = (e.target.tagName || '').toLowerCase();
-        if (tag === 'input' || tag === 'button' || tag === 'label') return;
-        expanded = !expanded;
-        box.classList.toggle('expanded', expanded);
-        targetHover = expanded ? 1 : 0;
-      }, { passive: true });
-    }
-    // On desktop, hover controls size exclusively; mouseleave always shrinks.
+    box.addEventListener('click', (e) => {
+      if (!expanded) {
+        expanded = true;
+        box.classList.add('expanded');
+        targetHover = 1;
+      }
+    }, { passive: true });
 
     // Login handler
     document.getElementById('loginBtn').onclick = async () => {
