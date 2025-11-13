@@ -47,20 +47,18 @@
       cursor: pointer;
     }
 
-    .box:hover,
-    .box.expanded {
+    .box:hover {
       width: 460px;
       height: 480px;
     }
 
-    /* ✅ ORB CANVAS BACKGROUND */
+    /* ✅ ORB CANVAS BACKGROUND - behind everything */
     .orb-canvas {
       position: absolute;
-      inset: -8px;
-      border-radius: 28px;
+      inset: -40px;
       z-index: 0;
       pointer-events: none;
-      overflow: hidden;
+      opacity: 0.8;
     }
 
     .orb-canvas canvas {
@@ -68,7 +66,7 @@
       height: 100% !important;
     }
 
-    /* solid panel (no transparency) */
+    /* solid panel on top */
     .panel {
       position: absolute;
       inset: 0;
@@ -104,8 +102,7 @@
       z-index: 2;
     }
 
-    .box:hover #hint,
-    .box.expanded #hint {
+    .box:hover #hint {
       opacity: 0;
     }
 
@@ -120,8 +117,7 @@
       z-index: 2;
     }
 
-    .box:hover .form,
-    .box.expanded .form {
+    .box:hover .form {
       opacity: 1;
       transform: none;
       pointer-events: auto;
@@ -236,8 +232,7 @@
       .box {
         width: 92vw;
       }
-      .box:hover,
-      .box.expanded {
+      .box:hover {
         width: 92vw;
       }
       .tooltip {
@@ -292,7 +287,6 @@
   </div>
 
   <script type="module">
-    // Import OGL from CDN
     import { Renderer, Program, Mesh, Triangle, Vec3 } from 'https://cdn.skypack.dev/ogl';
 
     // Initialize Orb
@@ -457,7 +451,7 @@
       uniforms: {
         iTime: { value: 0 },
         iResolution: { value: new Vec3(gl.canvas.width, gl.canvas.height, gl.canvas.width / gl.canvas.height) },
-        hue: { value: 280 }, // Purple-pink hue
+        hue: { value: 280 },
         hover: { value: 0 },
         rot: { value: 0 },
         hoverIntensity: { value: 0.5 }
