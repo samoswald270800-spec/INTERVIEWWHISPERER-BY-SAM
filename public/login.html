@@ -37,20 +37,18 @@
     }
 
     /* ---------- shell ---------- */
-    .box {
-      position: relative;
-      width: 320px;
-      height: 100px;
-      transition: width 0.45s cubic-bezier(0.2, 0.7, 0.2, 1),
-        height 0.45s cubic-bezier(0.2, 0.7, 0.2, 1);
-      border-radius: 24px;
-      cursor: pointer;
-    }
-
-    .box:hover {
-      width: 400px;
-      height: 440px;
-    }
+    /* Smoother hover expand/shrink */
+.box {
+  position: relative;
+  width: 320px;
+  height: 100px;
+  border-radius: 24px;
+  cursor: pointer;
+  will-change: width, height;
+  transition:
+    width 0.55s cubic-bezier(.16,1,.3,1),
+    height 0.65s cubic-bezier(.16,1,.3,1);
+}
 
     /* ✅ ORB CANVAS BACKGROUND - MUCH LARGER to show full orb */
     .orb-canvas {
@@ -83,6 +81,9 @@
       flex-direction: column;
       align-items: center;
       padding: 24px 22px;
+      backface-visibility: hidden;
+      transform: translateZ(0);
+      will-change: backdrop-filter;
     }
 
     h2 {
@@ -102,7 +103,7 @@
       font-size: 11px;
       color: var(--muted);
       margin-top: 2px;
-      transition: opacity 0.35s;
+      transition: opacity 0.30s cubic-bezier(.2,.8,.2,1);
       z-index: 2;
     }
 
@@ -116,7 +117,9 @@
       max-width: 340px;
       opacity: 0;
       transform: translateY(24px);
-      transition: opacity 0.45s, transform 0.45s;
+      transition:
+        opacity 0.50s cubic-bezier(.16,1,.3,1),
+        transform 0.60s cubic-bezier(.16,1,.3,1);
       pointer-events: none;
       z-index: 2;
     }
@@ -125,6 +128,7 @@
       opacity: 1;
       transform: none;
       pointer-events: auto;
+      transition-delay: .08s, .08s;
     }
 
     label {
@@ -247,6 +251,12 @@
         top: -50px;
       }
     }
+
+    /* Respect reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  .box { transition-duration: 1ms, 1ms; }
+  .form, #hint { transition: none; }
+}
   </style>
 </head>
 <body>
