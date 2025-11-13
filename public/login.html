@@ -71,6 +71,7 @@
       animation: breathingGlow 3.5s ease-in-out infinite;
       z-index: 0;
       pointer-events: none;
+      transition: border-radius 0.45s cubic-bezier(0.2, 0.7, 0.2, 1);
     }
 
     /* ✅ Breathing pulse effect with purple-pink blend */
@@ -97,26 +98,26 @@
       }
     }
 
-    /* ✅ GLASSMORPHIC PANEL (merged with glass-card) */
+    /* ✅ GLASSMORPHIC PANEL - now properly sized to box */
     .panel {
       position: absolute;
       inset: 0;
       
       /* Glassmorphic base */
-      background: rgba(255, 255, 255, 0.19);
+      background: rgba(255, 255, 255, 0.09);
       backdrop-filter: blur(19px);
       -webkit-backdrop-filter: blur(19px);
       
       border-radius: 24px;
-      border: 1px solid rgba(255, 255, 255, 0.3);
+      border: 1px solid rgba(255, 255, 255, 0.2);
       
       /* Layered glass shadows + inner glow */
       box-shadow:
-        0 8px 32px rgba(0, 0, 0, 0.1),
+        0 8px 32px rgba(0, 0, 0, 0.3),
         0 10px 40px rgba(0, 0, 0, 0.55),
-        inset 0 1px 0 rgba(255, 255, 255, 0.5),
-        inset 0 -1px 0 rgba(255, 255, 255, 0.1),
-        inset 0 0 22px 11px rgba(255, 255, 255, 0.1);
+        inset 0 1px 0 rgba(255, 255, 255, 0.3),
+        inset 0 -1px 0 rgba(255, 255, 255, 0.08),
+        inset 0 0 22px 11px rgba(255, 255, 255, 0.06);
       
       z-index: 1;
       display: flex;
@@ -126,7 +127,23 @@
       position: relative;
       overflow: hidden;
       
-      transition: background 0.45s, box-shadow 0.45s;
+      /* Match box transition for smooth shrinking/expanding */
+      transition: background 0.45s cubic-bezier(0.2, 0.7, 0.2, 1),
+                  box-shadow 0.45s cubic-bezier(0.2, 0.7, 0.2, 1),
+                  border-color 0.45s cubic-bezier(0.2, 0.7, 0.2, 1);
+    }
+
+    /* Enhanced glass on hover/expand */
+    .box:hover .panel,
+    .box.expanded .panel {
+      background: rgba(255, 255, 255, 0.12);
+      border-color: rgba(255, 255, 255, 0.25);
+      box-shadow:
+        0 8px 32px rgba(0, 0, 0, 0.3),
+        0 10px 40px rgba(0, 0, 0, 0.55),
+        inset 0 1px 0 rgba(255, 255, 255, 0.4),
+        inset 0 -1px 0 rgba(255, 255, 255, 0.1),
+        inset 0 0 22px 11px rgba(255, 255, 255, 0.08);
     }
 
     /* ✅ Animated light streak (shine effect) */
@@ -140,12 +157,19 @@
       background: linear-gradient(
         90deg,
         transparent,
-        rgba(255, 255, 255, 0.8),
+        rgba(255, 255, 255, 0.6),
         transparent
       );
       animation: shine 5s linear infinite;
       z-index: 10;
       pointer-events: none;
+      opacity: 0;
+      transition: opacity 0.45s;
+    }
+
+    .box:hover .panel::before,
+    .box.expanded .panel::before {
+      opacity: 1;
     }
 
     @keyframes shine {
@@ -168,12 +192,19 @@
       background: linear-gradient(
         45deg,
         transparent 30%,
-        rgba(255, 255, 255, 0.1) 50%,
+        rgba(255, 255, 255, 0.06) 50%,
         transparent 70%
       );
       animation: diagonalSweep 6s ease-in-out infinite;
       pointer-events: none;
       z-index: 0;
+      opacity: 0;
+      transition: opacity 0.45s;
+    }
+
+    .box:hover .panel::after,
+    .box.expanded .panel::after {
+      opacity: 1;
     }
 
     @keyframes diagonalSweep {
@@ -250,9 +281,9 @@
       width: 100%;
       padding: 14px 18px;
       border-radius: 28px;
-      background: rgba(27, 27, 27, 0.7);
+      background: rgba(27, 27, 27, 0.6);
       backdrop-filter: blur(8px);
-      border: 1px solid rgba(255, 255, 255, 0.2);
+      border: 1px solid rgba(255, 255, 255, 0.15);
       color: #f0f0f0;
       margin-bottom: 18px;
       font-size: 15px;
@@ -263,11 +294,11 @@
     /* ✅ Glass ripple effect on focus */
     input:focus {
       border-color: var(--purple);
-      background: rgba(27, 27, 27, 0.85);
+      background: rgba(27, 27, 27, 0.75);
       box-shadow: 
         0 0 0 3px rgba(168, 85, 247, 0.18),
         0 0 20px rgba(168, 85, 247, 0.3),
-        inset 0 0 15px rgba(255, 255, 255, 0.05);
+        inset 0 0 15px rgba(255, 255, 255, 0.03);
       animation: ripple 0.6s ease-out;
     }
 
@@ -276,13 +307,13 @@
         box-shadow: 
           0 0 0 0px rgba(168, 85, 247, 0.4),
           0 0 20px rgba(168, 85, 247, 0.3),
-          inset 0 0 15px rgba(255, 255, 255, 0.05);
+          inset 0 0 15px rgba(255, 255, 255, 0.03);
       }
       100% {
         box-shadow: 
           0 0 0 8px rgba(168, 85, 247, 0),
           0 0 20px rgba(168, 85, 247, 0.3),
-          inset 0 0 15px rgba(255, 255, 255, 0.05);
+          inset 0 0 15px rgba(255, 255, 255, 0.03);
       }
     }
 
