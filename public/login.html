@@ -71,7 +71,6 @@
       animation: breathingGlow 3.5s ease-in-out infinite;
       z-index: 0;
       pointer-events: none;
-      transition: border-radius 0.45s cubic-bezier(0.2, 0.7, 0.2, 1);
     }
 
     /* ✅ Breathing pulse effect with purple-pink blend */
@@ -98,125 +97,20 @@
       }
     }
 
-    /* ✅ GLASSMORPHIC PANEL - now properly sized to box */
+    /* solid panel (no transparency) */
     .panel {
       position: absolute;
       inset: 0;
-      
-      /* Glassmorphic base */
-      background: rgba(255, 255, 255, 0.09);
-      backdrop-filter: blur(19px);
-      -webkit-backdrop-filter: blur(19px);
-      
+      background: var(--panel);
       border-radius: 24px;
-      border: 1px solid rgba(255, 255, 255, 0.2);
-      
-      /* Layered glass shadows + inner glow */
       box-shadow:
-        0 8px 32px rgba(0, 0, 0, 0.3),
-        0 10px 40px rgba(0, 0, 0, 0.55),
-        inset 0 1px 0 rgba(255, 255, 255, 0.3),
-        inset 0 -1px 0 rgba(255, 255, 255, 0.08),
-        inset 0 0 22px 11px rgba(255, 255, 255, 0.06);
-      
+        inset 0 2px 12px rgba(255, 255, 255, 0.03),
+        0 10px 40px rgba(0, 0, 0, 0.55);
       z-index: 1;
       display: flex;
       flex-direction: column;
       align-items: center;
       padding: 28px 26px;
-      position: relative;
-      overflow: hidden;
-      
-      /* Match box transition for smooth shrinking/expanding */
-      transition: background 0.45s cubic-bezier(0.2, 0.7, 0.2, 1),
-                  box-shadow 0.45s cubic-bezier(0.2, 0.7, 0.2, 1),
-                  border-color 0.45s cubic-bezier(0.2, 0.7, 0.2, 1);
-    }
-
-    /* Enhanced glass on hover/expand */
-    .box:hover .panel,
-    .box.expanded .panel {
-      background: rgba(255, 255, 255, 0.12);
-      border-color: rgba(255, 255, 255, 0.25);
-      box-shadow:
-        0 8px 32px rgba(0, 0, 0, 0.3),
-        0 10px 40px rgba(0, 0, 0, 0.55),
-        inset 0 1px 0 rgba(255, 255, 255, 0.4),
-        inset 0 -1px 0 rgba(255, 255, 255, 0.1),
-        inset 0 0 22px 11px rgba(255, 255, 255, 0.08);
-    }
-
-    /* ✅ Animated light streak (shine effect) */
-    .panel::before {
-      content: '';
-      position: absolute;
-      top: 0;
-      left: 0;
-      right: 0;
-      height: 2px;
-      background: linear-gradient(
-        90deg,
-        transparent,
-        rgba(255, 255, 255, 0.6),
-        transparent
-      );
-      animation: shine 5s linear infinite;
-      z-index: 10;
-      pointer-events: none;
-      opacity: 0;
-      transition: opacity 0.45s;
-    }
-
-    .box:hover .panel::before,
-    .box.expanded .panel::before {
-      opacity: 1;
-    }
-
-    @keyframes shine {
-      0% {
-        transform: translateX(-100%);
-      }
-      100% {
-        transform: translateX(100%);
-      }
-    }
-
-    /* ✅ Diagonal light reflection sweep */
-    .panel::after {
-      content: '';
-      position: absolute;
-      top: -50%;
-      left: -50%;
-      width: 200%;
-      height: 200%;
-      background: linear-gradient(
-        45deg,
-        transparent 30%,
-        rgba(255, 255, 255, 0.06) 50%,
-        transparent 70%
-      );
-      animation: diagonalSweep 6s ease-in-out infinite;
-      pointer-events: none;
-      z-index: 0;
-      opacity: 0;
-      transition: opacity 0.45s;
-    }
-
-    .box:hover .panel::after,
-    .box.expanded .panel::after {
-      opacity: 1;
-    }
-
-    @keyframes diagonalSweep {
-      0% {
-        transform: translate(-100%, -100%);
-      }
-      50% {
-        transform: translate(0%, 0%);
-      }
-      100% {
-        transform: translate(100%, 100%);
-      }
     }
 
     /* header + hint (always visible in collapsed) */
@@ -230,17 +124,14 @@
       background-clip: text;
       text-shadow: 0 0 20px rgba(168, 85, 247, 0.65);
       z-index: 2;
-      position: relative;
     }
 
     #hint {
       font-size: 12px;
-      color: #f0f0f0;
+      color: var(--muted);
       margin-top: 2px;
       transition: opacity 0.35s;
       z-index: 2;
-      position: relative;
-      text-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
     }
 
     /* hide hint when expanded */
@@ -259,7 +150,6 @@
       transition: opacity 0.45s, transform 0.45s;
       pointer-events: none;
       z-index: 2;
-      position: relative;
     }
 
     .box:hover .form,
@@ -272,53 +162,30 @@
     label {
       display: block;
       font-size: 12px;
-      color: #f0f0f0;
+      color: var(--muted);
       margin: 0 12px 6px;
-      text-shadow: 0 1px 2px rgba(0, 0, 0, 0.4);
     }
 
     input {
       width: 100%;
       padding: 14px 18px;
       border-radius: 28px;
-      background: rgba(27, 27, 27, 0.6);
-      backdrop-filter: blur(8px);
-      border: 1px solid rgba(255, 255, 255, 0.15);
-      color: #f0f0f0;
+      background: #1b1b1b;
+      border: 1px solid #2f2f2f;
+      color: #e8e8e8;
       margin-bottom: 18px;
       font-size: 15px;
       outline: none;
-      transition: border-color 0.2s, box-shadow 0.2s, background 0.2s;
+      transition: border-color 0.2s, box-shadow 0.2s;
     }
 
-    /* ✅ Glass ripple effect on focus */
     input:focus {
       border-color: var(--purple);
-      background: rgba(27, 27, 27, 0.75);
-      box-shadow: 
-        0 0 0 3px rgba(168, 85, 247, 0.18),
-        0 0 20px rgba(168, 85, 247, 0.3),
-        inset 0 0 15px rgba(255, 255, 255, 0.03);
-      animation: ripple 0.6s ease-out;
-    }
-
-    @keyframes ripple {
-      0% {
-        box-shadow: 
-          0 0 0 0px rgba(168, 85, 247, 0.4),
-          0 0 20px rgba(168, 85, 247, 0.3),
-          inset 0 0 15px rgba(255, 255, 255, 0.03);
-      }
-      100% {
-        box-shadow: 
-          0 0 0 8px rgba(168, 85, 247, 0),
-          0 0 20px rgba(168, 85, 247, 0.3),
-          inset 0 0 15px rgba(255, 255, 255, 0.03);
-      }
+      box-shadow: 0 0 0 3px rgba(168, 85, 247, 0.18);
     }
 
     input::placeholder {
-      color: #a0a0a0;
+      color: #7b7b7b;
     }
 
     /* ✅ GRADIENT BUTTON + TOOLTIP WRAPPER */
@@ -398,7 +265,6 @@
       font-size: 12px;
       min-height: 16px;
       margin: 6px 6px 10px;
-      text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
     }
 
     /* small safety for very small phones */
