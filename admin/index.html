@@ -1,13 +1,192 @@
-<!doctype html>
-<html>
-  <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width,initial-scale=1" />
-    <title>Admin Console</title>
-  </head>
-  <body class="bg-[#0d1117] text-white">
-    <div id="root"></div>
-    <script type="module" src="/src/main.jsx"></script>
-  </body>
-</html>
+import { useEffect, useState, useRef } from "react";
 
+/*
+  Admin UI: shows temp users and session status.
+  - Polls backend every pollMinutes (default 10)
+  - Calls:
+      GET  /admin/api/users    -> returns temp users (existing)
+      GET  /admin/api/sessions -> returns active sessions (new)
+      DELETE /admin/api/users/:username  -> revoke (existing)
+      POST /admin/api/sessions/:sessionId/logout -> logout specific session (new)
+*/
+
+export default function App() {
+  const [users, setUsers] = useState([]); // temp users
+  const [sessions, setSessions] = useState([]); // active sessions
+  const [username, setUsername] = useState("");
+  const [password, setPassword] = useState("");
+  const [hours, setHours] = useState(24);
+  const [msg, setMsg] = useState("");
+  const [pollMinutes, setPollMinutes] = useState(10); // configurable polling minutes
+
+  const pollRef = useRef(null);
+
+  async function fetchUsers() {
+    const res = await fetch("/admin/api/users");
+    if (!res.ok) return;
+    const data = await res.json();
+    setUsers(data.users || []);
+  }
+
+  async function fetchSessions() {
+    const res = await fetch("/admin/api/sessions");
+    if (!res.ok) {
+      setSessions([]);
+      return;
+    }
+    const data = await res.json();
+    setSessions(data.sessions || []);
+  }
+
+  // Combined loader
+  async function loadAll() {
+    await Promise.all([fetchUsers(), fetchSessions()]);
+  }
+
+  async function createUser() {
+    const res = await fetch("/admin/api/users", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ username, password, hours }),
+    });
+
+    const data = await res.json();
+    setMsg(data.ok ? "✅ User Created" : "❌ Failed");
+
+    await loadAll();
+    setUsername("");
+    setPassword("");
+  }
+
+  async function revokeUser(username) {
+    if (!confirm(`Revoke temporary account "${username}"? This deletes the account.`)) return;
+    await fetch(`/admin/api/users/${encodeURIComponent(username)}`, { method: "DELETE" });
+    await loadAll();
+  }
+
+  // Logout (destroy) a session by sessionId
+  async function logoutSession(sessionId) {
+    if (!confirm("Force logout this session? This will end their session but NOT delete the account.")) return;
+    const res = await fetch(`/admin/api/sessions/${encodeURIComponent(sessionId)}/logout`, {
+      method: "POST",
+    });
+    if (!res.ok) {
+      alert("Failed to logout session");
+    } else {
+      await loadAll();
+    }
+  }
+
+  // Polling lifecycle
+  useEffect(() => {
+    loadAll();
+
+    // Clear existing interval if changed
+    if (pollRef.current) {
+      clearInterval(pollRef.current);
+      pollRef.current = null;
+    }
+
+    // Set interval based on pollMinutes
+    const ms = Math.max(1, Number(pollMinutes)) * 60 * 1000;
+    pollRef.current = setInterval(() => {
+      loadAll();
+    }, ms);
+
+    return () => {
+      if (pollRef.current) clearInterval(pollRef.current);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pollMinutes]);
+
+  // Helper to find session for a given username (there might be multiple sessions per user; pick most recent)
+  function findSessionForUser(username) {
+    if (!username) return null;
+    const matched = sessions.filter((s) => s.userId === username);
+    if (matched.length === 0) return null;
+    // pick one with latest loginAt
+    matched.sort((a, b) => (b.loginAt || 0) - (a.loginAt || 0));
+    return matched[0];
+  }
+
+  function fmtTime(ts) {
+    if (!ts) return "-";
+    const d = new Date(Number(ts));
+    return d.toLocaleString();
+  }
+
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-purple-900 via-blue-900 to-indigo-900 flex items-center justify-center p-4">
+      <div className="w-full max-w-6xl bg-white/10 backdrop-blur-lg rounded-2xl shadow-2xl border border-white/20 p-8">
+        {/* Header */}
+        <div className="flex justify-between items-center mb-8">
+          <h1 className="text-3xl font-bold text-white">Admin Dashboard</h1>
+          <button
+            onClick={handleLogout}
+            className="px-6 py-2 bg-white/20 hover:bg-white/30 backdrop-blur-sm text-white rounded-lg border border-white/30 transition-all duration-200 hover:shadow-lg font-medium"
+          >
+            Logout
+          </button>
+        </div>
+
+        {/* Content */}
+        {loading ? (
+          <div className="text-center text-white/80 py-12">Loading interviews...</div>
+        ) : interviews.length === 0 ? (
+          <div className="text-center text-white/60 py-12 bg-white/5 rounded-xl border border-white/10">
+            No interviews found
+          </div>
+        ) : (
+          <div className="grid gap-6">
+            {interviews.map((interview) => (
+              <div
+                key={interview.id}
+                className="bg-white/10 backdrop-blur-sm rounded-xl p-6 border border-white/20 hover:bg-white/15 transition-all duration-200"
+              >
+                <div className="flex justify-between items-start">
+                  <div className="flex-1">
+                    <h3 className="text-xl font-semibold text-white mb-2">
+                      {interview.candidateName}
+                    </h3>
+                    <div className="space-y-1 text-white/70">
+                      <p>Position: {interview.position}</p>
+                      <p>Date: {new Date(interview.createdAt).toLocaleDateString()}</p>
+                      <p>Status: <span className="text-white/90">{interview.status || 'Completed'}</span></p>
+                    </div>
+                  </div>
+                  <div className="flex gap-3">
+                    <button
+                      onClick={() => setExpandedInterview(expandedInterview === interview.id ? null : interview.id)}
+                      className="px-4 py-2 bg-blue-500/30 hover:bg-blue-500/40 backdrop-blur-sm text-white rounded-lg border border-blue-400/30 transition-all duration-200 font-medium"
+                    >
+                      {expandedInterview === interview.id ? 'Hide' : 'View'}
+                    </button>
+                    <button
+                      onClick={() => handleDelete(interview.id)}
+                      className="px-4 py-2 bg-red-500/30 hover:bg-red-500/40 backdrop-blur-sm text-white rounded-lg border border-red-400/30 transition-all duration-200 font-medium"
+                    >
+                      Delete
+                    </button>
+                  </div>
+                </div>
+
+                {expandedInterview === interview.id && interview.transcript && (
+                  <div className="mt-4 pt-4 border-t border-white/20">
+                    <h4 className="text-lg font-semibold text-white mb-3">Transcript</h4>
+                    <div className="bg-white/5 rounded-lg p-4 max-h-96 overflow-y-auto space-y-3">
+                      {interview.transcript.map((entry, idx) => (
+                        <div key={idx} className="text-white/80">
+                          <span className="font-semibold text-white">{entry.speaker}:</span> {entry.text}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
