@@ -39,8 +39,8 @@
     /* ---------- shell ---------- */
     .box {
       position: relative;
-      width: 360px;
-      height: 120px;
+      width: 320px;
+      height: 100px;
       transition: width 0.45s cubic-bezier(0.2, 0.7, 0.2, 1),
         height 0.45s cubic-bezier(0.2, 0.7, 0.2, 1);
       border-radius: 24px;
@@ -48,17 +48,17 @@
     }
 
     .box:hover {
-      width: 460px;
-      height: 480px;
+      width: 400px;
+      height: 440px;
     }
 
-    /* ✅ ORB CANVAS BACKGROUND - behind everything */
+    /* ✅ ORB CANVAS BACKGROUND - behind everything with larger radius */
     .orb-canvas {
       position: absolute;
-      inset: -40px;
+      inset: -120px;
       z-index: 0;
       pointer-events: none;
-      opacity: 0.8;
+      opacity: 0.9;
     }
 
     .orb-canvas canvas {
@@ -79,13 +79,14 @@
       display: flex;
       flex-direction: column;
       align-items: center;
-      padding: 28px 26px;
+      padding: 24px 22px;
     }
 
     h2 {
-      margin: 6px 0 2px;
+      margin: 4px 0 2px;
       letter-spacing: 10px;
       font-weight: 600;
+      font-size: 20px;
       background: linear-gradient(135deg, var(--purple) 0%, var(--pink) 100%);
       -webkit-background-clip: text;
       -webkit-text-fill-color: transparent;
@@ -95,7 +96,7 @@
     }
 
     #hint {
-      font-size: 12px;
+      font-size: 11px;
       color: var(--muted);
       margin-top: 2px;
       transition: opacity 0.35s;
@@ -107,9 +108,9 @@
     }
 
     .form {
-      margin-top: 34px;
+      margin-top: 28px;
       width: 100%;
-      max-width: 360px;
+      max-width: 340px;
       opacity: 0;
       transform: translateY(24px);
       transition: opacity 0.45s, transform 0.45s;
@@ -125,20 +126,20 @@
 
     label {
       display: block;
-      font-size: 12px;
+      font-size: 11px;
       color: var(--muted);
-      margin: 0 12px 6px;
+      margin: 0 12px 5px;
     }
 
     input {
       width: 100%;
-      padding: 14px 18px;
+      padding: 12px 16px;
       border-radius: 28px;
       background: #1b1b1b;
       border: 1px solid #2f2f2f;
       color: #e8e8e8;
-      margin-bottom: 18px;
-      font-size: 15px;
+      margin-bottom: 14px;
+      font-size: 14px;
       outline: none;
       transition: border-color 0.2s, box-shadow 0.2s;
     }
@@ -164,13 +165,13 @@
 
     button {
       width: 100%;
-      padding: 14px 18px;
+      padding: 12px 16px;
       border-radius: 28px;
       border: 0;
       background: linear-gradient(135deg, var(--purple) 0%, var(--pink) 100%);
       color: #fff;
       font-weight: 700;
-      font-size: 16px;
+      font-size: 15px;
       cursor: pointer;
       transition: transform 0.15s, filter 0.15s, box-shadow 0.2s;
       position: relative;
@@ -223,9 +224,9 @@
 
     .err {
       color: #ff6b6b;
-      font-size: 12px;
-      min-height: 16px;
-      margin: 6px 6px 10px;
+      font-size: 11px;
+      min-height: 14px;
+      margin: 4px 6px 8px;
     }
 
     @media (max-width: 420px) {
