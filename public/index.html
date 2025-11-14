@@ -409,21 +409,20 @@
     <button type="button" id="muteBtn" disabled>Mute</button>
     <button type="button" id="clearBtn">Clear Answers</button>
 
-    <!-- Analyze Screen (styled like provided Generate button) -->
-    <span class="analyze-btn-shell btn-with-tooltip">
-      <button type="button" id="analyzeBtn" class="fancy-analyze-btn" aria-label="Analyze Screen">
-        <svg class="analyze-svg" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"
-             width="22" height="22" fill="none" stroke="var(--accent)" stroke-width="1.4">
+    <!-- Analyze Screen (Uiverse style) -->
+    <span class="btn-wrapper btn-with-tooltip">
+      <button type="button" id="analyzeBtn" class="btn" aria-label="Analyze Screen">
+        <svg class="btn-svg" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round"
             d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.09ZM18.259 8.715 18 9.75l-.259-1.035a3.375 3.375 0 0 0-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 0 0 2.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 0 0 2.456 2.456L21.75 6l-1.035.259a3.375 3.375 0 0 0-2.456 2.456ZM16.894 20.567 16.5 21.75l-.394-1.183a2.25 2.25 0 0 0-1.423-1.423L13.5 18.75l1.183-.394a2.25 2.25 0 0 0 1.423-1.423l.394-1.183.394 1.183a2.25 2.25 0 0 0 1.423 1.423l1.183.394-1.183.394a2.25 2.25 0 0 0-1.423 1.423Z" />
         </svg>
         <div class="txt-wrapper">
-          <div class="txt-state txt-default" aria-hidden="false">
+          <div class="txt-1" aria-hidden="false">
             <span class="btn-letter">A</span><span class="btn-letter">n</span><span class="btn-letter">a</span><span class="btn-letter">l</span><span class="btn-letter">y</span><span class="btn-letter">z</span><span class="btn-letter">e</span>
             <span class="btn-letter">&nbsp;</span>
             <span class="btn-letter">S</span><span class="btn-letter">c</span><span class="btn-letter">r</span><span class="btn-letter">e</span><span class="btn-letter">e</span><span class="btn-letter">n</span>
           </div>
-          <div class="txt-state txt-loading" aria-hidden="true">
+          <div class="txt-2" aria-hidden="true">
             <span class="btn-letter">A</span><span class="btn-letter">n</span><span class="btn-letter">a</span><span class="btn-letter">l</span><span class="btn-letter">y</span><span class="btn-letter">z</span><span class="btn-letter">i</span><span class="btn-letter">n</span><span class="btn-letter">g</span><span class="btn-letter">…</span>
           </div>
         </div>
@@ -444,35 +443,80 @@
     <div id="modeStatus"></div>
     <div id="status">idle</div>
 
-    <!-- Added CSS for Analyze Screen tooltip -->
+    <!-- Analyze Screen specific CSS (overrides global button breathing for this button only) -->
     <style>
-      .btn-with-tooltip {
-        position: relative;
-        display: inline-flex;
-        align-items: center;
+      .btn-wrapper { position:relative; display:inline-flex; }
+      #analyzeBtn.btn {
+        position:relative;
+        display:inline-flex;
+        align-items:center;
+        gap:8px;
+        border:1px solid #333;
+        background:#1a1a1a;
+        color:#ddd;
+        padding:8px 14px;
+        border-radius:8px;
+        cursor:pointer;
+        overflow:hidden;
+        font-size:13px;
+        letter-spacing:.4px;
+        transition:background .4s ease, border .4s ease;
       }
+      #analyzeBtn .btn-svg { width:22px; height:22px; stroke:var(--accent); fill:none; stroke-width:1.4; flex-shrink:0; transition:stroke .6s ease; }
+      body.god-mode #analyzeBtn .btn-svg { stroke:var(--accent); }
+
+      /* Disable global breathing animation & scale for this button */
+      #analyzeBtn:hover { animation:none !important; transform:none !important; box-shadow:0 0 12px var(--accent-glow), 0 0 22px var(--accent-glow), inset 0 0 8px var(--accent-glow); }
+
+      /* Text swap states */
+      #analyzeBtn .txt-wrapper { position:relative; display:grid; }
+      #analyzeBtn .txt-1,
+      #analyzeBtn .txt-2 { display:inline-flex; gap:1px; transition:opacity .35s ease, transform .35s ease; }
+      #analyzeBtn .txt-2 { position:absolute; inset:0; opacity:0; transform:translateY(6px); }
+      #analyzeBtn.loading .txt-1 { opacity:0; transform:translateY(-6px); }
+      #analyzeBtn.loading .txt-2 { opacity:1; transform:translateY(0); }
+      #analyzeBtn.loading { pointer-events:none; opacity:.85; }
+
+      /* Letter wave animation while loading */
+      #analyzeBtn.loading .txt-2 .btn-letter { animation:analyzeWave 1.4s ease-in-out infinite; display:inline-block; }
+      #analyzeBtn.loading .txt-2 .btn-letter:nth-child(1){animation-delay:0s}
+      #analyzeBtn.loading .txt-2 .btn-letter:nth-child(2){animation-delay:.07s}
+      #analyzeBtn.loading .txt-2 .btn-letter:nth-child(3){animation-delay:.14s}
+      #analyzeBtn.loading .txt-2 .btn-letter:nth-child(4){animation-delay:.21s}
+      #analyzeBtn.loading .txt-2 .btn-letter:nth-child(5){animation-delay:.28s}
+      #analyzeBtn.loading .txt-2 .btn-letter:nth-child(6){animation-delay:.35s}
+      #analyzeBtn.loading .txt-2 .btn-letter:nth-child(7){animation-delay:.42s}
+      #analyzeBtn.loading .txt-2 .btn-letter:nth-child(8){animation-delay:.49s}
+      #analyzeBtn.loading .txt-2 .btn-letter:nth-child(9){animation-delay:.56s}
+      #analyzeBtn.loading .txt-2 .btn-letter:nth-child(10){animation-delay:.63s}
+      @keyframes analyzeWave {
+        0%,100% { transform:translateY(0); }
+        50% { transform:translateY(-3px); }
+      }
+
+      /* Tooltip */
       .analyze-tooltip {
-        position: absolute;
-        top: 100%;
-        left: 50%;
-        transform: translateX(-50%);
-        background: #000;
-        color: #fff;
-        font-size: 11px;
-        padding: 4px 8px;
-        border-radius: 4px;
-        white-space: nowrap;
-        box-shadow: 0 2px 6px rgba(0,0,0,0.4);
-        opacity: 0;
-        pointer-events: none;
-        transition: opacity .15s ease;
-        margin-top: 6px;
-        z-index: 30;
+        position:absolute;
+        top:100%;
+        left:50%;
+        transform:translateX(-50%);
+        background:#000;
+        color:#fff;
+        font-size:11px;
+        padding:4px 8px;
+        border-radius:4px;
+        white-space:nowrap;
+        box-shadow:0 2px 6px rgba(0,0,0,0.4);
+        opacity:0;
+        pointer-events:none;
+        transition:opacity .15s ease;
+        margin-top:6px;
+        z-index:30;
       }
-      .btn-with-tooltip:hover .analyze-tooltip,
-      #analyzeBtn:hover + .analyze-tooltip {
-        opacity: 1;
-      }
+      .btn-wrapper:hover .analyze-tooltip,
+      #analyzeBtn:hover + .analyze-tooltip { opacity:1; }
+
+      #analyzeBtn:focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
     </style>
   </div>
 
