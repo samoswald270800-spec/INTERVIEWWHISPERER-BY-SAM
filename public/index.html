@@ -432,7 +432,8 @@
     <span class="pill" id="pListening">listening</span>
     <span class="pill" id="pProcessing">processing</span>
     <div id="status">idle</div>
-
+    <!-- Added output container for Analyze Screen -->
+    <div id="analysisOutput" style="font-size:12px; color:#9aa; max-width:480px;"></div>
     <!-- Analyze Screen specific CSS (overrides global button breathing for this button only) -->
     <style>
       .btn-wrapper { position:relative; display:inline-flex; }
@@ -1354,6 +1355,102 @@ End every answer like this:
             requestAnimationFrame(() => activateMode(active));
         });
       })();
+
+      const analyzeBtn = document.getElementById('analyzeBtn');
+      const analysisOutput = document.getElementById('analysisOutput');
+
+      async function captureScreenImage() {
+        // Try using existing tabStream if it still has a video track
+        let videoTrack = tabStream?.getVideoTracks?.().find(t => t.readyState === 'live');
+        let localStream = null;
+        if (!videoTrack) {
+          // Re-capture (user will get prompt). Minimal video only.
+            try {
+              localStream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: false });
+              videoTrack = localStream.getVideoTracks()[0];
+            } catch (e) {
+              console.warn('Screen capture denied for analyze:', e);
+              return null;
+            }
+        }
+        if (!videoTrack) return null;
+        const videoEl = document.createElement('video');
+        videoEl.srcObject = new MediaStream([videoTrack]);
+        videoEl.muted = true;
+        await new Promise(r => videoEl.onloadedmetadata = r);
+        videoEl.play();
+        await new Promise(r => setTimeout(r, 100)); // allow frame to paint
+        const w = videoEl.videoWidth;
+        const h = videoEl.videoHeight;
+        if (!w || !h) {
+          console.warn('No video dimensions for screenshot');
+          if (localStream) localStream.getTracks().forEach(t => t.stop());
+          return null;
+        }
+        const canvas = document.createElement('canvas');
+        canvas.width = w;
+        canvas.height = h;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(videoEl, 0, 0, w, h);
+        const dataUrl = canvas.toDataURL('image/png');
+        if (localStream) localStream.getTracks().forEach(t => t.stop());
+        return dataUrl;
+      }
+
+      function collectTranscript() {
+        const items = [];
+        list.querySelectorAll('.qa').forEach(card => {
+          const qEl = card.querySelector('.q');
+          const aEl = card.querySelector('.a');
+            if (qEl || aEl) {
+              const qTxt = (qEl?.textContent || '').replace(/^Q:\s*/,'').trim();
+              const aTxt = (aEl?.textContent || '').replace(/^A:\s*/,'').trim();
+              if (qTxt || aTxt) items.push({ q: qTxt, a: aTxt });
+            }
+        });
+        return items;
+      }
+
+      async function analyzeScreen() {
+        if (analyzeBtn.classList.contains('loading')) return;
+        analyzeBtn.classList.add('loading');
+        analysisOutput.textContent = 'Analyzing screen…';
+
+        const img = await captureScreenImage();
+        if (!img) {
+          analysisOutput.textContent = 'Failed to capture screen (user denied or no video).';
+          analyzeBtn.classList.remove('loading');
+          return;
+        }
+
+        const transcript = collectTranscript();
+        const mode = window.currentAIStrategy || 'smart';
+
+        try {
+          const resp = await fetch('/analyze-screen', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ image: img, transcript, mode })
+          });
+          const data = await resp.json();
+          if (!resp.ok) {
+            analysisOutput.textContent = 'Server error: ' + (data.error || resp.status);
+          } else {
+            analysisOutput.innerHTML =
+              '<strong>Screen Analysis:</strong><br>' +
+              (data.analysis ? data.analysis.replace(/</g,'&lt;') : '(none)') +
+              '<br><br><strong>Interview Answer (' + data.mode + '):</strong><br>' +
+              (data.answer ? data.answer.replace(/</g,'&lt;') : '(none)');
+          }
+        } catch (e) {
+          console.error(e);
+          analysisOutput.textContent = 'Request failed.';
+        } finally {
+          analyzeBtn.classList.remove('loading');
+        }
+      }
+
+      analyzeBtn.addEventListener('click', analyzeScreen);
     })();
   </script>
   <!-- ✅ LOGOUT BUTTON -->
