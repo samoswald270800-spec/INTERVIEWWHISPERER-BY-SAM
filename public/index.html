@@ -675,612 +675,767 @@
   </button>
 
   <script>
-    async function logout() {
-      await fetch("/api/logout", { method: "POST" });
-      window.location.href = "/login";
-    }
+  // ====== DEBUG LOGGING UTILITY (Feature Flag) ======
+  const DEBUG_ENABLED = true; // Set to false to disable all debug logs
 
-    function extractText(msg) {
-      return msg.delta || msg.text || msg.transcript || "";
+  function debugLog(message, data = null) {
+    if (!DEBUG_ENABLED) return;
+    
+    const debugConsole = document.getElementById('debug-console');
+    if (!debugConsole) return;
+    
+    const timestamp = new Date().toLocaleTimeString();
+    const entry = document.createElement('div');
+    entry.className = 'debug-entry';
+    entry.style.marginBottom = '8px';
+    entry.style.paddingBottom = '6px';
+    entry.style.borderBottom = '1px solid rgba(255,255,255,0.05)';
+    
+    let text = `[${timestamp}] ${message}`;
+    if (data !== null && data !== undefined) {
+      try {
+        text += `\n${JSON.stringify(data, null, 2)}`;
+      } catch (e) {
+        text += `\n${String(data)}`;
+      }
     }
+    
+    entry.textContent = text;
+    entry.style.whiteSpace = 'pre-wrap';
+    entry.style.wordWrap = 'break-word';
+    
+    debugConsole.appendChild(entry);
+    debugConsole.scrollTop = debugConsole.scrollHeight;
+    
+    // Also log to browser console
+    console.log(`[DEBUG] ${message}`, data || '');
+  }
 
-    function askForAnswer() {
-      if (dc && dcOpen) {
-        dc.send(JSON.stringify({ type: "response.create", response: { modalities: ["text"] } }));
+  function clearDebug() {
+    const debugConsole = document.getElementById('debug-console');
+    if (debugConsole) {
+      debugConsole.innerHTML = '';
+      debugLog('Debug console cleared');
+    }
+  }
+
+  function toggleDebug() {
+    const panel = document.getElementById('debug-panel');
+    const toggleBtn = document.getElementById('debug-toggle');
+    if (panel.style.display === 'none' || !panel.style.display) {
+      panel.style.display = 'block';
+      toggleBtn.textContent = 'Hide Debug';
+      debugLog('Debug panel opened');
+    } else {
+      panel.style.display = 'none';
+      toggleBtn.textContent = 'Show Debug';
+    }
+  }
+
+  // Make functions global
+  window.debugLog = debugLog;
+  window.clearDebug = clearDebug;
+  window.toggleDebug = toggleDebug;
+
+  async function logout() {
+    debugLog('Logout initiated');
+    await fetch("/api/logout", { method: "POST" });
+    window.location.href = "/login";
+  }
+
+  function extractText(msg) {
+    return msg.delta || msg.text || msg.transcript || "";
+  }
+
+  function askForAnswer() {
+    debugLog('Asking for answer from realtime API');
+    if (dc && dcOpen) {
+      dc.send(JSON.stringify({ type: "response.create", response: { modalities: ["text"] } }));
+    }
+  }
+
+  (() => {
+    const startBtn = document.getElementById("startBtn");
+    const stopBtn = document.getElementById("stopBtn");
+    const muteBtn = document.getElementById("muteBtn");
+    const clearBtn = document.getElementById("clearBtn");
+    const statusEl = document.getElementById("status");
+    const modeStatusEl = document.getElementById("modeStatus");
+    const modeSwitch = document.getElementById("modeSwitch");
+    const pListening = document.getElementById("pListening");
+    const pProcessing = document.getElementById("pProcessing");
+    const list = document.getElementById("list");
+    const debugEl = document.getElementById("debug");
+    const bar = document.getElementById("bar");
+    const jdEl = document.getElementById("jd");
+    const saveJD = document.getElementById("saveJD");
+    const savedTag = document.getElementById("savedTag");
+
+    let pc, dc, tabStream, audioTrack, meterNode, meterCtx;
+    let dcOpen = false;
+    let sessionActive = false;
+    let qa = null;
+    let partialQ = "";
+    let finalQ = "";
+    let partialA = "";
+    let finalA = "";
+    let gotAnswerThisTurn = false;
+    let vadActive = false;
+
+    let screenFrameStream = null;
+    let screenFrameTrack = null;
+    window.currentAIStrategy = "smart";
+
+    debugLog('Interview Whisperer initialized', { mode: window.currentAIStrategy });
+
+    const setStatus = (t) => {
+      statusEl.textContent = t;
+      debugLog(`Status: ${t}`);
+    };
+
+    const pillOn = (el, on) => el.classList.toggle("on", !!on);
+    
+    const logDbg = (o) => {
+      try {
+        debugEl.textContent += JSON.stringify(o, null, 2) + "\n";
+      } catch {
+        debugEl.textContent += String(o) + "\n";
+      }
+      debugEl.scrollTop = debugEl.scrollHeight;
+    };
+
+    function updateModeIndicator() {
+      if (sessionActive) {
+        const mode = window.currentAIStrategy || "smart";
+        const icon = mode === "god" ? "🔥" : "⚡";
+        const label = mode === "god" ? "GodMode" : "Smart Detail";
+        modeStatusEl.textContent = `${icon} ${label} active`;
+        debugLog('Mode indicator updated', { mode, label });
+      } else {
+        modeStatusEl.textContent = "";
       }
     }
 
-    (() => {
-      const startBtn = document.getElementById("startBtn");
-      const stopBtn = document.getElementById("stopBtn");
-      const muteBtn = document.getElementById("muteBtn");
-      const clearBtn = document.getElementById("clearBtn");
-      const statusEl = document.getElementById("status");
-      const modeStatusEl = document.getElementById("modeStatus");
-      const modeSwitch = document.getElementById("modeSwitch");
-      const pListening = document.getElementById("pListening");
-      const pProcessing = document.getElementById("pProcessing");
-      const list = document.getElementById("list");
-      const debugEl = document.getElementById("debug");
-      const bar = document.getElementById("bar");
-      const jdEl = document.getElementById("jd");
-      const saveJD = document.getElementById("saveJD");
-      const savedTag = document.getElementById("savedTag");
+    function lockModeSwitch(locked) {
+      debugLog('Mode switch lock state changed', { locked });
+      if (locked) {
+        modeSwitch.classList.add("locked");
+      } else {
+        modeSwitch.classList.remove("locked");
+      }
+    }
 
-      let pc, dc, tabStream, audioTrack, meterNode, meterCtx;
-      let dcOpen = false;
-      let sessionActive = false;
-      let qa = null;
-      let partialQ = "";
-      let finalQ = "";
-      let partialA = "";
-      let finalA = "";
-      let gotAnswerThisTurn = false;
-      let vadActive = false;
+    function applyTheme(mode) {
+      debugLog('Applying theme', { mode });
+      const body = document.body;
+      if (mode === "god") {
+        body.classList.add("god-mode");
+      } else {
+        body.classList.remove("god-mode");
+      }
+    }
 
-      let screenFrameStream = null;
-      let screenFrameTrack = null;
-      window.currentAIStrategy = "smart";
+    function newCard() {
+      debugLog('Creating new Q/A card');
+      const root = document.createElement("div");
+      root.className = "qa";
+      const q = document.createElement("div");
+      q.className = "q";
+      q.textContent = "Q: ";
+      const a = document.createElement("div");
+      a.className = "a";
+      a.textContent = "A: ";
+      root.appendChild(q);
+      root.appendChild(a);
+      list.appendChild(root);
+      list.scrollTop = list.scrollHeight;
+      return { root, qEl: q, aEl: a };
+    }
 
-      const setStatus = (t) => {
-        statusEl.textContent = t;
-        console.log("[status]", t);
-      };
-      const pillOn = (el, on) => el.classList.toggle("on", !!on);
-      const logDbg = (o) => {
+    function ensureCard() {
+      if (!qa) qa = newCard();
+    }
+
+    function resetTurn() {
+      debugLog('Resetting turn', { hadQ: !!finalQ, hadA: !!finalA });
+      // Send Q/A to backend before resetting
+      if (finalQ || finalA) {
+        debugLog('Saving turn to backend', { q: finalQ.slice(0, 50), a: finalA.slice(0, 50) });
+        fetch('/save-turn', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ q: finalQ, a: finalA })
+        }).then(() => {
+          debugLog('Turn saved successfully');
+        }).catch(e => {
+          debugLog('Failed to save turn', { error: e.message });
+          console.warn('Failed to save turn:', e);
+        });
+      }
+
+      qa = null;
+      partialQ = "";
+      finalQ = "";
+      partialA = "";
+      finalA = "";
+      gotAnswerThisTurn = false;
+    }
+
+    clearBtn.onclick = () => {
+      debugLog('Clearing all answers');
+      list.innerHTML = "";
+      debugEl.textContent = "";
+    };
+
+    saveJD.onclick = async () => {
+      debugLog('Saving JD', { length: jdEl.value?.length || 0 });
+      savedTag.style.display = "none";
+      const r = await fetch("/set-jd", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ jd: jdEl.value || "" }),
+      })
+        .then((r) => r.json())
+        .catch((err) => {
+          debugLog('JD save failed', { error: err.message });
+          return { ok: false };
+        });
+      
+      if (r.ok) {
+        debugLog('JD saved successfully', { length: r.length });
+        savedTag.style.display = "inline-block";
+        setTimeout(() => (savedTag.style.display = "none"), 1200);
+
         try {
-          debugEl.textContent += JSON.stringify(o, null, 2) + "\n";
-        } catch {
-          debugEl.textContent += String(o) + "\n";
-        }
-        debugEl.scrollTop = debugEl.scrollHeight;
-      };
-
-      function updateModeIndicator() {
-        if (sessionActive) {
-          const mode = window.currentAIStrategy || "smart";
-          const icon = mode === "god" ? "🔥" : "⚡";
-          const label = mode === "god" ? "GodMode" : "Smart Detail";
-          modeStatusEl.textContent = `${icon} ${label} active`;
-        } else {
-          modeStatusEl.textContent = "";
-        }
-      }
-
-      function lockModeSwitch(locked) {
-        if (locked) {
-          modeSwitch.classList.add("locked");
-        } else {
-          modeSwitch.classList.remove("locked");
-        }
-      }
-
-      function applyTheme(mode) {
-        const body = document.body;
-        if (mode === "god") {
-          body.classList.add("god-mode");
-        } else {
-          body.classList.remove("god-mode");
-        }
-      }
-
-      function newCard() {
-        const root = document.createElement("div");
-        root.className = "qa";
-        const q = document.createElement("div");
-        q.className = "q";
-        q.textContent = "Q: ";
-        const a = document.createElement("div");
-        a.className = "a";
-        a.textContent = "A: ";
-        root.appendChild(q);
-        root.appendChild(a);
-        list.appendChild(root);
-        list.scrollTop = list.scrollHeight;
-        return { root, qEl: q, aEl: a };
-      }
-
-      function ensureCard() {
-        if (!qa) qa = newCard();
-      }
-
-      function resetTurn() {
-        // Send Q/A to backend before resetting
-        if (finalQ || finalA) {
-          fetch('/save-turn', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ q: finalQ, a: finalA })
-          }).catch(e => console.warn('Failed to save turn:', e));
-        }
-
-        qa = null;
-        partialQ = "";
-        finalQ = "";
-        partialA = "";
-        finalA = "";
-        gotAnswerThisTurn = false;
-      }
-
-      clearBtn.onclick = () => {
-        list.innerHTML = "";
-        debugEl.textContent = "";
-      };
-
-      saveJD.onclick = async () => {
-        savedTag.style.display = "none";
-        const r = await fetch("/set-jd", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ jd: jdEl.value || "" }),
-        })
-          .then((r) => r.json())
-          .catch(() => ({ ok: false }));
-        if (r.ok) {
-          savedTag.style.display = "inline-block";
-          setTimeout(() => (savedTag.style.display = "none"), 1200);
-
-          try {
-            if (dc && dcOpen && typeof dc.send === "function") {
-              const instructions = buildRealtimeInstructions(
-                window.currentAIStrategy || "smart"
-              );
-              dc.send(
-                JSON.stringify({
-                  type: "session.update",
-                  session: { instructions },
-                })
-              );
-              console.log("→ sent session.update (JD updated)");
-            }
-          } catch (err) {
-            console.warn("session.update (JD) failed:", err);
+          if (dc && dcOpen && typeof dc.send === "function") {
+            const instructions = buildRealtimeInstructions(
+              window.currentAIStrategy || "smart"
+            );
+            dc.send(
+              JSON.stringify({
+                type: "session.update",
+                session: { instructions },
+              })
+            );
+            debugLog('Sent session.update with new JD');
           }
+        } catch (err) {
+          debugLog('session.update (JD) failed', { error: err.message });
+          console.warn("session.update (JD) failed:", err);
         }
-      };
-
-      function buildRealtimeInstructions(mode) {
-        // Minimal instructions - backend holds the full context
-        const modeText = mode === "god" 
-          ? "GOD MODE: 900+ word detailed answers" 
-          : "SMART DETAIL: 300-500 word concise answers";
-        
-        return `You are in ${modeText}. Answer as the candidate in first person.`;
       }
+    };
 
-      async function ensureScreenFrameStream() {
-        if (screenFrameTrack && screenFrameTrack.readyState === "live") return;
+    function buildRealtimeInstructions(mode) {
+      const modeText = mode === "god" 
+        ? "GOD MODE: 900+ word detailed answers" 
+        : "SMART DETAIL: 300-500 word concise answers";
+      
+      return `You are in ${modeText}. Answer as the candidate in first person.`;
+    }
+
+    async function ensureScreenFrameStream() {
+      debugLog('Ensuring screen frame stream');
+      if (screenFrameTrack && screenFrameTrack.readyState === "live") {
+        debugLog('Screen frame stream already active');
+        return;
+      }
+      
+      try {
         const s = await navigator.mediaDevices.getDisplayMedia({
           video: { frameRate: 1 },
           audio: false
         });
         screenFrameStream = s;
         screenFrameTrack = s.getVideoTracks()[0];
+        debugLog('Screen frame stream created');
+        
         screenFrameTrack.addEventListener("ended", () => {
+          debugLog('Screen frame stream ended');
           screenFrameTrack = null;
           screenFrameStream = null;
         });
+      } catch (err) {
+        debugLog('Screen frame stream failed', { error: err.message });
+        throw err;
+      }
+    }
+
+    async function captureScreenImage() {
+      debugLog('Capturing screen image');
+      await ensureScreenFrameStream();
+      
+      if (!screenFrameTrack || screenFrameTrack.readyState !== "live") {
+        debugLog('No active screen track');
+        return null;
       }
 
-      async function captureScreenImage() {
-        await ensureScreenFrameStream();
-        if (!screenFrameTrack || screenFrameTrack.readyState !== "live") return null;
+      const v = document.createElement("video");
+      v.srcObject = new MediaStream([screenFrameTrack]);
+      await new Promise(r => v.onloadedmetadata = r);
+      await v.play();
+      await new Promise(r => setTimeout(r, 80));
+      const w = v.videoWidth, h = v.videoHeight;
+      
+      debugLog('Screen capture dimensions', { width: w, height: h });
+      
+      if (!w || !h) return null;
+      
+      const c = document.createElement("canvas");
+      c.width = w; 
+      c.height = h;
+      c.getContext("2d").drawImage(v, 0, 0, w, h);
+      const dataUrl = c.toDataURL("image/png");
+      
+      debugLog('Screen captured', { size: dataUrl.length });
+      return dataUrl;
+    }
 
-        const v = document.createElement("video");
-        v.srcObject = new MediaStream([screenFrameTrack]);
-        await new Promise(r => v.onloadedmetadata = r);
-        await v.play();
-        await new Promise(r => setTimeout(r, 80));
-        const w = v.videoWidth, h = v.videoHeight;
-        if (!w || !h) return null;
-        const c = document.createElement("canvas");
-        c.width = w; c.height = h;
-        c.getContext("2d").drawImage(v, 0, 0, w, h);
-        return c.toDataURL("image/png");
+    const analyzeBtn = document.getElementById('analyzeBtn');
+
+    async function analyzeScreen() {
+      debugLog('Analyze Screen clicked');
+      
+      if (analyzeBtn.classList.contains('loading')) {
+        debugLog('Already analyzing, skipping');
+        return;
+      }
+      
+      analyzeBtn.classList.add('loading');
+      setStatus("analyzing screen…");
+
+      const img = await captureScreenImage();
+      if (!img) {
+        debugLog('Screen capture failed - no image');
+        setStatus("⚠️ Analyze failed — no frame.");
+        analyzeBtn.classList.remove('loading');
+        return;
       }
 
-      const analyzeBtn = document.getElementById('analyzeBtn');
+      const mode = window.currentAIStrategy || "smart";
+      debugLog('Sending to /analyze-screen', { mode, imageSize: img.length });
 
-      async function analyzeScreen() {
-        if (analyzeBtn.classList.contains('loading')) return;
-        analyzeBtn.classList.add('loading');
-        setStatus("analyzing screen…");
+      try {
+        const resp = await fetch('/analyze-screen', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ 
+            screenshotBase64: img, 
+            mode 
+          })
+        });
+        
+        const data = await resp.json();
+        debugLog('/analyze-screen response', { ok: resp.ok, data });
 
-        const img = await captureScreenImage();
-        if (!img) {
-          setStatus("⚠️ Analyze failed — no frame.");
+        if (!resp.ok) {
+          debugLog('Analyze failed', { status: resp.status, data });
+          setStatus("⚠️ Analyze failed — try again.");
           analyzeBtn.classList.remove('loading');
           return;
         }
 
-        const mode = window.currentAIStrategy || "smart";
+        debugLog('Getting realtime update instructions');
+        const updateResp = await fetch('/realtime-update', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' }
+        });
+        const updateData = await updateResp.json();
+        debugLog('/realtime-update response', { ok: updateResp.ok, updateData });
 
-        try {
-          // Send ONLY screenshot + mode
-          const resp = await fetch('/analyze-screen', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ 
-              screenshotBase64: img, 
-              mode 
-            })
-          });
-          const data = await resp.json();
+        if (updateData.ok && dc && dcOpen) {
+          debugLog('Injecting analysis into realtime');
+          dc.send(JSON.stringify({
+            type: "session.update",
+            session: { instructions: updateData.instructions }
+          }));
 
-          if (!resp.ok) {
-            setStatus("⚠️ Analyze failed — try again.");
-            analyzeBtn.classList.remove('loading');
+          if (updateData.shouldTriggerResponse) {
+            debugLog('Triggering realtime response');
+            askForAnswer();
+          }
+        }
+
+        setStatus("analysis injected → answering…");
+
+      } catch (e) {
+        debugLog('Analyze screen error', { error: e.message, stack: e.stack });
+        console.error(e);
+        setStatus("⚠️ Analyze failed — try again.");
+      } finally {
+        analyzeBtn.classList.remove('loading');
+      }
+    }
+
+    analyzeBtn.addEventListener('click', analyzeScreen);
+
+    muteBtn.onclick = () => {
+      if (!audioTrack) return;
+      audioTrack.enabled = !audioTrack.enabled;
+      muteBtn.textContent = audioTrack.enabled ? "Mute" : "Unmute";
+      debugLog('Audio mute toggled', { enabled: audioTrack.enabled });
+    };
+
+    function attachChannel(ch) {
+      debugLog('Attaching data channel');
+      dc = ch;
+      
+      dc.onopen = () => {
+        dcOpen = true;
+        debugLog('Data channel opened');
+        setStatus("data channel open");
+
+        const instructions = buildRealtimeInstructions(window.currentAIStrategy || "smart");
+        dc.send(
+          JSON.stringify({
+            type: "session.update",
+            session: {
+              modalities: ["text"],
+              input_audio_transcription: { model: "whisper-1" },
+              turn_detection: {
+                type: "server_vad",
+                threshold: 0.5,
+                prefix_padding_ms: 300,
+                silence_duration_ms: 700,
+                create_response: false,
+                interrupt_response: true,
+              },
+              instructions
+            },
+          })
+        );
+        debugLog('Sent initial session.update');
+      };
+      
+      dc.onclose = () => {
+        dcOpen = false;
+        debugLog('Data channel closed');
+      };
+
+      dc.onmessage = async (e) => {
+        let msg;
+        try { 
+          msg = JSON.parse(e.data); 
+        } catch { 
+          debugLog('Failed to parse message', { data: e.data });
+          return; 
+        }
+
+        debugLog('Received message', { type: msg.type });
+
+        switch (msg.type) {
+          case "input_audio_buffer.speech_started":
+            debugLog('Speech started (VAD)');
+            vadActive = true;
+            pillOn(pListening, true);
+            pillOn(pProcessing, false);
+            resetTurn();
+            ensureCard();
+            qa.qEl.textContent = "Q: ";
+            qa.aEl.textContent = "A: ";
+            setStatus("listening…");
+            return;
+
+          case "response.input_audio_transcription.delta": {
+            const t = msg.delta || extractText(msg);
+            if (t) {
+              partialQ += t;
+              ensureCard();
+              qa.qEl.textContent = "Q: " + partialQ;
+              debugLog('Transcript delta', { text: t, total: partialQ.length });
+            }
+            return;
+          }
+          
+          case "response.input_audio_transcription.completed": {
+            finalQ = msg.transcript || extractText(msg) || partialQ;
+            ensureCard();
+            qa.qEl.textContent = "Q: " + finalQ;
+            debugLog('Transcript completed', { question: finalQ });
             return;
           }
 
-          // Get realtime update instructions
-          const updateResp = await fetch('/realtime-update', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' }
-          });
-          const updateData = await updateResp.json();
+          case "input_audio_buffer.speech_stopped": {
+            vadActive = false;
+            pillOn(pListening, false);
+            pillOn(pProcessing, true);
+            setStatus("processing…");
+            debugLog('Speech stopped (VAD)');
 
-          if (updateData.ok && dc && dcOpen) {
-            // Inject analysis into realtime
-            dc.send(JSON.stringify({
-              type: "session.update",
-              session: { instructions: updateData.instructions }
-            }));
-
-            // Trigger response
-            if (updateData.shouldTriggerResponse) {
+            const heard = (finalQ || partialQ || "").trim();
+            const hasQuestion = heard.length >= 8 || /[?)]$/.test(heard);
+            debugLog('Evaluating if should answer', { heard, hasQuestion, gotAnswerThisTurn });
+            
+            if (!gotAnswerThisTurn && hasQuestion) {
+              gotAnswerThisTurn = true;
               askForAnswer();
+            } else {
+              pillOn(pProcessing, false);
+              setStatus("idle");
             }
+            return;
           }
 
-          setStatus("analysis injected → answering…");
+          case "response.text.delta":
+          case "response.output_text.delta":
+          case "response.delta": {
+            const d = extractText(msg);
+            if (d) {
+              ensureCard();
+              partialA += d;
+              qa.aEl.textContent += d;
+              debugLog('Answer delta', { length: d.length, total: partialA.length });
+            }
+            return;
+          }
 
-        } catch (e) {
-          console.error(e);
-          setStatus("⚠️ Analyze failed — try again.");
-        } finally {
-          analyzeBtn.classList.remove('loading');
+          case "response.message": {
+            const t = extractText(msg);
+            if (t) {
+              ensureCard();
+              partialA += t;
+              qa.aEl.textContent += t;
+              debugLog('Answer message', { length: t.length });
+            }
+            return;
+          }
+
+          case "response.completed":
+            pillOn(pProcessing, false);
+            finalA = partialA;
+            debugLog('Response completed', { answerLength: finalA.length });
+            resetTurn();
+            setStatus("ready — speak in the meeting tab");
+            return;
+
+          default:
+            return;
         }
+      };
+    }
+
+    async function startRealtime() {
+      debugLog('Starting realtime session', { mode: window.currentAIStrategy });
+      setStatus("requesting session…");
+
+      const session = await fetch("/session", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ mode: window.currentAIStrategy || "smart" }),
+      })
+        .then((r) => r.json())
+        .catch((err) => {
+          debugLog('Session request failed', { error: err.message });
+          return { error: String(err) };
+        });
+
+      debugLog('Session response', { hasToken: !!session?.client_secret?.value });
+
+      const token = session?.client_secret?.value;
+      if (!token) {
+        setStatus("token failed");
+        logDbg(session);
+        debugLog('No session token received', session);
+        return;
       }
 
-      analyzeBtn.addEventListener('click', analyzeScreen);
+      sessionActive = true;
+      lockModeSwitch(true);
+      updateModeIndicator();
 
-      muteBtn.onclick = () => {
-        if (!audioTrack) return;
-        audioTrack.enabled = !audioTrack.enabled;
-        muteBtn.textContent = audioTrack.enabled ? "Mute" : "Unmute";
+      pc = new RTCPeerConnection();
+      window.pc = pc;
+      debugLog('RTCPeerConnection created');
+
+      attachChannel(pc.createDataChannel("oai-events"));
+      pc.ondatachannel = (e) => {
+        debugLog('Data channel event received');
+        attachChannel(e.channel);
+      };
+      pc.oniceconnectionstatechange = () => {
+        debugLog('ICE connection state', { state: pc.iceConnectionState });
+        setStatus("ice: " + pc.iceConnectionState);
       };
 
-      function attachChannel(ch) {
-        dc = ch;
-        dc.onopen = () => {
-          dcOpen = true;
-          setStatus("data channel open");
-
-          const instructions = buildRealtimeInstructions(window.currentAIStrategy || "smart");
-          dc.send(
-            JSON.stringify({
-              type: "session.update",
-              session: {
-                modalities: ["text"],
-                input_audio_transcription: { model: "whisper-1" },
-                turn_detection: {
-                  type: "server_vad",
-                  threshold: 0.5,
-                  prefix_padding_ms: 300,
-                  silence_duration_ms: 700,
-                  create_response: false,
-                  interrupt_response: true,
-                },
-                instructions
-              },
-            })
-          );
-        };
-        dc.onclose = () => {
-          dcOpen = false;
-        };
-
-        dc.onmessage = async (e) => {
-          let msg;
-          try { msg = JSON.parse(e.data); } catch { return; }
-
-          switch (msg.type) {
-            case "input_audio_buffer.speech_started":
-              vadActive = true;
-              pillOn(pListening, true);
-              pillOn(pProcessing, false);
-              resetTurn();
-              ensureCard();
-              qa.qEl.textContent = "Q: ";
-              qa.aEl.textContent = "A: ";
-              setStatus("listening…");
-              return;
-
-            case "response.input_audio_transcription.delta": {
-              const t = msg.delta || extractText(msg);
-              if (t) {
-                partialQ += t;
-                ensureCard();
-                qa.qEl.textContent = "Q: " + partialQ;
-              }
-              return;
-            }
-            case "response.input_audio_transcription.completed": {
-              finalQ = msg.transcript || extractText(msg) || partialQ;
-              ensureCard();
-              qa.qEl.textContent = "Q: " + finalQ;
-              return;
-            }
-
-            case "input_audio_buffer.speech_stopped": {
-              vadActive = false;
-              pillOn(pListening, false);
-              pillOn(pProcessing, true);
-              setStatus("processing…");
-
-              const heard = (finalQ || partialQ || "").trim();
-              const hasQuestion = heard.length >= 8 || /[?)]$/.test(heard);
-              if (!gotAnswerThisTurn && hasQuestion) {
-                gotAnswerThisTurn = true;
-                askForAnswer();
-              } else {
-                pillOn(pProcessing, false);
-                setStatus("idle");
-              }
-              return;
-            }
-
-            case "response.text.delta":
-            case "response.output_text.delta":
-            case "response.delta": {
-              const d = extractText(msg);
-              if (d) {
-                ensureCard();
-                partialA += d;
-                qa.aEl.textContent += d;
-              }
-              return;
-            }
-
-            case "response.message": {
-              const t = extractText(msg);
-              if (t) {
-                ensureCard();
-                partialA += t;
-                qa.aEl.textContent += t;
-              }
-              return;
-            }
-
-            case "response.completed":
-              pillOn(pProcessing, false);
-              finalA = partialA;
-              resetTurn();
-              setStatus("ready — speak in the meeting tab");
-              return;
-
-            default:
-              return;
-          }
-        };
-      }
-
-      async function startRealtime() {
-        setStatus("requesting session…");
-
-        const session = await fetch("/session", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ mode: window.currentAIStrategy || "smart" }),
-        })
-          .then((r) => r.json())
-          .catch((err) => ({ error: String(err) }));
-
-        const token = session?.client_secret?.value;
-        if (!token) {
-          setStatus("token failed");
-          logDbg(session);
-          return;
-        }
-
-        sessionActive = true;
-        lockModeSwitch(true);
-        updateModeIndicator();
-
-        pc = new RTCPeerConnection();
-        window.pc = pc;
-
-        attachChannel(pc.createDataChannel("oai-events"));
-        pc.ondatachannel = (e) => attachChannel(e.channel);
-        pc.oniceconnectionstatechange = () =>
-          setStatus("ice: " + pc.iceConnectionState);
-
-        try {
-          tabStream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: true });
-        } catch (err) {
-          setStatus("Screen capture cancelled or failed");
-          sessionActive = false;
-          lockModeSwitch(false);
-          updateModeIndicator();
-          console.error("getDisplayMedia error:", err);
-          return;
-        }
-
-        const aTracks = tabStream.getAudioTracks();
-        if (!aTracks.length) {
-          setStatus("No audio track — re-try & enable Share tab audio.");
-          sessionActive = false;
-          lockModeSwitch(false);
-          updateModeIndicator();
-          return;
-        }
-        const vTracks = tabStream.getVideoTracks();
-        if (vTracks.length) vTracks[0].stop();
-
-        audioTrack = aTracks[0];
-        pc.addTrack(audioTrack, tabStream);
-
-        try { await ensureScreenFrameStream(); } catch (e) { console.warn("screen frame stream failed:", e); }
-
-        meterCtx = new (window.AudioContext || window.webkitAudioContext)();
-        const src = meterCtx.createMediaStreamSource(
-          new MediaStream([audioTrack])
-        );
-        meterNode = meterCtx.createScriptProcessor(4096, 1, 1);
-        src.connect(meterNode);
-        meterNode.connect(meterCtx.destination);
-        meterNode.onaudioprocess = (e) => {
-          const ch = e.inputBuffer.getChannelData(0);
-          let sum = 0;
-          for (let i = 0; i < ch.length; i++) {
-            const s = ch[i];
-            sum += s * s;
-          }
-          const rms = Math.sqrt(sum / ch.length);
-          bar.style.width =
-            Math.min(100, Math.max(0, (rms / 0.06) * 100)) + "%";
-        };
-
-        const offer = await pc.createOffer();
-        await pc.setLocalDescription(offer);
-
-        setStatus("connecting…");
-        const sdpAnswer = await fetch(
-          "https://api.openai.com/v1/realtime?model=gpt-4o-realtime-preview",
-          {
-            method: "POST",
-            headers: {
-              Authorization: `Bearer ${token}`,
-              "Content-Type": "application/sdp",
-            },
-            body: offer.sdp,
-          }
-        ).then((r) => r.text());
-
-        await pc.setRemoteDescription({ type: "answer", sdp: sdpAnswer });
-
-        startBtn.disabled = true;
-        stopBtn.disabled = false;
-        muteBtn.disabled = false;
-        setStatus("ready — speak in the meeting tab");
-      }
-
-      startBtn.onclick = startRealtime;
-
-      stopBtn.onclick = () => {
-        try { if (tabStream) tabStream.getTracks().forEach((t) => t.stop()); } catch {}
-        try { if (screenFrameStream) screenFrameStream.getTracks().forEach(t => t.stop()); } catch {}
-        try { if (pc) pc.close(); } catch {}
-        try { if (meterCtx) meterCtx.close(); } catch {}
+      try {
+        debugLog('Requesting display media');
+        tabStream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: true });
+        debugLog('Display media granted', { 
+          audioTracks: tabStream.getAudioTracks().length,
+          videoTracks: tabStream.getVideoTracks().length 
+        });
+      } catch (err) {
+        debugLog('Display media failed', { error: err.message });
+        setStatus("Screen capture cancelled or failed");
         sessionActive = false;
         lockModeSwitch(false);
         updateModeIndicator();
-        startBtn.disabled = false;
-        stopBtn.disabled = true;
-        muteBtn.disabled = true;
-        pillOn(pListening, false);
-        pillOn(pProcessing, false);
-        setStatus("idle");
+        console.error("getDisplayMedia error:", err);
+        return;
+      }
+
+      const aTracks = tabStream.getAudioTracks();
+      if (!aTracks.length) {
+        debugLog('No audio tracks found');
+        setStatus("No audio track — re-try & enable Share tab audio.");
+        sessionActive = false;
+        lockModeSwitch(false);
+        updateModeIndicator();
+        return;
+      }
+      
+      const vTracks = tabStream.getVideoTracks();
+      if (vTracks.length) {
+        debugLog('Stopping video track');
+        vTracks[0].stop();
+      }
+
+      audioTrack = aTracks[0];
+      pc.addTrack(audioTrack, tabStream);
+      debugLog('Audio track added to peer connection');
+
+      try { 
+        await ensureScreenFrameStream(); 
+      } catch (e) { 
+        debugLog('Screen frame stream setup failed', { error: e.message });
+        console.warn("screen frame stream failed:", e); 
+      }
+
+      meterCtx = new (window.AudioContext || window.webkitAudioContext)();
+      const src = meterCtx.createMediaStreamSource(
+        new MediaStream([audioTrack])
+      );
+      meterNode = meterCtx.createScriptProcessor(4096, 1, 1);
+      src.connect(meterNode);
+      meterNode.connect(meterCtx.destination);
+      meterNode.onaudioprocess = (e) => {
+        const ch = e.inputBuffer.getChannelData(0);
+        let sum = 0;
+        for (let i = 0; i < ch.length; i++) {
+          const s = ch[i];
+          sum += s * s;
+        }
+        const rms = Math.sqrt(sum / ch.length);
+        bar.style.width =
+          Math.min(100, Math.max(0, (rms / 0.06) * 100)) + "%";
       };
+      debugLog('Audio meter initialized');
 
-      /* ====== Mode Switch Pill Animation ====== */
-      (() => {
-        if (window.__modeSwitchInit) return;
-        window.__modeSwitchInit = true;
+      const offer = await pc.createOffer();
+      await pc.setLocalDescription(offer);
+      debugLog('Local SDP offer created');
 
-        const modeContainer = document.querySelector(".mode-switch");
-        if (!modeContainer) return;
+      setStatus("connecting…");
+      const sdpAnswer = await fetch(
+        "https://api.openai.com/v1/realtime?model=gpt-4o-realtime-preview",
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/sdp",
+          },
+          body: offer.sdp,
+        }
+      ).then((r) => r.text());
 
-        const pill = document.getElementById("modePill");
-        const buttons = Array.from(modeContainer.querySelectorAll(".mode-btn"));
+      debugLog('SDP answer received');
+      await pc.setRemoteDescription({ type: "answer", sdp: sdpAnswer });
 
-        function activateMode(btn) {
-          // Remove active class from all and set clicked one
-          buttons.forEach((b) => b.classList.remove("active"));
-          btn.classList.add("active");
+      startBtn.disabled = true;
+      stopBtn.disabled = false;
+      muteBtn.disabled = false;
+      setStatus("ready — speak in the meeting tab");
+      debugLog('Realtime session fully connected');
+    }
 
-          // Move pill using container-relative coordinates
-          const containerRect = modeContainer.getBoundingClientRect();
-          const btnRect = btn.getBoundingClientRect();
-          const translateX =
-            btnRect.left - containerRect.left + modeContainer.scrollLeft - 4;
-          pill.style.transform = `translateX(${translateX}px)`;
-          pill.style.width = `${btnRect.width}px`;
+    startBtn.onclick = startRealtime;
 
-          // Save mode globally (frontend)
-          window.currentAIStrategy = btn.dataset.mode || "smart";
-          console.log(`Mode switched → ${window.currentAIStrategy}`);
+    stopBtn.onclick = () => {
+      debugLog('Stopping session');
+      try { if (tabStream) tabStream.getTracks().forEach((t) => t.stop()); } catch {}
+      try { if (screenFrameStream) screenFrameStream.getTracks().forEach(t => t.stop()); } catch {}
+      try { if (pc) pc.close(); } catch {}
+      try { if (meterCtx) meterCtx.close(); } catch {}
+      sessionActive = false;
+      lockModeSwitch(false);
+      updateModeIndicator();
+      startBtn.disabled = false;
+      stopBtn.disabled = true;
+      muteBtn.disabled = true;
+      pillOn(pListening, false);
+      pillOn(pProcessing, false);
+      setStatus("idle");
+      debugLog('Session stopped');
+    };
 
-          // ✅ APPLY THEME when mode changes
-          applyTheme(window.currentAIStrategy);
+    /* ====== Mode Switch Pill Animation ====== */
+    (() => {
+      if (window.__modeSwitchInit) return;
+      window.__modeSwitchInit = true;
 
-          // Update mode indicator if session is active
-          updateModeIndicator();
+      const modeContainer = document.querySelector(".mode-switch");
+      if (!modeContainer) return;
 
-          // If a realtime session is active, update its instructions immediately
-          try {
-            if (dc && dcOpen && typeof dc.send === "function") {
-              const instructions = buildRealtimeInstructions(
-                window.currentAIStrategy,
-                window.latestScreenCtx
-              );
-              dc.send(
-                JSON.stringify({
-                  type: "session.update",
-                  session: { instructions },
-                })
-              );
-              console.log("→ sent session.update (mode change)");
-            }
-          } catch (err) {
-            console.warn("session.update (mode) failed:", err);
+      const pill = document.getElementById("modePill");
+      const buttons = Array.from(modeContainer.querySelectorAll(".mode-btn"));
+
+      function activateMode(btn) {
+        buttons.forEach((b) => b.classList.remove("active"));
+        btn.classList.add("active");
+
+        const containerRect = modeContainer.getBoundingClientRect();
+        const btnRect = btn.getBoundingClientRect();
+        const translateX =
+          btnRect.left - containerRect.left + modeContainer.scrollLeft - 4;
+        pill.style.transform = `translateX(${translateX}px)`;
+        pill.style.width = `${btnRect.width}px`;
+
+        window.currentAIStrategy = btn.dataset.mode || "smart";
+        debugLog('Mode switched', { mode: window.currentAIStrategy });
+
+        applyTheme(window.currentAIStrategy);
+        updateModeIndicator();
+
+        try {
+          if (dc && dcOpen && typeof dc.send === "function") {
+            const instructions = buildRealtimeInstructions(
+              window.currentAIStrategy
+            );
+            dc.send(
+              JSON.stringify({
+                type: "session.update",
+                session: { instructions },
+              })
+            );
+            debugLog('Mode change sent to realtime');
           }
+        } catch (err) {
+          debugLog('session.update (mode) failed', { error: err.message });
+          console.warn("session.update (mode) failed:", err);
         }
+      }
 
-        // On button click → change mode (only if not locked)
-        buttons.forEach((btn) =>
-          btn.addEventListener("click", () => {
-            if (!sessionActive) {
-              activateMode(btn);
-            }
-          })
-        );
+      buttons.forEach((btn) =>
+        btn.addEventListener("click", () => {
+          if (!sessionActive) {
+            activateMode(btn);
+          }
+        })
+      );
 
-        // On load align pill to the default active button
-        const activeBtn = modeContainer.querySelector(".mode-btn.active");
-        if (activeBtn)
-          requestAnimationFrame(() => {
-            // ensure pill is positioned correctly on layout
-            activateMode(activeBtn);
-          });
-
-        // Realign if window resizes
-        window.addEventListener("resize", () => {
-          const active = modeContainer.querySelector(".mode-btn.active");
-          if (active)
-            requestAnimationFrame(() => activateMode(active));
+      const activeBtn = modeContainer.querySelector(".mode-btn.active");
+      if (activeBtn)
+        requestAnimationFrame(() => {
+          activateMode(activeBtn);
         });
-      })();
 
-      // Debug panel toggle
-      window.toggleDebug = () => {
-        const panel = document.getElementById("debug-panel");
-        const toggleBtn = document.getElementById("debug-toggle");
-        if (panel.style.display === "none" || !panel.style.display) {
-          panel.style.display = "block";
-          toggleBtn.textContent = "Hide Debug";
-        } else {
-          panel.style.display = "none";
-          toggleBtn.textContent = "Show Debug";
-        }
-      };
-
-      window.clearDebug = () => {
-        const consoleEl = document.getElementById("debug-console");
-        consoleEl.textContent = "";
-      };
+      window.addEventListener("resize", () => {
+        const active = modeContainer.querySelector(".mode-btn.active");
+        if (active)
+          requestAnimationFrame(() => activateMode(active));
+      });
     })();
-  </script>
+  })();
+</script>
 </body>
 </html>
