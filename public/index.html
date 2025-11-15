@@ -432,8 +432,7 @@
     <span class="pill" id="pListening">listening</span>
     <span class="pill" id="pProcessing">processing</span>
     <div id="status">idle</div>
-    <!-- Added output container for Analyze Screen -->
-    <div id="analysisOutput" style="font-size:12px; color:#9aa; max-width:480px;"></div>
+    <!-- Removed analysisOutput (no separate status area for Analyze) -->
     <!-- Analyze Screen specific CSS (overrides global button breathing for this button only) -->
     <style>
       .btn-wrapper { position:relative; display:inline-flex; }
@@ -734,6 +733,474 @@ body.god-mode #analyzeBtn.btn {
   outline-offset: 3px;
 }
   </style>
+</head>
+<body>
+  <div id="top">
+    <button type="button" id="startBtn">Start Tab Capture</button>
+    <button type="button" id="stopBtn" disabled>Stop</button>
+    <button type="button" id="muteBtn" disabled>Mute</button>
+    <button type="button" id="clearBtn">Clear Answers</button>
+
+    <!-- 💡 Mode Switch (Smart Detail / GodMode) -->
+    <div class="mode-switch" id="modeSwitch">
+      <div class="mode-pill" id="modePill"></div>
+      <button type="button" class="mode-btn active" data-mode="smart">
+        Smart Detail
+      </button>
+      <button type="button" class="mode-btn" data-mode="god">GodMode</button>
+    </div>
+    <div id="modeStatus"></div>
+
+    <!-- Analyze Screen (Uiverse style) - MOVED HERE -->
+    <span class="btn-wrapper">
+      <button type="button" id="analyzeBtn" class="btn" aria-label="Analyze Screen">
+        <svg class="btn-svg" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round"
+            d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.09ZM18.259 8.715 18 9.75l-.259-1.035a3.375 3.375 0 0 0-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 0 0 2.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 0 0 2.456 2.456L21.75 6l-1.035.259a3.375 3.375 0 0 0-2.456 2.456ZM16.894 20.567 16.5 21.75l-.394-1.183a2.25 2.25 0 0 0-1.423-1.423L13.5 18.75l1.183-.394a2.25 2.25 0 0 0 1.423-1.423l.394-1.183.394 1.183a2.25 2.25 0 0 0 1.423 1.423l1.183.394-1.183.394a2.25 2.25 0 0 0-1.423 1.423Z" />
+        </svg>
+      </button>
+    </span>
+
+    <span class="pill" id="pListening">listening</span>
+    <span class="pill" id="pProcessing">processing</span>
+    <div id="status">idle</div>
+    <!-- Removed analysisOutput (no separate status area for Analyze) -->
+    <!-- Analyze Screen specific CSS (overrides global button breathing for this button only) -->
+    <style>
+      .btn-wrapper { position:relative; display:inline-flex; }
+      #analyzeBtn.btn {
+        position:relative;
+        display:inline-flex;
+        align-items:center;
+        gap:8px;
+        border:1px solid #333;
+        background:#1a1a1a;
+        color:#ddd;
+        padding:8px 14px;
+        border-radius:8px;
+        cursor:pointer;
+        overflow:hidden;
+        font-size:13px;
+        letter-spacing:.4px;
+        transition:background .4s ease, border .4s ease;
+      }
+      #analyzeBtn .btn-svg { width:22px; height:22px; stroke:var(--accent); fill:none; stroke-width:1.4; flex-shrink:0; transition:stroke .6s ease; }
+      body.god-mode #analyzeBtn .btn-svg { stroke:var(--accent); }
+
+      /* Disable global breathing animation & scale for this button */
+      #analyzeBtn:hover { animation:none !important; transform:none !important; box-shadow:0 0 12px var(--accent-glow), 0 0 22px var(--accent-glow), inset 0 0 8px var(--accent-glow); }
+
+      /* Text swap states */
+      #analyzeBtn .txt-wrapper { position:relative; display:grid; }
+      #analyzeBtn .txt-1,
+      #analyzeBtn .txt-2 { display:inline-flex; gap:1px; transition:opacity .35s ease, transform .35s ease; }
+      #analyzeBtn .txt-2 { position:absolute; inset:0; opacity:0; transform:translateY(6px); }
+      #analyzeBtn.loading .txt-1 { opacity:0; transform:translateY(-6px); }
+      #analyzeBtn.loading .txt-2 { opacity:1; transform:translateY(0); }
+      #analyzeBtn.loading { pointer-events:none; opacity:.85; }
+
+      /* Letter wave animation while loading */
+      #analyzeBtn.loading .txt-2 .btn-letter { animation:analyzeWave 1.4s ease-in-out infinite; display:inline-block; }
+      #analyzeBtn.loading .txt-2 .btn-letter:nth-child(1){animation-delay:0s}
+      #analyzeBtn.loading .txt-2 .btn-letter:nth-child(2){animation-delay:.07s}
+      #analyzeBtn.loading .txt-2 .btn-letter:nth-child(3){animation-delay:.14s}
+      #analyzeBtn.loading .txt-2 .btn-letter:nth-child(4){animation-delay:.21s}
+      #analyzeBtn.loading .txt-2 .btn-letter:nth-child(5){animation-delay:.28s}
+      #analyzeBtn.loading .txt-2 .btn-letter:nth-child(6){animation-delay:.35s}
+      #analyzeBtn.loading .txt-2 .btn-letter:nth-child(7){animation-delay:.42s}
+      #analyzeBtn.loading .txt-2 .btn-letter:nth-child(8){animation-delay:.49s}
+      #analyzeBtn.loading .txt-2 .btn-letter:nth-child(9){animation-delay:.56s}
+      #analyzeBtn.loading .txt-2 .btn-letter:nth-child(10){animation-delay:.63s}
+      @keyframes analyzeWave {
+        0%,100% { transform:translateY(0); }
+        50% { transform:translateY(-3px); }
+      }
+
+      /* Tooltip */
+      .analyze-tooltip {
+        position:absolute;
+        top:100%;
+        left:50%;
+        transform:translateX(-50%);
+        background:#000;
+        color:#fff;
+        font-size:11px;
+        padding:4px 8px;
+        border-radius:4px;
+        white-space:nowrap;
+        box-shadow:0 2px 6px rgba(0,0,0,0.4);
+        opacity:0;
+        pointer-events:none;
+        transition:opacity .15s ease;
+        margin-top:6px;
+        z-index:30;
+      }
+      .btn-wrapper:hover .analyze-tooltip,
+      #analyzeBtn:hover + .analyze-tooltip { opacity:1; }
+
+      #analyzeBtn:focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
+    </style>
+  </div>
+
+  <div id="jdBox">
+    <div style="display: flex; gap: 8px; align-items: center; justify-content: space-between">
+      <strong>Job Description (tailor answers to this)</strong>
+      <span id="savedTag" class="pill" style="display: none; background: #153c1f; color: #adf5c0"
+        >JD saved</span
+      >
+    </div>
+    <textarea id="jd" placeholder="Paste the JD here…"></textarea>
+    <div style="display: flex; gap: 8px; align-items: center">
+      <button type="button" id="saveJD">Save JD</button>
+      <small style="color: #9aa"
+        >Tip: Save once; new sessions will auto-use it until you restart the
+        server.</small
+      >
+    </div>
+  </div>
+
+  <div id="vuWrap">
+    <div id="vu"><div id="bar"></div></div>
+    <div style="font-size: 12px; color: #9aa">
+      Pick your Meet/Zoom/Teams tab and enable <b>Share tab audio</b>.
+    </div>
+  </div>
+
+  <div id="hint">Q (blue) is what we hear from the meeting tab. A (green) is the answer for you to read.</div>
+  <div id="list"></div>
+  <pre id="debug"></pre>
+
+  <style>
+/* Uiverse.io style JUST for #analyzeBtn */
+.btn-wrapper {
+  position: relative;
+  display: inline-block;
+}
+
+#analyzeBtn.btn {
+  --border-radius: 50%;
+  --padding: 3px;
+  --transition: 0.4s;
+  --button-color: #101010;
+  --highlight-color-hue: 140deg;
+
+  user-select: none;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 0.85em;
+  font-family: "Poppins","Inter","Segoe UI",sans-serif;
+  font-size: 1em;
+  font-weight: 400;
+  background-color: var(--button-color);
+  box-shadow:
+    inset 0 1px 1px rgba(255,255,255,0.2),
+    inset 0 2px 2px rgba(255,255,255,0.15),
+    inset 0 4px 4px rgba(255,255,255,0.1),
+    inset 0 8px 8px rgba(255,255,255,0.05),
+    inset 0 16px 16px rgba(255,255,255,0.05),
+    0 -1px 1px rgba(0,0,0,0.02),
+    0 -2px 2px rgba(0,0,0,0.03),
+    0 -4px 4px rgba(0,0,0,0.05),
+    0 -8px 8px rgba(0,0,0,0.06),
+    0 -16px 16px rgba(0,0,0,0.08);
+  border: 1px solid #fff2;
+  border-radius: var(--border-radius);
+  cursor: pointer;
+  transition:
+    box-shadow var(--transition),
+    border var(--transition),
+    background-color var(--transition);
+  position: relative;
+  overflow: visible;
+  width: 48px;
+  height: 48px;
+}
+
+body.god-mode #analyzeBtn.btn {
+  --highlight-color-hue: 0deg;
+}
+
+#analyzeBtn.btn::before {
+  content: "";
+  position: absolute;
+  top: calc(0px - var(--padding));
+  left: calc(0px - var(--padding));
+  width: calc(100% + var(--padding)*2);
+  height: calc(100% + var(--padding)*2);
+  border-radius: calc(var(--border-radius) + var(--padding));
+  pointer-events: none;
+  background-image: linear-gradient(0deg,#0004,#000a);
+  z-index: -1;
+  transition: box-shadow var(--transition), filter var(--transition);
+  box-shadow:
+    0 -8px 8px -6px #0000 inset,
+    0 -16px 16px -8px #0000 inset,
+    1px 1px 1px #fff2,
+    2px 2px 2px #fff1,
+    -1px -1px 1px #0002,
+    -2px -2px 2px #0001;
+}
+
+#analyzeBtn.btn::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  background-image: linear-gradient(
+    0deg,
+    #fff,
+    hsl(var(--highlight-color-hue),100%,70%),
+    hsla(var(--highlight-color-hue),100%,70%,0.5),
+    8%,
+    transparent
+  );
+  background-position: 0 0;
+  opacity: 0;
+  transition: opacity var(--transition), filter var(--transition);
+}
+
+#analyzeBtn .btn-svg {
+  flex-grow: 0;
+  height: 24px;
+  width: 24px;
+  margin: 0;
+  fill: #e8e8e8;
+  stroke: none;
+  animation: flicker 2s linear infinite;
+  animation-delay: .5s;
+  filter: drop-shadow(0 0 2px #fff9);
+  transition: fill var(--transition), filter var(--transition), opacity var(--transition);
+}
+
+@keyframes flicker {
+  50% { opacity: .3; }
+}
+
+/* ✅ FOCUS STATE = Click animation */
+#analyzeBtn.btn:focus .btn-svg {
+  animation: 
+    focused-svg-anim 1s ease-in-out forwards,
+    flicker 2s linear infinite;
+  animation-delay: 0s, 1s;
+}
+
+@keyframes focused-svg-anim {
+  0%,100% { filter: blur(0) drop-shadow(0 0 2px #fff9); }
+  50% {
+    transform: scale(1.5) rotate(180deg);
+    filter: blur(4px) brightness(150%)
+      drop-shadow(0 0 12px hsl(var(--highlight-color-hue),100%,70%));
+  }
+}
+
+#analyzeBtn.btn:focus::before {
+  box-shadow:
+    0 -8px 12px -6px #fff3 inset,
+    0 -16px 16px -8px hsla(var(--highlight-color-hue),100%,70%,0.2) inset,
+    1px 1px 1px #fff3,
+    2px 2px 2px #fff1,
+    -1px -1px 1px #0002,
+    -2px -2px 2px #0001;
+}
+
+#analyzeBtn.btn:focus::after {
+  opacity: .6;
+  mask-image: linear-gradient(0deg,#fff,transparent);
+  filter: brightness(100%);
+}
+
+/* Hover */
+#analyzeBtn.btn:hover {
+  border: 1px solid hsla(var(--highlight-color-hue),100%,80%,0.4);
+}
+
+#analyzeBtn.btn:hover::before {
+  box-shadow:
+    0 -8px 8px -6px #fffa inset,
+    0 -16px 16px -8px hsla(var(--highlight-color-hue),100%,70%,0.3) inset,
+    1px 1px 1px #fff2,
+    2px 2px 2px #fff1,
+    -1px -1px 1px #0002,
+    -2px -2px 2px #0001;
+}
+
+#analyzeBtn.btn:hover::after {
+  opacity: 1;
+  mask-image: linear-gradient(0deg,#fff,transparent);
+}
+
+#analyzeBtn.btn:hover .btn-svg {
+  fill: #fff;
+  filter:
+    drop-shadow(0 0 3px hsl(var(--highlight-color-hue),100%,70%))
+    drop-shadow(0 -4px 6px #0009);
+  animation: none;
+}
+
+/* Active */
+#analyzeBtn.btn:active {
+  border: 1px solid hsla(var(--highlight-color-hue),100%,80%,0.7);
+  background-color: hsla(var(--highlight-color-hue),50%,20%,0.5);
+}
+
+#analyzeBtn.btn:active::before {
+  box-shadow:
+    0 -8px 12px -6px #fffa inset,
+    0 -16px 16px -8px hsla(var(--highlight-color-hue),100%,70%,0.8) inset,
+    1px 1px 1px #fff4,
+    2px 2px 2px #fff2,
+    -1px -1px 1px #0002,
+    -2px -2px 2px #0001;
+}
+
+#analyzeBtn.btn:active::after {
+  opacity: 1;
+  filter: brightness(200%);
+}
+
+#analyzeBtn:focus-visible {
+  outline: 2px solid hsl(var(--highlight-color-hue),100%,60%);
+  outline-offset: 3px;
+}
+  </style>
+</head>
+<body>
+  <div id="top">
+    <button type="button" id="startBtn">Start Tab Capture</button>
+    <button type="button" id="stopBtn" disabled>Stop</button>
+    <button type="button" id="muteBtn" disabled>Mute</button>
+    <button type="button" id="clearBtn">Clear Answers</button>
+
+    <!-- 💡 Mode Switch (Smart Detail / GodMode) -->
+    <div class="mode-switch" id="modeSwitch">
+      <div class="mode-pill" id="modePill"></div>
+      <button type="button" class="mode-btn active" data-mode="smart">
+        Smart Detail
+      </button>
+      <button type="button" class="mode-btn" data-mode="god">GodMode</button>
+    </div>
+    <div id="modeStatus"></div>
+
+    <!-- Analyze Screen (Uiverse style) - MOVED HERE -->
+    <span class="btn-wrapper">
+      <button type="button" id="analyzeBtn" class="btn" aria-label="Analyze Screen">
+        <svg class="btn-svg" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round"
+            d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.09ZM18.259 8.715 18 9.75l-.259-1.035a3.375 3.375 0 0 0-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 0 0 2.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 0 0 2.456 2.456L21.75 6l-1.035.259a3.375 3.375 0 0 0-2.456 2.456ZM16.894 20.567 16.5 21.75l-.394-1.183a2.25 2.25 0 0 0-1.423-1.423L13.5 18.75l1.183-.394a2.25 2.25 0 0 0 1.423-1.423l.394-1.183.394 1.183a2.25 2.25 0 0 0 1.423 1.423l1.183.394-1.183.394a2.25 2.25 0 0 0-1.423 1.423Z" />
+        </svg>
+      </button>
+    </span>
+
+    <span class="pill" id="pListening">listening</span>
+    <span class="pill" id="pProcessing">processing</span>
+    <div id="status">idle</div>
+    <!-- Removed analysisOutput (no separate status area for Analyze) -->
+    <!-- Analyze Screen specific CSS (overrides global button breathing for this button only) -->
+    <style>
+      .btn-wrapper { position:relative; display:inline-flex; }
+      #analyzeBtn.btn {
+        position:relative;
+        display:inline-flex;
+        align-items:center;
+        gap:8px;
+        border:1px solid #333;
+        background:#1a1a1a;
+        color:#ddd;
+        padding:8px 14px;
+        border-radius:8px;
+        cursor:pointer;
+        overflow:hidden;
+        font-size:13px;
+        letter-spacing:.4px;
+        transition:background .4s ease, border .4s ease;
+      }
+      #analyzeBtn .btn-svg { width:22px; height:22px; stroke:var(--accent); fill:none; stroke-width:1.4; flex-shrink:0; transition:stroke .6s ease; }
+      body.god-mode #analyzeBtn .btn-svg { stroke:var(--accent); }
+
+      /* Disable global breathing animation & scale for this button */
+      #analyzeBtn:hover { animation:none !important; transform:none !important; box-shadow:0 0 12px var(--accent-glow), 0 0 22px var(--accent-glow), inset 0 0 8px var(--accent-glow); }
+
+      /* Text swap states */
+      #analyzeBtn .txt-wrapper { position:relative; display:grid; }
+      #analyzeBtn .txt-1,
+      #analyzeBtn .txt-2 { display:inline-flex; gap:1px; transition:opacity .35s ease, transform .35s ease; }
+      #analyzeBtn .txt-2 { position:absolute; inset:0; opacity:0; transform:translateY(6px); }
+      #analyzeBtn.loading .txt-1 { opacity:0; transform:translateY(-6px); }
+      #analyzeBtn.loading .txt-2 { opacity:1; transform:translateY(0); }
+      #analyzeBtn.loading { pointer-events:none; opacity:.85; }
+
+      /* Letter wave animation while loading */
+      #analyzeBtn.loading .txt-2 .btn-letter { animation:analyzeWave 1.4s ease-in-out infinite; display:inline-block; }
+      #analyzeBtn.loading .txt-2 .btn-letter:nth-child(1){animation-delay:0s}
+      #analyzeBtn.loading .txt-2 .btn-letter:nth-child(2){animation-delay:.07s}
+      #analyzeBtn.loading .txt-2 .btn-letter:nth-child(3){animation-delay:.14s}
+      #analyzeBtn.loading .txt-2 .btn-letter:nth-child(4){animation-delay:.21s}
+      #analyzeBtn.loading .txt-2 .btn-letter:nth-child(5){animation-delay:.28s}
+      #analyzeBtn.loading .txt-2 .btn-letter:nth-child(6){animation-delay:.35s}
+      #analyzeBtn.loading .txt-2 .btn-letter:nth-child(7){animation-delay:.42s}
+      #analyzeBtn.loading .txt-2 .btn-letter:nth-child(8){animation-delay:.49s}
+      #analyzeBtn.loading .txt-2 .btn-letter:nth-child(9){animation-delay:.56s}
+      #analyzeBtn.loading .txt-2 .btn-letter:nth-child(10){animation-delay:.63s}
+      @keyframes analyzeWave {
+        0%,100% { transform:translateY(0); }
+        50% { transform:translateY(-3px); }
+      }
+
+      /* Tooltip */
+      .analyze-tooltip {
+        position:absolute;
+        top:100%;
+        left:50%;
+        transform:translateX(-50%);
+        background:#000;
+        color:#fff;
+        font-size:11px;
+        padding:4px 8px;
+        border-radius:4px;
+        white-space:nowrap;
+        box-shadow:0 2px 6px rgba(0,0,0,0.4);
+        opacity:0;
+        pointer-events:none;
+        transition:opacity .15s ease;
+        margin-top:6px;
+        z-index:30;
+      }
+      .btn-wrapper:hover .analyze-tooltip,
+      #analyzeBtn:hover + .analyze-tooltip { opacity:1; }
+
+      #analyzeBtn:focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
+    </style>
+  </div>
+
+  <div id="jdBox">
+    <div style="display: flex; gap: 8px; align-items: center; justify-content: space-between">
+      <strong>Job Description (tailor answers to this)</strong>
+      <span id="savedTag" class="pill" style="display: none; background: #153c1f; color: #adf5c0"
+        >JD saved</span
+      >
+    </div>
+    <textarea id="jd" placeholder="Paste the JD here…"></textarea>
+    <div style="display: flex; gap: 8px; align-items: center">
+      <button type="button" id="saveJD">Save JD</button>
+      <small style="color: #9aa"
+        >Tip: Save once; new sessions will auto-use it until you restart the
+        server.</small
+      >
+    </div>
+  </div>
+
+  <div id="vuWrap">
+    <div id="vu"><div id="bar"></div></div>
+    <div style="font-size: 12px; color: #9aa">
+      Pick your Meet/Zoom/Teams tab and enable <b>Share tab audio</b>.
+    </div>
+  </div>
+
+  <div id="hint">Q (blue) is what we hear from the meeting tab. A (green) is the answer for you to read.</div>
+  <div id="list"></div>
+  <pre id="debug"></pre>
 
   <script>
     (() => {
@@ -755,12 +1222,18 @@ body.god-mode #analyzeBtn.btn {
 
       let pc, dc, tabStream, audioTrack, meterNode, meterCtx;
       let dcOpen = false;
-      let sessionActive = false; // Track if a realtime session is running
-      let qa = null; // current QA card {root, qEl, aEl}
-      let partialQ = ""; // building transcript between speech_start/stop
+      let sessionActive = false;
+      let qa = null;
+      let partialQ = "";
       let finalQ = "";
       let gotAnswerThisTurn = false;
       let vadActive = false;
+
+      // NEW: persistent low-fps screen frame capture for Analyze
+      let screenFrameStream = null;
+      let screenFrameTrack = null;
+      let lastScreenCtxRefreshAt = 0;
+      window.latestScreenCtx = ""; // expose for instruction rebuilds
 
       const setStatus = (t) => {
         statusEl.textContent = t;
@@ -871,7 +1344,16 @@ body.god-mode #analyzeBtn.btn {
       };
 
       // Build the instructions string used for session.update (and compatible with the server instructions)
-      function buildRealtimeInstructions(mode) {
+      function buildRealtimeInstructions(mode, screenCtx) {
+        const SCREEN_PROTOCOL = `
+SCREEN CONTEXT PROTOCOL
+- If you cannot confidently answer using your current context, respond with a single first line exactly:
+  #NEED_SCREEN_CONTEXT#
+  Then pause further output until the client updates your session instructions.
+- When screen context is present in your instructions, use it as if you can see the screen.
+- Do not mention 'screen', 'image', 'screenshot', or 'AI'. Stay in first-person, interview voice.
+`.trim();
+
         const GLOBAL = `
 🔥 GLOBAL RULES (these apply NO MATTER WHICH MODE IS SELECTED)
 You are answering as the candidate in a live job interview.
@@ -1001,43 +1483,137 @@ End every answer like this:
             ? jdEl.value.trim()
             : "(JD not provided — give a strong general answer for the role based on resume)";
 
-        return [GLOBAL, modeText, "JOB DESCRIPTION (highest priority):", jdText].join(
-          "\n\n"
-        );
-      }
+        const parts = [
+          SCREEN_PROTOCOL,
+          GLOBAL,
+          modeText,
+          "JOB DESCRIPTION (highest priority):",
+          jdText
+        ];
 
-      muteBtn.onclick = () => {
-        if (!audioTrack) return;
-        audioTrack.enabled = !audioTrack.enabled;
-        muteBtn.textContent = audioTrack.enabled ? "Mute" : "Unmute";
-      };
-
-      function extractText(msg) {
-        if (typeof msg.delta === "string") return msg.delta;
-        if (msg.message && Array.isArray(msg.message.content)) {
-          for (const c of msg.message.content) {
-            if (typeof c.text === "string" && c.text) return c.text;
-            if (c.type === "output_text" && typeof c.content === "string")
-              return c.content;
-            if (c.type === "text" && typeof c.text === "string") return c.text;
-          }
+        if (screenCtx && screenCtx.trim()) {
+          parts.push("SCREEN CONTEXT (most recent capture; do not mention 'screenshot'):");
+          parts.push(screenCtx.trim());
         }
-        if (msg.output_text && typeof msg.output_text === "string")
-          return msg.output_text;
-        if (typeof msg.text === "string") return msg.text;
-        return "";
+
+        return parts.join("\n\n");
       }
 
-      function askForAnswer() {
-        if (!dc || !dcOpen) return;
-        // Only request an answer once per spoken turn
-        if (gotAnswerThisTurn) return;
-        gotAnswerThisTurn = true;
-        pillOn(pProcessing, true);
-        dc.send(
-          JSON.stringify({ type: "response.create", response: { modalities: ["text"] } })
-        );
+      // NEW: sticky low-fps frame stream (no audio)
+      async function ensureScreenFrameStream() {
+        if (screenFrameTrack && screenFrameTrack.readyState === "live") return;
+        const s = await navigator.mediaDevices.getDisplayMedia({
+          video: { frameRate: 1 },
+          audio: false
+        });
+        screenFrameStream = s;
+        screenFrameTrack = s.getVideoTracks()[0];
+        screenFrameTrack.addEventListener("ended", () => {
+          screenFrameTrack = null;
+          screenFrameStream = null;
+        });
       }
+
+      // Use hidden frame stream to grab a PNG data URL
+      async function captureScreenImage() {
+        await ensureScreenFrameStream();
+        if (!screenFrameTrack || screenFrameTrack.readyState !== "live") return null;
+
+        const v = document.createElement("video");
+        v.srcObject = new MediaStream([screenFrameTrack]);
+        await new Promise(r => v.onloadedmetadata = r);
+        await v.play();
+        await new Promise(r => setTimeout(r, 80));
+        const w = v.videoWidth, h = v.videoHeight;
+        if (!w || !h) return null;
+        const c = document.createElement("canvas");
+        c.width = w; c.height = h;
+        c.getContext("2d").drawImage(v, 0, 0, w, h);
+        return c.toDataURL("image/png");
+      }
+
+      function collectTranscriptString() {
+        const parts = [];
+        list.querySelectorAll('.qa').forEach(card => {
+          const qEl = card.querySelector('.q');
+          const aEl = card.querySelector('.a');
+          const qTxt = (qEl?.textContent || '').replace(/^Q:\s*/,'').trim();
+          const aTxt = (aEl?.textContent || '').replace(/^A:\s*/,'').trim();
+          if (qTxt) parts.push(`Q: ${qTxt}`);
+          if (aTxt) parts.push(`A: ${aTxt}`);
+          if (qTxt || aTxt) parts.push('');
+        });
+        return parts.join('\n').slice(0, 8000);
+      }
+
+      // Analyze handler → put answer into main chat bubble and update session context
+      const analyzeBtn = document.getElementById('analyzeBtn');
+
+      async function analyzeScreen() {
+        if (analyzeBtn.classList.contains('loading')) return;
+        analyzeBtn.classList.add('loading');
+
+        const img = await captureScreenImage();
+        if (!img) {
+          ensureCard();
+          qa.aEl.textContent += (qa.aEl.textContent.endsWith(" ") ? "" : " ") + "⚠️ Analyze failed — no frame.";
+          analyzeBtn.classList.remove('loading');
+          return;
+        }
+
+        const sessionTranscript = collectTranscriptString();
+        const mode = window.currentAIStrategy || "smart";
+
+        try {
+          const resp = await fetch('/analyze-screen', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ screenshotBase64: img, sessionTranscript, mode })
+          });
+          const data = await resp.json();
+
+          if (!resp.ok) {
+            ensureCard();
+            qa.aEl.textContent += (qa.aEl.textContent.endsWith(" ") ? "" : " ") + "⚠️ Analyze failed — try again.";
+            return;
+          }
+
+          // 1) Show the interview answer in the main A bubble
+          ensureCard();
+          const answer = String(data.answer || "").replace(/</g, "&lt;");
+          qa.aEl.innerHTML += (qa.aEl.textContent.endsWith(" ") ? "" : "") + answer;
+
+          // Optional collapsible analysis under the same card (hidden by default)
+          if (data.analysis) {
+            const details = document.createElement("details");
+            const sum = document.createElement("summary");
+            sum.textContent = "Screen analysis details";
+            const pre = document.createElement("pre");
+            pre.style.whiteSpace = "pre-wrap";
+            pre.style.fontSize = "12px";
+            pre.textContent = String(data.analysis || "");
+            details.appendChild(sum);
+            details.appendChild(pre);
+            qa.root.appendChild(details);
+          }
+
+          // 2) Update session instructions with SCREEN CONTEXT (no deprecated input_text)
+          window.latestScreenCtx = String(data.analysis || "").slice(0, 8000);
+          if (dc && dcOpen) {
+            const instructions = buildRealtimeInstructions(mode, window.latestScreenCtx);
+            dc.send(JSON.stringify({ type: "session.update", session: { instructions } }));
+          }
+          lastScreenCtxRefreshAt = Date.now();
+        } catch (e) {
+          console.error(e);
+          ensureCard();
+          qa.aEl.textContent += (qa.aEl.textContent.endsWith(" ") ? "" : " ") + "⚠️ Analyze failed — try again.";
+        } finally {
+          analyzeBtn.classList.remove('loading');
+        }
+      }
+
+      analyzeBtn.addEventListener('click', analyzeScreen);
 
       function attachChannel(ch) {
         dc = ch;
@@ -1045,7 +1621,8 @@ End every answer like this:
           dcOpen = true;
           setStatus("data channel open");
 
-          // Text-only replies; keep VAD on, but DO NOT auto-answer
+          // Text-only replies; VAD on; do not auto-answer
+          const instructions = buildRealtimeInstructions(window.currentAIStrategy || "smart", window.latestScreenCtx || "");
           dc.send(
             JSON.stringify({
               type: "session.update",
@@ -1057,9 +1634,10 @@ End every answer like this:
                   threshold: 0.5,
                   prefix_padding_ms: 300,
                   silence_duration_ms: 700,
-                  create_response: false, // <- prevent unsolicited answers
+                  create_response: false,
                   interrupt_response: true,
                 },
+                instructions
               },
             })
           );
@@ -1068,14 +1646,14 @@ End every answer like this:
           dcOpen = false;
         };
 
-        dc.onmessage = (e) => {
+        // Detect #NEED_SCREEN_CONTEXT# on first line of assistant output
+        let needCtxCheckActive = false;
+        let needCtxBuffer = "";
+        let suppressThisResponse = false;
+
+        dc.onmessage = async (e) => {
           let msg;
-          try {
-            msg = JSON.parse(e.data);
-          } catch {
-            return;
-          }
-          // logDbg(msg);
+          try { msg = JSON.parse(e.data); } catch { return; }
 
           switch (msg.type) {
             // VAD lifecycle
@@ -1120,23 +1698,88 @@ End every answer like this:
             case "response.text.delta":
             case "response.output_text.delta":
             case "response.delta": {
-              const d = extractText(msg);
-              if (d) {
-                ensureCard();
-                qa.aEl.textContent += d;
+              let d = extractText(msg);
+              if (!d) return;
+
+              // First-chunk token detection
+              if (!needCtxCheckActive) {
+                needCtxCheckActive = true;
+                needCtxBuffer = "";
+                suppressThisResponse = false;
+              }
+
+              if (!suppressThisResponse) {
+                needCtxBuffer += d;
+
+                // Check up to first newline or token length
+                const firstLine = needCtxBuffer.split(/\r?\n/)[0].trim();
+                if (firstLine.length >= "#NEED_SCREEN_CONTEXT#".length) {
+                  if (firstLine.startsWith("#NEED_SCREEN_CONTEXT#")) {
+                    // Throttle auto-refresh to avoid thrash
+                    const now = Date.now();
+                    if (now - lastScreenCtxRefreshAt > 5000) {
+                      suppressThisResponse = true; // don't render token
+                      // Acquire frame without user re-pick
+                      const img = await captureScreenImage().catch(() => null);
+                      if (img) {
+                        try {
+                          const mode = window.currentAIStrategy || "smart";
+                          const sessionTranscript = collectTranscriptString();
+                          const r = await fetch("/analyze-screen", {
+                            method: "POST",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({ screenshotBase64: img, sessionTranscript, mode })
+                          });
+                          const j = await r.json();
+                          if (r.ok) {
+                            window.latestScreenCtx = String(j.analysis || "").slice(0, 8000);
+                            if (dc && dcOpen) {
+                              const instructions = buildRealtimeInstructions(mode, window.latestScreenCtx);
+                              dc.send(JSON.stringify({ type: "session.update", session: { instructions } }));
+                              // Ask for a fresh answer (text-only)
+                              dc.send(JSON.stringify({ type: "response.create", response: { modalities: ["text"] } }));
+                            }
+                            lastScreenCtxRefreshAt = now;
+                          }
+                        } catch (err) {
+                          console.warn("auto screen-context refresh failed:", err);
+                        }
+                      }
+                    } else {
+                      // Ignore repeated immediate requests
+                      suppressThisResponse = true;
+                    }
+                  } else {
+                    // Not the token → render normally
+                    ensureCard();
+                    qa.aEl.textContent += d;
+                  }
+                } else {
+                  // Buffer insufficient to decide yet; don't render
+                }
+              } else {
+                // Suppressing this response; do not render deltas
               }
               return;
             }
+
             case "response.message": {
-              const t = extractText(msg);
-              if (t) {
-                ensureCard();
-                qa.aEl.textContent += t;
+              if (!suppressThisResponse) {
+                const t = extractText(msg);
+                if (t) {
+                  ensureCard();
+                  qa.aEl.textContent += t;
+                }
               }
               return;
             }
+
             case "response.completed":
               pillOn(pProcessing, false);
+              // Reset token detection state each response
+              needCtxCheckActive = false;
+              needCtxBuffer = "";
+              suppressThisResponse = false;
               // Prepare for next Q/A
               qa = null;
               return;
@@ -1166,25 +1809,22 @@ End every answer like this:
           return;
         }
 
-        // Mark session as active and lock mode switching
+        // Mark session active, lock mode switch and set indicator
         sessionActive = true;
         lockModeSwitch(true);
         updateModeIndicator();
 
         pc = new RTCPeerConnection();
-        window.pc = pc; // for console debugging
+        window.pc = pc;
 
         attachChannel(pc.createDataChannel("oai-events"));
         pc.ondatachannel = (e) => attachChannel(e.channel);
         pc.oniceconnectionstatechange = () =>
           setStatus("ice: " + pc.iceConnectionState);
 
-        // Capture meeting tab/window with audio
+        // Capture meeting tab/window with audio (drop video)
         try {
-          tabStream = await navigator.mediaDevices.getDisplayMedia({
-            video: true,
-            audio: true,
-          });
+          tabStream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: true });
         } catch (err) {
           setStatus("Screen capture cancelled or failed");
           sessionActive = false;
@@ -1207,6 +1847,9 @@ End every answer like this:
 
         audioTrack = aTracks[0];
         pc.addTrack(audioTrack, tabStream);
+
+        // Ensure separate low-fps hidden frame stream (kept alive during session)
+        try { await ensureScreenFrameStream(); } catch (e) { console.warn("screen frame stream failed:", e); }
 
         // Simple VU meter
         meterCtx = new (window.AudioContext || window.webkitAudioContext)();
@@ -1255,21 +1898,13 @@ End every answer like this:
       startBtn.onclick = startRealtime;
 
       stopBtn.onclick = () => {
-        try {
-          if (tabStream) tabStream.getTracks().forEach((t) => t.stop());
-        } catch {}
-        try {
-          if (pc) pc.close();
-        } catch {}
-        try {
-          if (meterCtx) meterCtx.close();
-        } catch {}
-
-        // Mark session as inactive and unlock mode switching
+        try { if (tabStream) tabStream.getTracks().forEach((t) => t.stop()); } catch {}
+        try { if (screenFrameStream) screenFrameStream.getTracks().forEach(t => t.stop()); } catch {}
+        try { if (pc) pc.close(); } catch {}
+        try { if (meterCtx) meterCtx.close(); } catch {}
         sessionActive = false;
         lockModeSwitch(false);
         updateModeIndicator();
-
         startBtn.disabled = false;
         stopBtn.disabled = true;
         muteBtn.disabled = true;
