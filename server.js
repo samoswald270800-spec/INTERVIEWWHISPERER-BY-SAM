@@ -568,105 +568,86 @@ ${assignment || "(no assignment provided)"}
  */
 app.post("/analyze-screen", requireAuth, async (req, res) => {
   try {
-    const { image, transcript, mode } = req.body;
+    const { screenshotBase64, sessionTranscript } = req.body || {};
 
     // Validate
-    if (typeof image !== "string" || !image.trim()) {
-      return res.status(400).json({ error: "image (base64 data URL) required" });
+    if (typeof sessionTranscript !== "string" || !sessionTranscript.trim()) {
+      return res.status(400).json({ error: "sessionTranscript is required (string)" });
     }
-    if (!Array.isArray(transcript)) {
-      return res.status(400).json({ error: "transcript must be array" });
-    }
-    if (!["smart", "god"].includes(mode)) {
-      return res.status(400).json({ error: "mode must be smart or god" });
+    if (typeof screenshotBase64 !== "string" || !screenshotBase64.trim()) {
+      return res.status(400).json({ error: "screenshotBase64 is required (base64 string or data URL)" });
     }
 
-    // Clean transcript (last 50, trim lengths)
-    const cleanedTranscript = transcript
-      .filter(t => t && typeof t === "object")
-      .slice(-50)
-      .map(t => ({
-        q: String(t.q || "").trim().slice(0, 2000),
-        a: String(t.a || "").trim().slice(0, 4000),
-      }));
+    // Normalize screenshot to a data URL (OpenAI expects image_url)
+    let imageDataUrl = screenshotBase64.trim();
+    if (!imageDataUrl.startsWith("data:")) {
+      // Assume PNG if no mime is provided
+      imageDataUrl = `data:image/png;base64,${imageDataUrl}`;
+    }
+    if (imageDataUrl.length > 25_000_000) {
+      return res.status(413).json({ error: "screenshot too large" });
+    }
 
-    // Mode rules
-    const smartBlock = `
-SMART DETAIL MODE:
-- ~60–90 seconds (180–250 words)
-- Clear, structured, concise
-- First-person spoken tone
-- Use Situation → Task → Action → Result (do not name STAR)
-`;
-    const godBlock = `
-GOD MODE:
-- 3–5 minutes (900–1400+ words)
-- Senior-level depth: metrics, stakeholders, tradeoffs, risks
-- First-person, conversational, confident
-- Use Situation → Task → Action → Result (do not name STAR)
-`;
-    const modeRules = mode === "smart" ? smartBlock : godBlock;
-
-    // Instruction block
-    const analysisInstructions = [
-      "You are analyzing a screenshot that the interviewer is showing.",
-      "Output MUST be English only.",
-      "Provide insight into charts, dashboards, tables, UI panels, and metrics.",
-      "Explain patterns, trends, anomalies, issues, and opportunities.",
-      "Describe business implications (revenue, conversion, retention, cost, efficiency, risk).",
-      "Provide actionable recommendations and next steps.",
-      "Then rewrite the explanation as a first-person, interview-ready spoken answer.",
-      "Never mention AI, prompts, or screenshots. Never break character.",
-      "Use structured storytelling (Situation → Task → Action → Result) without naming STAR.",
-      modeRules,
-      'Return strict JSON ONLY: {"analysis":"...","answer":"..."}',
+    // Server-authored instructions
+    const promptFromFrontend = [
+      "You are assisting a candidate in a live interview.",
+      "Analyze the screenshot and summarize insights clearly.",
+      "English only. First-person voice. Interview-ready. Do not mention AI or screenshots.",
+      "Use an implicit Situation → Task → Action → Result flow (do not name it).",
+      "Identify patterns, anomalies, and business implications (conversion, revenue, retention, cost, risk).",
+      "Provide concrete, actionable recommendations.",
+      'Return JSON only in this exact shape: {"analysis":"...","answer":"..."}'
     ].join("\n");
 
-    // Build prompt
-    const prompt = [
-      "You are helping a candidate in a live interview.",
-      "Speak as “I”. English only. Do not mention AI or screenshots.",
-      "Analyze the screen and then provide an interview-ready answer.",
-      "Transcript so far:",
-      JSON.stringify(cleanedTranscript, null, 2),
-      "",
-      analysisInstructions,
-    ].join("\n");
-
-    // Call OpenAI (vision + text)
-    const response = await openai.responses.create({
-      model: "gpt-4o-mini",
-      input: [
-        { type: "input_text", text: prompt },
-        { type: "input_image", image_url: image }, // pass the data URL as-is
-      ],
-      temperature: 0.7,
-      max_output_tokens: 4000,
-    });
-
-    const raw = response?.output_text || "";
-    // Extract JSON
-    let analysis = "";
-    let answer = "";
-    try {
-      const s = raw.indexOf("{");
-      const e = raw.lastIndexOf("}");
-      if (s !== -1 && e !== -1) {
-        const parsed = JSON.parse(raw.slice(s, e + 1));
-        analysis = String(parsed.analysis || "");
-        answer = String(parsed.answer || "");
+    const messages = [
+      {
+        role: "user",
+        content: [
+          { type: "text", text: String(sessionTranscript).slice(0, 8000) },
+          { type: "text", text: promptFromFrontend },
+          { type: "input_image", image_url: imageDataUrl }
+        ]
       }
-    } catch {
-      // Fallback to raw text as analysis
-      analysis = raw;
-      answer = "";
+    ];
+
+    const response = await openai.responses.create({
+      model: "gpt-4.1",
+      messages,
+      temperature: 0.4,
+      max_output_tokens: 1200,
+      response_format: { type: "json_object" } // enforce pure JSON output
+    });
+
+    // Extract JSON text safely
+    let textOut = "";
+    if (response?.output_text) {
+      textOut = response.output_text;
+    } else if (Array.isArray(response?.output)) {
+      textOut = response.output
+        .flatMap(o => o?.content || [])
+        .filter(c => c?.type === "output_text" && typeof c?.text === "string")
+        .map(c => c.text)
+        .join("\n")
+        .trim();
     }
 
-    return res.json({
-      analysis: analysis.trim(),
-      mode,
-      answer: answer.trim(),
-    });
+    let parsed;
+    try {
+      parsed = JSON.parse(textOut);
+    } catch {
+      const s = textOut.indexOf("{");
+      const e = textOut.lastIndexOf("}");
+      if (s !== -1 && e !== -1) parsed = JSON.parse(textOut.slice(s, e + 1));
+    }
+
+    if (!parsed || typeof parsed !== "object") {
+      return res.status(502).json({ error: "bad_model_output", raw: textOut?.slice(0, 1000) });
+    }
+
+    const analysis = String(parsed.analysis || "").trim();
+    const answer = String(parsed.answer || "").trim();
+
+    return res.json({ analysis, answer });
   } catch (err) {
     console.error("[analyze-screen] error:", err);
     return res.status(500).json({ error: "internal_error" });
