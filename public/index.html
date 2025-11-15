@@ -1044,9 +1044,8 @@ End every answer like this:
           dcOpen = false;
         };
 
-        let needCtxCheckActive = false;
-        let needCtxBuffer = "";
-        let suppressThisResponse = false;
+        // ✅ REMOVED: All #NEED_SCREEN_CONTEXT# auto-detection logic
+        // Now Analyze only happens when user clicks the button
 
         dc.onmessage = async (e) => {
           let msg;
@@ -1091,76 +1090,25 @@ End every answer like this:
             case "response.text.delta":
             case "response.output_text.delta":
             case "response.delta": {
-              let d = extractText(msg);
-              if (!d) return;
-
-              if (!needCtxCheckActive) {
-                needCtxCheckActive = true;
-                needCtxBuffer = "";
-                suppressThisResponse = false;
-              }
-
-              if (!suppressThisResponse) {
-                needCtxBuffer += d;
-
-                const firstLine = needCtxBuffer.split(/\r?\n/)[0].trim();
-                if (firstLine.length >= "#NEED_SCREEN_CONTEXT#".length) {
-                  if (firstLine.startsWith("#NEED_SCREEN_CONTEXT#")) {
-                    const now = Date.now();
-                    if (now - lastScreenCtxRefreshAt > 5000) {
-                      suppressThisResponse = true;
-                      const img = await captureScreenImage().catch(() => null);
-                      if (img) {
-                        try {
-                          const mode = window.currentAIStrategy || "smart";
-                          const sessionTranscript = collectTranscriptString();
-                          const r = await fetch("/analyze-screen", {
-                            method: "POST",
-                            headers: { "Content-Type": "application/json" },
-                            body: JSON.stringify({ screenshotBase64: img, sessionTranscript, mode })
-                          });
-                          const j = await r.json();
-                          if (r.ok) {
-                            window.latestScreenCtx = String(j.analysis || "").slice(0, 8000);
-                            if (dc && dcOpen) {
-                              const instructions = buildRealtimeInstructions(mode, window.latestScreenCtx);
-                              dc.send(JSON.stringify({ type: "session.update", session: { instructions } }));
-                              dc.send(JSON.stringify({ type: "response.create", response: { modalities: ["text"] } }));
-                            }
-                            lastScreenCtxRefreshAt = now;
-                          }
-                        } catch (err) {
-                          console.warn("auto screen-context refresh failed:", err);
-                        }
-                      }
-                    } else {
-                      suppressThisResponse = true;
-                    }
-                  } else {
-                    ensureCard();
-                    qa.aEl.textContent += d;
-                  }
-                }
+              const d = extractText(msg);
+              if (d) {
+                ensureCard();
+                qa.aEl.textContent += d;
               }
               return;
             }
 
             case "response.message": {
-              if (!suppressThisResponse) {
-                const t = extractText(msg);
-                if (t) {
-                  ensureCard();
-                  qa.aEl.textContent += t;
-                }
+              const t = extractText(msg);
+              if (t) {
+                ensureCard();
+                qa.aEl.textContent += t;
               }
               return;
             }
 
             case "response.completed":
               pillOn(pProcessing, false);
-              needCtxCheckActive = false;
-              needCtxBuffer = "";
-              suppressThisResponse = false;
               qa = null;
               return;
 
