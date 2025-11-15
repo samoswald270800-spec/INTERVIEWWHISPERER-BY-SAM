@@ -1,4 +1,3 @@
-// Replace your existing server.js with this updated version (keeps existing behavior; adds mode-aware instructions)
 import express from "express";
 import fetch from "node-fetch";
 import "dotenv/config";
@@ -7,18 +6,34 @@ import path from "path";
 import { fileURLToPath } from "url";
 import OpenAI from "openai";
 
-
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const app = express();
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
+// ====== SERVER DEBUG LOGGING ======
+const DEBUG_ENABLED = true; // Set to false to disable server debug logs
+
+function debugLog(context, message, data = null) {
+  if (!DEBUG_ENABLED) return;
+  
+  const timestamp = new Date().toISOString();
+  const prefix = `[${timestamp}] [${context}]`;
+  
+  if (data) {
+    console.log(`${prefix} ${message}`, JSON.stringify(data, null, 2));
+  } else {
+    console.log(`${prefix} ${message}`);
+  }
+}
+
 // Trust proxy for Render so secure cookies work
 app.set("trust proxy", 1);
 
 // Parse JSON before auth routes (needed for /api/login and /set-jd)
 app.use(express.json({ limit: "1mb" })); // for /set-jd and login
+
 /* =======================================================================
    Redis session store (connect-redis v8 + node-redis v4, ESM)
    ======================================================================= */
@@ -34,6 +49,8 @@ if (!process.env.REDIS_URL) {
 const redisUrl = process.env.REDIS_URL.trim();
 const useTLS = redisUrl.startsWith("rediss://");
 
+debugLog('REDIS', 'Initializing Redis client', { url: redisUrl.substring(0, 20) + '...', useTLS });
+
 // Create the Redis client
 const redisClient = createClient({
   url: redisUrl,
@@ -43,9 +60,11 @@ const redisClient = createClient({
 });
 
 redisClient.on("error", (err) => {
+  debugLog('REDIS', 'Redis error', { error: err.message });
   console.error("❌ Redis error:", err);
 });
 redisClient.on("ready", () => {
+  debugLog('REDIS', 'Redis client ready');
   console.log("✅ Redis client ready");
 });
 
@@ -55,8 +74,10 @@ await redisClient.connect();
 // Optional quick health check
 try {
   const pong = await redisClient.ping();
+  debugLog('REDIS', 'Redis PING successful', { response: pong });
   console.log("🔎 Redis PING:", pong);
 } catch (e) {
+  debugLog('REDIS', 'Redis ping failed', { error: e.message });
   console.error("❌ Redis ping failed:", e);
 }
 
@@ -80,6 +101,7 @@ app.use(
     },
   })
 );
+
 /* ============================================================================================= */
 // ---[ADD] Temp-user pre-handler for /api/login (kept before your existing /api/login) ---
 const TEMP_USER_PREFIX = "tempuser:";
@@ -88,21 +110,27 @@ const TEMP_USER_PREFIX = "tempuser:";
 app.post("/api/login", async (req, res, next) => {
   try {
     const { username, password } = req.body || {};
+    debugLog('AUTH', 'Login attempt (temp user path)', { username });
+    
     if (!username || !password) return next();
 
     const key = `${TEMP_USER_PREFIX}${username}`;
     const raw = await redisClient.get(key);
-    if (!raw) return next(); // not a temp user → let your existing /api/login handle admin
+    if (!raw) {
+      debugLog('AUTH', 'Not a temp user, trying admin path', { username });
+      return next();
+    }
 
     let data;
     try {
       data = JSON.parse(raw);
     } catch {
+      debugLog('AUTH', 'Malformed temp user data', { username });
       return next(); // malformed → ignore, let admin path try
     }
 
     if (data?.password !== password) {
-      // wrong temp password → let admin path try
+      debugLog('AUTH', 'Wrong temp user password', { username });
       return next();
     }
 
@@ -112,41 +140,48 @@ app.post("/api/login", async (req, res, next) => {
     req.session.ip = req.headers["x-forwarded-for"] || req.ip;
     req.session.loginAt = Date.now();
 
+    debugLog('AUTH', 'Temp user login successful', { username, role: 'user' });
     return res.json({ ok: true, role: "user" });
   } catch (e) {
-    // On any unexpected error we fall through to admin path to avoid blocking it
+    debugLog('AUTH', 'Temp user login error', { error: e.message });
     return next();
   }
 });
 
-
 /* ---------- Minimal login/logout endpoints ---------- */
-// Render: set ADMIN_USER and ADMIN_PASS in Environment
-/* ---------- Minimal login/logout endpoints ---------- */
-// Render: set ADMIN_USER and ADMIN_PASS in Environment
 app.post("/api/login", (req, res) => {
   const { username, password } = req.body || {};
   const ADMIN_USER = process.env.ADMIN_USER || "";
   const ADMIN_PASS = process.env.ADMIN_PASS || "";
 
+  debugLog('AUTH', 'Login attempt (admin path)', { username });
+
   if (username === ADMIN_USER && password === ADMIN_PASS) {
     req.session.userId = username;
-    req.session.role = "admin";   // ✅ keep admin role set
+    req.session.role = "admin";
     req.session.ip = req.headers["x-forwarded-for"] || req.ip;
     req.session.loginAt = Date.now();
+    
+    debugLog('AUTH', 'Admin login successful', { username, role: 'admin' });
     return res.json({ ok: true, role: "admin" });
   }
 
+  debugLog('AUTH', 'Login failed - invalid credentials', { username });
   return res.status(401).json({ error: "Invalid username or password" });
 });
 
 app.post("/api/logout", (req, res) => {
+  const userId = req.session?.userId;
+  debugLog('AUTH', 'Logout', { userId });
   req.session.destroy(() => res.json({ ok: true }));
 });
 
 // Serve the login page itself
 app.get("/login", (req, res) => {
-  if (req.session?.userId) return res.redirect("/");
+  if (req.session?.userId) {
+    debugLog('AUTH', 'Already logged in, redirecting to /', { userId: req.session.userId });
+    return res.redirect("/");
+  }
   res.sendFile(path.join(__dirname, "public", "login.html"));
 });
 
@@ -154,11 +189,11 @@ app.get("/login", (req, res) => {
 function requireAuth(req, res, next) {
   if (req.path === "/login" || req.path === "/api/login") return next();
   if (req.session?.userId) return next();
+  
+  debugLog('AUTH', 'Unauthorized access attempt, redirecting to /login', { path: req.path });
   return res.redirect("/login");
 }
 app.use(requireAuth);
-
-
 
 // ---[ADD] Post-auth annotator so we capture IP/loginAt even if admin logged in via your handler ---
 app.use((req, _res, next) => {
@@ -171,10 +206,14 @@ app.use((req, _res, next) => {
   next();
 });
 
-// Serve static files only after auth
 // ✅ ADMIN CONSOLE (protected area)
 function requireAdmin(req, res, next) {
   if (req.session?.role === "admin") return next();
+  
+  debugLog('ADMIN', 'Non-admin access attempt blocked', { 
+    userId: req.session?.userId, 
+    role: req.session?.role 
+  });
   return res.status(403).json({ error: "Admin only" });
 }
 
@@ -183,6 +222,7 @@ async function createTempUser(username, password, ttlHours = 24) {
   const now = Date.now();
   const payload = { password, createdAt: now, expiresAt: now + ttlSeconds * 1000 };
   await redisClient.set(`tempuser:${username}`, JSON.stringify(payload), { EX: ttlSeconds });
+  debugLog('ADMIN', 'Temp user created', { username, ttlHours });
 }
 
 async function getTempUser(username) {
@@ -192,18 +232,19 @@ async function getTempUser(username) {
 
 async function deleteTempUser(username) {
   await redisClient.del(`tempuser:${username}`);
+  debugLog('ADMIN', 'Temp user deleted', { username });
 }
-
-
 
 // API endpoints
 app.post("/admin/api/users", requireAdmin, async (req, res) => {
   const { username, password, hours = 24 } = req.body;
+  debugLog('ADMIN', 'Creating temp user', { username, hours });
   await createTempUser(username, password, Number(hours));
   return res.json({ ok: true });
 });
 
 app.get("/admin/api/users", requireAdmin, async (_req, res) => {
+  debugLog('ADMIN', 'Fetching temp users list');
   const users = [];
   for await (const key of redisClient.scanIterator({ MATCH: "tempuser:*" })) {
     const username = key.replace("tempuser:", "");
@@ -211,42 +252,40 @@ app.get("/admin/api/users", requireAdmin, async (_req, res) => {
     const ttl = await redisClient.ttl(key);
     users.push({ username, ttlSeconds: ttl, expiresAt: data.expiresAt });
   }
+  debugLog('ADMIN', 'Temp users fetched', { count: users.length });
   return res.json({ ok: true, users });
 });
 
 app.delete("/admin/api/users/:username", requireAdmin, async (req, res) => {
-  await deleteTempUser(req.params.username);
+  const { username } = req.params;
+  debugLog('ADMIN', 'Deleting temp user', { username });
+  await deleteTempUser(username);
   res.json({ ok: true });
 });
 
 /* ---------- Admin: session management endpoints ---------- */
-/* Return list of active sessions (sessionId, userId, ip, loginAt, ttlSeconds) */
 app.get("/admin/api/sessions", requireAdmin, async (_req, res) => {
+  debugLog('ADMIN', 'Fetching active sessions');
   try {
     const sessions = [];
 
-    // The session keys stored by connect-redis use the prefix we configured ("sess:")
     for await (const key of redisClient.scanIterator({ MATCH: "sess:*" })) {
       try {
         const raw = await redisClient.get(key);
         if (!raw) continue;
 
-        // Some session stores store JSON; parse it
         let parsed;
         try {
           parsed = JSON.parse(raw);
         } catch {
-          // If not JSON, skip
           continue;
         }
 
-        // sessionId is key without prefix
         const sessionId = key.replace(/^sess:/, "");
         const userId = parsed.userId || parsed.user || null;
         const ip = parsed.ip || (parsed?.cookie?.ip) || null;
         const loginAt = parsed.loginAt ? Number(parsed.loginAt) : null;
 
-        // TTL (seconds) - optional but useful
         let ttlSeconds = null;
         try {
           const ttl = await redisClient.ttl(key);
@@ -263,69 +302,55 @@ app.get("/admin/api/sessions", requireAdmin, async (_req, res) => {
           ttlSeconds,
         });
       } catch (e) {
-        console.error("Error reading session key", key, e);
+        debugLog('ADMIN', 'Error reading session key', { key, error: e.message });
       }
     }
 
+    debugLog('ADMIN', 'Sessions fetched', { count: sessions.length });
     return res.json({ ok: true, sessions });
   } catch (e) {
-    console.error("Failed to list sessions:", e);
+    debugLog('ADMIN', 'Failed to list sessions', { error: e.message });
     return res.status(500).json({ error: "Failed to list sessions" });
   }
 });
 
-/* Force-logout (destroy) a single session by sessionId */
 app.post("/admin/api/sessions/:sessionId/logout", requireAdmin, async (req, res) => {
   try {
     const { sessionId } = req.params;
+    debugLog('ADMIN', 'Force logout session', { sessionId });
+    
     if (!sessionId) return res.status(400).json({ error: "Missing sessionId" });
 
     const key = `sess:${sessionId}`;
-
-    // Check existence
     const exists = await redisClient.exists(key);
+    
     if (!exists) {
+      debugLog('ADMIN', 'Session not found', { sessionId });
       return res.status(404).json({ error: "Session not found" });
     }
 
-    // Remove the session key (destroy session)
     await redisClient.del(key);
-
-    // Optionally, if you prefer to use the store API:
-    // if (store && typeof store.destroy === 'function') {
-    //   await new Promise((resolve, reject) => store.destroy(sessionId, (err) => (err ? reject(err) : resolve())));
-    // }
-
+    debugLog('ADMIN', 'Session logged out successfully', { sessionId });
     return res.json({ ok: true, sessionId });
   } catch (e) {
-    console.error("Failed to logout session:", e);
+    debugLog('ADMIN', 'Failed to logout session', { error: e.message });
     return res.status(500).json({ error: "Failed to logout session" });
   }
 });
 
-// ...existing code continues (static serving etc.)...
-// Serve the Admin UI (React SPA build)
-
-
 /* ---------- Static & Admin SPA (order matters) ---------- */
-
-// Public assets (still behind your requireAuth middleware earlier)
 app.use(express.static(path.join(__dirname, "public")));
 
-// React Admin build (protected)
 app.use(
   "/admin",
   requireAdmin,
   express.static(path.join(__dirname, "admin", "dist"))
 );
 
-// SPA fallback for any nested admin routes
 app.get("/admin/*", requireAdmin, (req, res) => {
   res.sendFile(path.join(__dirname, "admin", "dist", "index.html"));
 });
 
-
-// Explicit route for "/"
 app.get("/", (req, res) => {
   res.sendFile(path.join(__dirname, "public", "index.html"));
 });
@@ -335,23 +360,29 @@ let resume = "";
 let assignment = "";
 try {
   resume = fs.readFileSync("./resume.txt", "utf8");
+  debugLog('INIT', 'Resume loaded', { length: resume.length });
   console.log("ℹ️  Loaded resume.txt");
 } catch {
+  debugLog('INIT', 'No resume.txt found');
   console.log("ℹ️  No resume.txt found (optional).");
 }
 try {
   assignment = fs.readFileSync("./assignment.txt", "utf8");
+  debugLog('INIT', 'Assignment loaded', { length: assignment.length });
   console.log("ℹ️  Loaded assignment.txt");
 } catch {
+  debugLog('INIT', 'No assignment.txt found');
   console.log("ℹ️  No assignment.txt found (optional).");
 }
+
 /* Store JD in memory (resets when you restart the server) */
 let JOB_DESC = "";
 
 /* Paste/Update JD from the browser */
 app.post("/set-jd", (req, res) => {
   const jd = (req.body?.jd || "").toString();
-  JOB_DESC = jd.slice(0, 20000); // simple size guard
+  JOB_DESC = jd.slice(0, 20000);
+  debugLog('JD', 'Job description saved', { length: JOB_DESC.length });
   return res.json({ ok: true, length: JOB_DESC.length });
 });
 
@@ -359,16 +390,13 @@ app.post("/set-jd", (req, res) => {
    WebRTC Realtime Session + Transcript Collection
    ────────────────────────────────────────────────────────────────── */
 
-// Store active WebRTC data channels per session
-const activeDataChannels = new Map(); // sessionId → { dc, currentTurn: { q, a } }
+const activeDataChannels = new Map();
 
-/* Mint ephemeral session token for the browser */
 app.post("/session", async (req, res) => {
   try {
     const mode = (req.body && req.body.mode) ? String(req.body.mode).toLowerCase() : "smart";
-    console.log("→ Creating realtime session with mode:", mode);
+    debugLog('SESSION', 'Creating realtime session', { mode, userId: req.session?.userId });
 
-    // Initialize transcript array in session if not exists
     if (!req.session.transcript) {
       req.session.transcript = [];
     }
@@ -552,23 +580,26 @@ ${assignment || "(no assignment provided)"}
     });
 
     const session = await r.json();
+    debugLog('SESSION', 'Realtime session created', { hasToken: !!session?.client_secret?.value });
     res.json(session);
   } catch (e) {
+    debugLog('SESSION', 'Session creation error', { error: e.message });
     console.error("Session error:", e);
     res.status(500).json({ error: String(e) });
   }
 });
 
-/**
- * POST /analyze-screen
- * Frontend sends ONLY: { screenshotBase64, mode }
- * Backend fetches transcript from session, sends to vision, injects into realtime
- */
 app.post("/analyze-screen", requireAuth, async (req, res) => {
   try {
     const { screenshotBase64, mode } = req.body || {};
+    debugLog('ANALYZE', 'Screen analysis requested', { 
+      mode, 
+      imageSize: screenshotBase64?.length || 0,
+      userId: req.session?.userId 
+    });
 
     if (!screenshotBase64 || typeof screenshotBase64 !== "string") {
+      debugLog('ANALYZE', 'Missing screenshot data');
       return res.status(400).json({ error: "screenshotBase64 is required" });
     }
 
@@ -577,15 +608,20 @@ app.post("/analyze-screen", requireAuth, async (req, res) => {
       : `data:image/png;base64,${screenshotBase64}`;
 
     if (imageDataUrl.length > 25_000_000) {
+      debugLog('ANALYZE', 'Screenshot too large', { size: imageDataUrl.length });
       return res.status(413).json({ error: "screenshot too large" });
     }
 
-    // Extract transcript from session (last 15 turns max)
     const fullTranscript = req.session.transcript || [];
     const recentTranscript = fullTranscript.slice(-15);
     const lastQA = fullTranscript[fullTranscript.length - 1] || { q: "", a: "" };
 
-    // Build readable transcript text
+    debugLog('ANALYZE', 'Transcript context', { 
+      totalTurns: fullTranscript.length,
+      recentTurns: recentTranscript.length,
+      lastQuestion: lastQA.q?.slice(0, 50)
+    });
+
     let transcriptStr = recentTranscript
       .map((t) => {
         const q = (t?.q || "").toString().trim();
@@ -595,9 +631,8 @@ app.post("/analyze-screen", requireAuth, async (req, res) => {
       .filter(Boolean)
       .join("\n\n");
 
-    transcriptStr = transcriptStr.slice(0, 8000); // cap
+    transcriptStr = transcriptStr.slice(0, 8000);
 
-    // Server-authored vision instructions
     const serverAuthoredInstructions = `
 You are assisting a candidate in a live job interview.
 
@@ -624,11 +659,12 @@ FULL TRANSCRIPT SO FAR:
 ${transcriptStr || "(no transcript yet)"}
 `.trim();
 
-    // Build vision API content
     const content = [
       { type: "text", text: serverAuthoredInstructions },
       { type: "image_url", image_url: { url: imageDataUrl } }
     ];
+
+    debugLog('ANALYZE', 'Sending to OpenAI vision API', { mode });
 
     const response = await openai.chat.completions.create({
       model: "gpt-4o",
@@ -651,13 +687,18 @@ ${transcriptStr || "(no transcript yet)"}
     }
 
     if (!parsed || typeof parsed !== "object") {
+      debugLog('ANALYZE', 'Bad model output', { raw: textOut?.slice(0, 200) });
       return res.status(502).json({ error: "bad_model_output", raw: textOut?.slice(0, 1000) });
     }
 
     const analysis = String(parsed.analysis || "").trim();
     const answer = String(parsed.answer || "").trim();
 
-    // Store analysis in session for realtime injection
+    debugLog('ANALYZE', 'Analysis complete', { 
+      analysisLength: analysis.length,
+      answerLength: answer.length
+    });
+
     req.session.latestAnalysis = analysis;
     req.session.analyzedQuestion = lastQA.q;
     await req.session.save();
@@ -666,27 +707,30 @@ ${transcriptStr || "(no transcript yet)"}
       ok: true, 
       analysis, 
       answer,
-      // Signal frontend that realtime should be updated
       realtimeUpdate: true
     });
 
   } catch (err) {
+    debugLog('ANALYZE', 'Analysis error', { error: err.message, stack: err.stack });
     console.error("[analyze-screen] error:", err);
     return res.status(500).json({ error: "internal_error" });
   }
 });
 
-/**
- * POST /realtime-update
- * Called by frontend after analyze-screen to inject analysis + trigger response
- */
 app.post("/realtime-update", requireAuth, async (req, res) => {
   try {
     const analysis = req.session.latestAnalysis || "";
     const question = req.session.analyzedQuestion || "";
     const mode = req.session.mode || "smart";
 
+    debugLog('REALTIME', 'Injecting analysis into session', { 
+      mode, 
+      hasAnalysis: !!analysis,
+      question: question?.slice(0, 50)
+    });
+
     if (!analysis) {
+      debugLog('REALTIME', 'No analysis available');
       return res.status(400).json({ error: "No analysis available" });
     }
 
@@ -702,6 +746,7 @@ Use this analysis to generate a fresh answer to the interviewer's last question:
 Apply the ${mode === "god" ? "GOD MODE" : "SMART DETAIL"} style from your original instructions.
 `.trim();
 
+    debugLog('REALTIME', 'Instructions prepared for injection');
     return res.json({ 
       ok: true, 
       instructions: enhancedInstructions,
@@ -709,18 +754,21 @@ Apply the ${mode === "god" ? "GOD MODE" : "SMART DETAIL"} style from your origin
     });
 
   } catch (err) {
+    debugLog('REALTIME', 'Update error', { error: err.message });
     console.error("[realtime-update] error:", err);
     return res.status(500).json({ error: "internal_error" });
   }
 });
 
-/**
- * POST /save-turn
- * Frontend sends Q/A pair after each turn completion
- */
 app.post("/save-turn", requireAuth, async (req, res) => {
   try {
     const { q, a } = req.body || {};
+    
+    debugLog('TRANSCRIPT', 'Saving turn', { 
+      qLength: q?.length || 0,
+      aLength: a?.length || 0,
+      userId: req.session?.userId
+    });
     
     if (!req.session.transcript) {
       req.session.transcript = [];
@@ -733,8 +781,10 @@ app.post("/save-turn", requireAuth, async (req, res) => {
 
     await req.session.save();
 
+    debugLog('TRANSCRIPT', 'Turn saved', { totalTurns: req.session.transcript.length });
     return res.json({ ok: true });
   } catch (err) {
+    debugLog('TRANSCRIPT', 'Save turn error', { error: err.message });
     console.error("[save-turn] error:", err);
     return res.status(500).json({ error: "internal_error" });
   }
@@ -745,31 +795,7 @@ const PORT = process.env.PORT || 3000;
 const HOST = "0.0.0.0";
 
 app.listen(PORT, HOST, () => {
+  debugLog('SERVER', 'Server started', { port: PORT, host: HOST, env: process.env.NODE_ENV });
   console.log(`✅ Server listening on http://${HOST}:${PORT}`);
   console.log("   Paste a JD in the UI (Save JD) to tailor answers.");
 });
-
-// Debug logging utility
-function debugLog(message, data = null) {
-  const debugConsole = document.getElementById('debug-console');
-  if (!debugConsole) return;
-  
-  const timestamp = new Date().toLocaleTimeString();
-  const entry = document.createElement('div');
-  entry.className = 'debug-entry';
-  
-  let text = `[${timestamp}] ${message}`;
-  if (data) {
-    text += `\n${JSON.stringify(data, null, 2)}`;
-  }
-  
-  entry.textContent = text;
-  debugConsole.appendChild(entry);
-  debugConsole.scrollTop = debugConsole.scrollHeight;
-}
-
-// Clear debug console
-function clearDebug() {
-  const debugConsole = document.getElementById('debug-console');
-  if (debugConsole) debugConsole.innerHTML = '';
-}
