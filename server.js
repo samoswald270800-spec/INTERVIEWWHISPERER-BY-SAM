@@ -607,9 +607,10 @@ app.post("/analyze-screen", requireAuth, async (req, res) => {
       ? screenshotBase64
       : `data:image/png;base64,${screenshotBase64}`;
 
-    if (imageDataUrl.length > 25_000_000) {
+    // ✅ Reduce max size to 20MB (OpenAI limit)
+    if (imageDataUrl.length > 20_000_000) {
       debugLog('ANALYZE', 'Screenshot too large', { size: imageDataUrl.length });
-      return res.status(413).json({ error: "screenshot too large" });
+      return res.status(413).json({ error: "screenshot too large (max 20MB)" });
     }
 
     const fullTranscript = req.session.transcript || [];
@@ -633,56 +634,128 @@ app.post("/analyze-screen", requireAuth, async (req, res) => {
 
     transcriptStr = transcriptStr.slice(0, 8000);
 
-    const serverAuthoredInstructions = `
-You are assisting a candidate in a live job interview.
+    // ✅ SIMPLIFIED PROMPT (more direct)
+    const visionPrompt = `You are helping a candidate in a live job interview.
 
-Analyze the screenshot deeply and provide actionable insights.
+Analyze this screenshot and provide:
+1. What you see (data, charts, metrics, UI elements)
+2. Key insights (patterns, anomalies, business implications)
+3. A recommended answer the candidate should give
 
-English only. First-person voice. Interview-ready.
+RULES:
+- Respond in first person as the candidate
+- Focus on business impact (revenue, conversion, retention, cost)
+- Use numbers and specifics from the screenshot
+- ${mode === "god" ? "Give a detailed 900+ word answer" : "Give a concise 300-500 word answer"}
+- Never mention AI, screenshot, or image
 
-Do NOT mention screenshot, image, screen, camera, or AI.
+CONTEXT:
+Last question: "${lastQA.q || "(no question yet)"}"
 
-Use an implicit Situation → Task → Action → Result flow (do not name it).
-
-Identify patterns, anomalies, and business implications (conversion, revenue, retention, cost, risk).
-
-Provide concrete, actionable recommendations.
-
-${mode === "god" ? "Produce a long, senior-level narrative answer (900+ words) in first person. Use implicit STAR and quantified impact." : "Target 300–500 words. Be concise, confident, and specific."}
-
-Return JSON only in this exact shape: {"analysis":"...","answer":"..."}
-
-LAST QUESTION FROM INTERVIEWER:
-"${lastQA.q || "(no question yet)"}"
-
-FULL TRANSCRIPT SO FAR:
+Recent conversation:
 ${transcriptStr || "(no transcript yet)"}
-`.trim();
 
-    const content = [
-      { type: "text", text: serverAuthoredInstructions },
-      { type: "image_url", image_url: { url: imageDataUrl } }
-    ];
+Return JSON: {"analysis":"what you see + insights","answer":"recommended response"}`;
 
-    debugLog('ANALYZE', 'Sending to OpenAI vision API', { mode });
-
-    const response = await openai.chat.completions.create({
-      model: "gpt-4o",
-      messages: [{ role: "user", content }],
-      temperature: mode === "god" ? 0.3 : 0.4,
-      max_tokens: mode === "god" ? 2000 : 1200,
-      response_format: { type: "json_object" }
+    debugLog('ANALYZE', 'Sending to OpenAI vision API', { 
+      mode,
+      promptLength: visionPrompt.length,
+      imageUrlPrefix: imageDataUrl.slice(0, 50)
     });
 
+    // ✅ ADD RETRY LOGIC
+    let response;
+    let attempt = 0;
+    const maxAttempts = 2;
+
+    while (attempt < maxAttempts) {
+      attempt++;
+      
+      try {
+        debugLog('ANALYZE', `Vision API attempt ${attempt}/${maxAttempts}`);
+        
+        response = await openai.chat.completions.create({
+          model: "gpt-4o",
+          messages: [{
+            role: "user",
+            content: [
+              { type: "text", text: visionPrompt },
+              { 
+                type: "image_url", 
+                image_url: { 
+                  url: imageDataUrl,
+                  detail: "high" // ✅ Request high detail
+                } 
+              }
+            ]
+          }],
+          temperature: mode === "god" ? 0.3 : 0.4,
+          max_tokens: mode === "god" ? 3000 : 1500, // ✅ Increased token limit
+          response_format: { type: "json_object" }
+        });
+
+        debugLog('ANALYZE', 'Vision API response received', {
+          attempt,
+          hasChoices: !!response?.choices?.length,
+          contentLength: response?.choices?.[0]?.message?.content?.length || 0
+        });
+
+        // ✅ If we got a response, break the retry loop
+        if response?.choices?.[0]?.message?.content) {
+          break;
+        }
+
+      } catch (apiError) {
+        debugLog('ANALYZE', `Vision API attempt ${attempt} failed`, { 
+          error: apiError.message,
+          code: apiError.code 
+        });
+        
+        // ✅ If last attempt, throw
+        if (attempt === maxAttempts) {
+          throw apiError;
+        }
+        
+        // ✅ Wait before retry
+        await new Promise(r => setTimeout(r, 1000));
+      }
+    }
+
     let textOut = response?.choices?.[0]?.message?.content || "";
+    
+    debugLog('ANALYZE', 'Raw response from vision', { 
+      length: textOut.length,
+      preview: textOut.slice(0, 200)
+    });
+
+    if (!textOut || textOut.trim() === "") {
+      debugLog('ANALYZE', 'Empty response from vision API');
+      return res.status(502).json({ 
+        error: "vision_empty_response", 
+        message: "Vision API returned empty response. Try again or use a clearer screenshot."
+      });
+    }
+
+    // ✅ ROBUST JSON PARSING
     let parsed;
+    
+    // Try direct parse
     try {
       parsed = JSON.parse(textOut);
     } catch {
-      const s = textOut.indexOf("{");
-      const e = textOut.lastIndexOf("}");
-      if (s !== -1 && e !== -1) {
-        try { parsed = JSON.parse(textOut.slice(s, e + 1)); } catch {}
+      debugLog('ANALYZE', 'Direct JSON parse failed, trying extraction');
+      
+      // Try extracting JSON from markdown code blocks
+      const codeBlockMatch = textOut.match(/```(?:json)?\s*(\{[\s\S]*?\})\s*```/);
+      if (codeBlockMatch?.[1]) {
+        try {
+          parsed = JSON.parse(codeBlockMatch[1]);
+          debugLog('ANALYZE', 'Extracted JSON from code block', { 
+            length: JSON.stringify(parsed).length 
+          });
+        } catch (extractionError) {
+          debugLog('ANALYZE', 'JSON extraction from code block failed', { error: extractionError.message });
+        }
       }
     }
 
