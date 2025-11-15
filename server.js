@@ -568,25 +568,48 @@ ${assignment || "(no assignment provided)"}
  */
 app.post("/analyze-screen", requireAuth, async (req, res) => {
   try {
-    const { screenshotBase64, sessionTranscript } = req.body || {};
+    const {
+      screenshotBase64,         // new shape
+      sessionTranscript,        // new shape
+      image,                    // legacy shape
+      transcript                // legacy shape (array or string)
+    } = req.body || {};
 
-    // Validate
-    if (typeof sessionTranscript !== "string" || !sessionTranscript.trim()) {
-      return res.status(400).json({ error: "sessionTranscript is required (string)" });
+    // Normalize screenshot (required)
+    let screenshot = "";
+    if (typeof screenshotBase64 === "string" && screenshotBase64.trim()) {
+      screenshot = screenshotBase64.trim();
+    } else if (typeof image === "string" && image.trim()) {
+      screenshot = image.trim();
     }
-    if (typeof screenshotBase64 !== "string" || !screenshotBase64.trim()) {
-      return res.status(400).json({ error: "screenshotBase64 is required (base64 string or data URL)" });
+    if (!screenshot) {
+      return res.status(400).json({ error: "screenshotBase64 (or image) is required" });
     }
-
-    // Normalize screenshot to a data URL (OpenAI expects image_url)
-    let imageDataUrl = screenshotBase64.trim();
-    if (!imageDataUrl.startsWith("data:")) {
-      // Assume PNG if no mime is provided
-      imageDataUrl = `data:image/png;base64,${imageDataUrl}`;
-    }
+    let imageDataUrl = screenshot.startsWith("data:")
+      ? screenshot
+      : `data:image/png;base64,${screenshot}`;
     if (imageDataUrl.length > 25_000_000) {
       return res.status(413).json({ error: "screenshot too large" });
     }
+
+    // Normalize transcript (optional)
+    let transcriptStr = "";
+    if (typeof sessionTranscript === "string") {
+      transcriptStr = sessionTranscript;
+    } else if (typeof transcript === "string") {
+      transcriptStr = transcript;
+    } else if (Array.isArray(transcript)) {
+      // Legacy array of {q,a} → flatten to readable string
+      transcriptStr = transcript
+        .map((t) => {
+          const q = (t?.q || "").toString().trim();
+          const a = (t?.a || "").toString().trim();
+          return [q && `Q: ${q}`, a && `A: ${a}`].filter(Boolean).join("\n");
+        })
+        .filter(Boolean)
+        .join("\n\n");
+    }
+    transcriptStr = transcriptStr.slice(0, 8000); // cap
 
     // Server-authored instructions
     const promptFromFrontend = [
@@ -599,37 +622,24 @@ app.post("/analyze-screen", requireAuth, async (req, res) => {
       'Return JSON only in this exact shape: {"analysis":"...","answer":"..."}'
     ].join("\n");
 
-    const messages = [
-      {
-        role: "user",
-        content: [
-          { type: "text", text: String(sessionTranscript).slice(0, 8000) },
-          { type: "text", text: promptFromFrontend },
-          { type: "input_image", image_url: imageDataUrl }
-        ]
-      }
-    ];
+    // Build structured content; include transcript only if present
+    const content = [];
+    if (transcriptStr.trim()) {
+      content.push({ type: "text", text: transcriptStr });
+    }
+    content.push({ type: "text", text: promptFromFrontend });
+    content.push({ type: "image_url", image_url: { url: imageDataUrl } });
 
-    const response = await openai.responses.create({
-      model: "gpt-4.1",
-      messages,
+    const response = await openai.chat.completions.create({
+      model: "gpt-4o",
+      messages: [{ role: "user", content }],
       temperature: 0.4,
-      max_output_tokens: 1200,
-      response_format: { type: "json_object" } // enforce pure JSON output
+      max_tokens: 1200,
+      response_format: { type: "json_object" }
     });
 
     // Extract JSON text safely
-    let textOut = "";
-    if (response?.output_text) {
-      textOut = response.output_text;
-    } else if (Array.isArray(response?.output)) {
-      textOut = response.output
-        .flatMap(o => o?.content || [])
-        .filter(c => c?.type === "output_text" && typeof c?.text === "string")
-        .map(c => c.text)
-        .join("\n")
-        .trim();
-    }
+    let textOut = response?.choices?.[0]?.message?.content || "";
 
     let parsed;
     try {
