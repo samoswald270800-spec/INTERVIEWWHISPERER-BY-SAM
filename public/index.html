@@ -566,9 +566,9 @@
   display: flex;
   justify-content: center;
   align-items: center;
-  padding: 0.35em 0.35em 0.35em 0.75em;
+  padding: 0.5em 0.5em 0.5em 0.9em;
   font-family: "Poppins","Inter","Segoe UI",sans-serif;
-  font-size: 0.72em; /* Even smaller */
+  font-size: 0.85em;
   font-weight: 400;
   background-color: var(--button-color);
   box-shadow:
@@ -639,9 +639,9 @@ body.god-mode #analyzeBtn.btn {
 
 #analyzeBtn .btn-svg {
   flex-grow: 0;
-  height: 18px; /* Smaller icon */
-  width: 18px;
-  margin-right: .35rem;
+  height: 20px;
+  width: 20px;
+  margin-right: .5rem;
   fill: #e8e8e8;
   stroke: none;
   animation: flicker 2s linear infinite;
@@ -673,13 +673,13 @@ body.god-mode #analyzeBtn.btn {
   position: relative;
   display: flex;
   align-items: center;
-  min-width: 4.2em; /* Even smaller min-width */
+  min-width: 6.5em;
 }
 
 #analyzeBtn .txt-1,
 #analyzeBtn .txt-2 {
   position: absolute;
-  word-spacing: -0.4em;
+  word-spacing: -0.2em;
   left: 0;
   white-space: nowrap;
 }
@@ -1153,7 +1153,7 @@ End every answer like this:
           }
           // logDbg(msg);
 
-          switch (msg.type) {
+          switch (msg.type {
             // VAD lifecycle
             case "input_audio_buffer.speech_started":
               vadActive = true;
@@ -1449,7 +1449,7 @@ End every answer like this:
     style="
       position: fixed;
       top: 10px;
-      right: 150px;
+      right: 120px;
       padding: 10px 18px;
       background: crimson;
       color: white;
