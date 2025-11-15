@@ -5,12 +5,14 @@ import "dotenv/config";
 import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
+import OpenAI from "openai";
 
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const app = express();
+const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
 // Trust proxy for Render so secure cookies work
 app.set("trust proxy", 1);
@@ -501,7 +503,7 @@ ${modeText}
 You MUST prioritize:
 1) JOB DESCRIPTION (highest priority)
 2) RESUME (second priority for examples)
-3) ASSIGNMENT (only use if relevant)
+3) ASSIGNMENT (use if relevant)
 
 JOB DESCRIPTION (highest priority):
 ${JOB_DESC || "(JD not provided — give a strong general answer for the role based on resume)"}
@@ -560,144 +562,104 @@ ${assignment || "(no assignment provided)"}
 
 /**
  * POST /analyze-screen
- * Auth: requireAuth (must already exist in codebase)
- * Body: { image: <dataURL or base64 png>, transcript: [{q,a}], mode: 'smart'|'god' }
+ * Auth: requireAuth
+ * Body: { image: dataURL/base64, transcript:[{q,a}], mode:'smart'|'god' }
  * Returns: { analysis, mode, answer }
  */
-app.post('/analyze-screen', requireAuth, async (req, res) => {
+app.post("/analyze-screen", requireAuth, async (req, res) => {
   try {
     const { image, transcript, mode } = req.body;
 
-    // Basic validation
-    if (!image || typeof image !== 'string') {
-      return res.status(400).json({ error: 'image required (base64 data URL)' });
-    }
-    const isDataUrl = /^data:image\/png;base64,/.test(image);
-    const base64 = isDataUrl ? image.split(',')[1] : image;
-    if (!/^[A-Za-z0-9+/=]+$/.test(base64)) {
-      return res.status(400).json({ error: 'invalid base64 image' });
+    // Validate
+    if (typeof image !== "string" || !image.trim()) {
+      return res.status(400).json({ error: "image (base64 data URL) required" });
     }
     if (!Array.isArray(transcript)) {
-      return res.status(400).json({ error: 'transcript must be array' });
+      return res.status(400).json({ error: "transcript must be array" });
     }
-    if (mode !== 'smart' && mode !== 'god') {
-      return res.status(400).json({ error: 'mode must be smart or god' });
+    if (!["smart", "god"].includes(mode)) {
+      return res.status(400).json({ error: "mode must be smart or god" });
     }
 
-    // Normalize transcript (trim and cap length for safety)
+    // Clean transcript (last 50, trim lengths)
     const cleanedTranscript = transcript
-      .filter(t => t && typeof t === 'object')
-      .slice(-50) // cap last 50 pairs
+      .filter(t => t && typeof t === "object")
+      .slice(-50)
       .map(t => ({
-        q: (t.q || '').toString().trim().slice(0, 2000),
-        a: (t.a || '').toString().trim().slice(0, 4000)
+        q: String(t.q || "").trim().slice(0, 2000),
+        a: String(t.a || "").trim().slice(0, 4000),
       }));
 
-    const modeInstructions =
-      mode === 'smart'
-        ? `MODE: SMART DETAIL
-Produce an interview-ready spoken-style answer the candidate can say in about 60–90 seconds (~180–250 words).`
-        : `MODE: GOD MODE
-Produce an ultra-detailed spoken-style answer the candidate can say in 3–5 minutes (900–1400+ words). Go deep, layered, senior-level reasoning.`;
+    // Mode rules
+    const smartBlock = `
+SMART DETAIL MODE:
+- ~60–90 seconds (180–250 words)
+- Clear, structured, concise
+- First-person spoken tone
+- Use Situation → Task → Action → Result (do not name STAR)
+`;
+    const godBlock = `
+GOD MODE:
+- 3–5 minutes (900–1400+ words)
+- Senior-level depth: metrics, stakeholders, tradeoffs, risks
+- First-person, conversational, confident
+- Use Situation → Task → Action → Result (do not name STAR)
+`;
+    const modeRules = mode === "smart" ? smartBlock : godBlock;
 
+    // Instruction block
     const analysisInstructions = [
-      `You are analyzing a screenshot that the interviewer is showing.`,
-      `Output MUST be English only.`,
-      `Identify and describe: charts, graphs, dashboards, tables, UI components, KPIs, labels, axes, filters, navigation, anomalies, error states.`,
-      `Infer patterns, trends, correlations, bottlenecks, risks, opportunities.`,
-      `Explain business implications (revenue, conversion, retention, operational efficiency, strategic risk).`,
-      `Provide actionable insights (what I would propose / next steps).`,
-      `Then rewrite the explanation as an interview answer in first person (“I”), human conversational tone, never robotic, never mention AI or screenshots.`,
-      `Use structured storytelling (Situation → Task → Action → Result) but do NOT name the STAR acronym.`,
-      `Tie insights directly to measurable business outcomes.`,
-      `Never break character, never say you are an AI.`,
-      modeInstructions,
-      `Return strict JSON only: {"analysis":"...","answer":"..."}.
-"analysis" = full descriptive breakdown + insights.
-"answer" = spoken-style interview response for the selected mode.`,
-    ].join('\n');
+      "You are analyzing a screenshot that the interviewer is showing.",
+      "Output MUST be English only.",
+      "Provide insight into charts, dashboards, tables, UI panels, and metrics.",
+      "Explain patterns, trends, anomalies, issues, and opportunities.",
+      "Describe business implications (revenue, conversion, retention, cost, efficiency, risk).",
+      "Provide actionable recommendations and next steps.",
+      "Then rewrite the explanation as a first-person, interview-ready spoken answer.",
+      "Never mention AI, prompts, or screenshots. Never break character.",
+      "Use structured storytelling (Situation → Task → Action → Result) without naming STAR.",
+      modeRules,
+      'Return strict JSON ONLY: {"analysis":"...","answer":"..."}',
+    ].join("\n");
 
-    // Build OpenAI request using official SDK (preferring gpt-4o-mini)
-    // The spec requests chat.completions.create with vision-style "input" array.
-    // If your SDK version requires responses.create instead, adjust accordingly.
-    let resultText;
-    let analysis = '';
-    let answer = '';
+    // Build prompt
+    const prompt = [
+      "You are helping a candidate in a live interview.",
+      "Speak as “I”. English only. Do not mention AI or screenshots.",
+      "Analyze the screen and then provide an interview-ready answer.",
+      "Transcript so far:",
+      JSON.stringify(cleanedTranscript, null, 2),
+      "",
+      analysisInstructions,
+    ].join("\n");
 
+    // Call OpenAI (vision + text)
+    const response = await openai.responses.create({
+      model: "gpt-4o-mini",
+      input: [
+        { type: "input_text", text: prompt },
+        { type: "input_image", image_url: image }, // pass the data URL as-is
+      ],
+      temperature: 0.7,
+      max_output_tokens: 4000,
+    });
+
+    const raw = response?.output_text || "";
+    // Extract JSON
+    let analysis = "";
+    let answer = "";
     try {
-      const completion = await openai.chat.completions.create({
-        model: 'gpt-4o-mini',
-        // Vision + text hybrid input per spec
-        input: [
-          {
-            type: 'input_image',
-            image_url: `data:image/png;base64,${base64}`,
-          },
-          {
-            type: 'input_text',
-            text: 'Full transcript so far:\n' + JSON.stringify(cleanedTranscript),
-          },
-          {
-            type: 'input_text',
-            text: analysisInstructions,
-          },
-        ],
-        // Safety: force English through system message if supported (fallback via instructions)
-        temperature: 0.7,
-      });
-
-      // Attempt to extract text
-      const raw = completion?.choices?.[0]?.message?.content;
-      resultText = Array.isArray(raw)
-        ? raw.map(part => (typeof part === 'string' ? part : (part?.text || ''))).join('')
-        : (raw || '').toString();
-    } catch (e) {
-      // Fallback: try responses API if chat vision format unsupported
-      const fallback = await openai.responses.create({
-        model: 'gpt-4o-mini',
-        input: [
-          {
-            role: 'user',
-            content: [
-              { type: 'input_image', image_url: `data:image/png;base64,${base64}` },
-              { type: 'input_text', text: 'Full transcript so far:\n' + JSON.stringify(cleanedTranscript) },
-              { type: 'input_text', text: analysisInstructions },
-            ],
-          },
-        ],
-        temperature: 0.7,
-      });
-      resultText = fallback?.output_text || '';
-    }
-
-    // Parse JSON from model output
-    let parsed;
-    try {
-      const jsonStart = resultText.indexOf('{');
-      const jsonEnd = resultText.lastIndexOf('}');
-      if (jsonStart !== -1 && jsonEnd !== -1) {
-        parsed = JSON.parse(resultText.slice(jsonStart, jsonEnd + 1));
+      const s = raw.indexOf("{");
+      const e = raw.lastIndexOf("}");
+      if (s !== -1 && e !== -1) {
+        const parsed = JSON.parse(raw.slice(s, e + 1));
+        analysis = String(parsed.analysis || "");
+        answer = String(parsed.answer || "");
       }
     } catch {
-      parsed = null;
-    }
-
-    if (parsed && typeof parsed === 'object') {
-      analysis = parsed.analysis || '';
-      answer = parsed.answer || '';
-    } else {
-      // Fallback heuristic split
-      const splitMarker = /"analysis":|"answer":/i.test(resultText)
-        ? resultText
-        : `{"analysis":"${resultText.replace(/"/g, '\\"')}","answer":""}`;
-      try {
-        const tmp = JSON.parse(splitMarker);
-        analysis = tmp.analysis || resultText;
-        answer = tmp.answer || '';
-      } catch {
-        analysis = resultText;
-        answer = '';
-      }
+      // Fallback to raw text as analysis
+      analysis = raw;
+      answer = "";
     }
 
     return res.json({
@@ -706,8 +668,8 @@ Produce an ultra-detailed spoken-style answer the candidate can say in 3–5 min
       answer: answer.trim(),
     });
   } catch (err) {
-    console.error('[analyze-screen] error', err);
-    return res.status(500).json({ error: 'internal_error' });
+    console.error("[analyze-screen] error:", err);
+    return res.status(500).json({ error: "internal_error" });
   }
 });
 
