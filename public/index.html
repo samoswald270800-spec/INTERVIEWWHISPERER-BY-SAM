@@ -747,10 +747,16 @@
     return msg.delta || msg.text || msg.transcript || "";
   }
 
+  // ✅ DECLARE THESE GLOBALLY SO analyzeScreen() CAN ACCESS THEM
+  let dc, dcOpen = false;
+
   function askForAnswer() {
-    debugLog('Asking for answer from realtime API');
+    debugLog('Asking for answer from realtime API', { dcOpen, hasDC: !!dc });
     if (dc && dcOpen) {
       dc.send(JSON.stringify({ type: "response.create", response: { modalities: ["text"] } }));
+      debugLog('Response.create sent successfully');
+    } else {
+      debugLog('Cannot send response.create', { dcOpen, hasDC: !!dc });
     }
   }
 
@@ -771,8 +777,8 @@
     const saveJD = document.getElementById("saveJD");
     const savedTag = document.getElementById("savedTag");
 
-    let pc, dc, tabStream, audioTrack, meterNode, meterCtx;
-    let dcOpen = false;
+    let pc, tabStream, audioTrack, meterNode, meterCtx;
+    // ✅ REMOVED: let dc, dcOpen = false; (now global)
     let sessionActive = false;
     let qa = null;
     let partialQ = "";
@@ -1044,16 +1050,18 @@
         debugLog('/realtime-update response', { ok: updateResp.ok, updateData });
 
         if (updateData.ok && dc && dcOpen) {
-          debugLog('Injecting analysis into realtime');
+          debugLog('Injecting analysis into realtime', { dcOpen, hasDC: !!dc });
           dc.send(JSON.stringify({
             type: "session.update",
             session: { instructions: updateData.instructions }
           }));
 
           if (updateData.shouldTriggerResponse) {
-            debugLog('Triggering realtime response');
+            debugLog('Triggering realtime response via askForAnswer()');
             askForAnswer();
           }
+        } else {
+          debugLog('Cannot inject - data channel not ready', { dcOpen, hasDC: !!dc, updateOk: updateData.ok });
         }
 
         setStatus("analysis injected → answering…");
@@ -1078,11 +1086,11 @@
 
     function attachChannel(ch) {
       debugLog('Attaching data channel');
-      dc = ch;
+      dc = ch; // ✅ Update global dc
       
       dc.onopen = () => {
-        dcOpen = true;
-        debugLog('Data channel opened');
+        dcOpen = true; // ✅ Update global dcOpen
+        debugLog('Data channel opened', { dcOpen });
         setStatus("data channel open");
 
         const instructions = buildRealtimeInstructions(window.currentAIStrategy || "smart");
@@ -1108,8 +1116,8 @@
       };
       
       dc.onclose = () => {
-        dcOpen = false;
-        debugLog('Data channel closed');
+        dcOpen = false; // ✅ Update global dcOpen
+        debugLog('Data channel closed', { dcOpen });
       };
 
       dc.onmessage = async (e) => {
