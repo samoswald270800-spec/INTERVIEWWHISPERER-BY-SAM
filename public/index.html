@@ -1032,15 +1032,26 @@
         });
         
         const data = await resp.json();
-        debugLog('/analyze-screen response', { ok: resp.ok, data });
+        debugLog('/analyze-screen response', { ok: resp.ok, status: resp.status, data });
 
         if (!resp.ok) {
+          // ✅ SHOW DETAILED ERROR MESSAGE
+          const errorMsg = data.message || data.error || 'Unknown error';
           debugLog('Analyze failed', { status: resp.status, data });
-          setStatus("⚠️ Analyze failed — try again.");
+          setStatus(`⚠️ ${errorMsg}`);
+          
+          // ✅ Auto-clear error after 5 seconds
+          setTimeout(() => {
+            if (statusEl.textContent.startsWith('⚠️')) {
+              setStatus('idle');
+            }
+          }, 5000);
+          
           analyzeBtn.classList.remove('loading');
           return;
         }
 
+        // ✅ SUCCESS PATH
         debugLog('Getting realtime update instructions');
         const updateResp = await fetch('/realtime-update', {
           method: 'POST',
@@ -1051,10 +1062,15 @@
 
         if (updateData.ok && dc && dcOpen) {
           debugLog('Injecting analysis into realtime', { dcOpen, hasDC: !!dc });
+          
+          // ✅ INJECT INSTRUCTIONS
           dc.send(JSON.stringify({
             type: "session.update",
             session: { instructions: updateData.instructions }
           }));
+
+          // ✅ WAIT 500ms before triggering response (let instructions settle)
+          await new Promise(r => setTimeout(r, 500));
 
           if (updateData.shouldTriggerResponse) {
             debugLog('Triggering realtime response via askForAnswer()');
@@ -1062,6 +1078,7 @@
           }
         } else {
           debugLog('Cannot inject - data channel not ready', { dcOpen, hasDC: !!dc, updateOk: updateData.ok });
+          setStatus('⚠️ Data channel not ready');
         }
 
         setStatus("analysis injected → answering…");
@@ -1069,7 +1086,14 @@
       } catch (e) {
         debugLog('Analyze screen error', { error: e.message, stack: e.stack });
         console.error(e);
-        setStatus("⚠️ Analyze failed — try again.");
+        setStatus(`⚠️ ${e.message || 'Network error'}`);
+        
+        // ✅ Auto-clear error
+        setTimeout(() => {
+          if (statusEl.textContent.startsWith('⚠️')) {
+            setStatus('idle');
+          }
+        }, 5000);
       } finally {
         analyzeBtn.classList.remove('loading');
       }
