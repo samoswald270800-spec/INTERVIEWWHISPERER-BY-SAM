@@ -409,7 +409,17 @@
     <button type="button" id="muteBtn" disabled>Mute</button>
     <button type="button" id="clearBtn">Clear Answers</button>
 
-    <!-- Analyze Screen (Uiverse style) -->
+    <!-- 💡 Mode Switch (Smart Detail / GodMode) -->
+    <div class="mode-switch" id="modeSwitch">
+      <div class="mode-pill" id="modePill"></div>
+      <button type="button" class="mode-btn active" data-mode="smart">
+        Smart Detail
+      </button>
+      <button type="button" class="mode-btn" data-mode="god">GodMode</button>
+    </div>
+    <div id="modeStatus"></div>
+
+    <!-- Analyze Screen (Uiverse style) - MOVED HERE -->
     <span class="btn-wrapper">
       <button type="button" id="analyzeBtn" class="btn" aria-label="Analyze Screen">
         <svg class="btn-svg" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
@@ -429,17 +439,8 @@
       </button>
     </span>
 
-    <!-- 💡 Mode Switch (Smart Detail / GodMode) -->
-    <div class="mode-switch" id="modeSwitch">
-      <div class="mode-pill" id="modePill"></div>
-      <button type="button" class="mode-btn active" data-mode="smart">
-        Smart Detail
-      </button>
-      <button type="button" class="mode-btn" data-mode="god">GodMode</button>
-    </div>
     <span class="pill" id="pListening">listening</span>
     <span class="pill" id="pProcessing">processing</span>
-    <div id="modeStatus"></div>
     <div id="status">idle</div>
 
     <!-- Analyze Screen specific CSS (overrides global button breathing for this button only) -->
@@ -555,8 +556,8 @@
 }
 
 #analyzeBtn.btn {
-  --border-radius: 24px;
-  --padding: 4px;
+  --border-radius: 20px;
+  --padding: 3px;
   --transition: 0.4s;
   --button-color: #101010;
   --highlight-color-hue: 140deg;
@@ -564,9 +565,10 @@
   user-select: none;
   display: flex;
   justify-content: center;
-  padding: 0.4em 0.4em 0.4em 0.9em;
+  align-items: center;
+  padding: 0.35em 0.35em 0.35em 0.75em;
   font-family: "Poppins","Inter","Segoe UI",sans-serif;
-  font-size: 0.8em; /* Smaller font */
+  font-size: 0.72em; /* Even smaller */
   font-weight: 400;
   background-color: var(--button-color);
   box-shadow:
@@ -637,9 +639,9 @@ body.god-mode #analyzeBtn.btn {
 
 #analyzeBtn .btn-svg {
   flex-grow: 0;
-  height: 20px; /* Smaller icon */
-  width: 20px;
-  margin-right: .4rem;
+  height: 18px; /* Smaller icon */
+  width: 18px;
+  margin-right: .35rem;
   fill: #e8e8e8;
   stroke: none;
   animation: flicker 2s linear infinite;
@@ -671,14 +673,15 @@ body.god-mode #analyzeBtn.btn {
   position: relative;
   display: flex;
   align-items: center;
-  min-width: 5em; /* Smaller min-width */
+  min-width: 4.2em; /* Even smaller min-width */
 }
 
 #analyzeBtn .txt-1,
 #analyzeBtn .txt-2 {
   position: absolute;
-  word-spacing: -0.5em;
+  word-spacing: -0.4em;
   left: 0;
+  white-space: nowrap;
 }
 
 #analyzeBtn .txt-1 { animation: appear-anim 1s ease-in-out forwards; opacity: 1; }
@@ -1446,7 +1449,7 @@ End every answer like this:
     style="
       position: fixed;
       top: 10px;
-      right: 120px;
+      right: 150px;
       padding: 10px 18px;
       background: crimson;
       color: white;
