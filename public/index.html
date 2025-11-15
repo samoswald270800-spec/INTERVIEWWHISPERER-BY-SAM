@@ -409,6 +409,26 @@
     <button type="button" id="muteBtn" disabled>Mute</button>
     <button type="button" id="clearBtn">Clear Answers</button>
 
+    <!-- Analyze Screen (Uiverse style) -->
+    <span class="btn-wrapper">
+      <button type="button" id="analyzeBtn" class="btn" aria-label="Analyze Screen">
+        <svg class="btn-svg" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round"
+            d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.09ZM18.259 8.715 18 9.75l-.259-1.035a3.375 3.375 0 0 0-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 0 0 2.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 0 0 2.456 2.456L21.75 6l-1.035.259a3.375 3.375 0 0 0-2.456 2.456ZM16.894 20.567 16.5 21.75l-.394-1.183a2.25 2.25 0 0 0-1.423-1.423L13.5 18.75l1.183-.394a2.25 2.25 0 0 0 1.423-1.423l.394-1.183.394 1.183a2.25 2.25 0 0 0 1.423 1.423l1.183.394-1.183.394a2.25 2.25 0 0 0-1.423 1.423Z" />
+        </svg>
+        <div class="txt-wrapper">
+          <div class="txt-1">
+            <span class="btn-letter">A</span><span class="btn-letter">n</span><span class="btn-letter">a</span><span class="btn-letter">l</span><span class="btn-letter">y</span><span class="btn-letter">z</span><span class="btn-letter">e</span>
+            <span class="btn-letter">&nbsp;</span>
+            <span class="btn-letter">S</span><span class="btn-letter">c</span><span class="btn-letter">r</span><span class="btn-letter">e</span><span class="btn-letter">e</span><span class="btn-letter">n</span>
+          </div>
+          <div class="txt-2">
+            <span class="btn-letter">A</span><span class="btn-letter">n</span><span class="btn-letter">a</span><span class="btn-letter">l</span><span class="btn-letter">y</span><span class="btn-letter">z</span><span class="btn-letter">i</span><span class="btn-letter">n</span><span class="btn-letter">g</span><span class="btn-letter">…</span>
+          </div>
+        </div>
+      </button>
+    </span>
+
     <!-- 💡 Mode Switch (Smart Detail / GodMode) -->
     <div class="mode-switch" id="modeSwitch">
       <div class="mode-pill" id="modePill"></div>
@@ -417,38 +437,14 @@
       </button>
       <button type="button" class="mode-btn" data-mode="god">GodMode</button>
     </div>
-    <div id="modeStatus"></div>
-
-    <!-- Analyze Screen (Uiverse style) - MOVED HERE -->
-    <span class="btn-wrapper">
-      <button type="button" id="analyzeBtn" class="btn" aria-label="Analyze Screen">
-        <svg class="btn-svg" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round"
-            d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.09ZM18.259 8.715 18 9.75l-.259-1.035a3.375 3.375 0 0 0-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 0 0 2.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 0 0 2.456 2.456L21.75 6l-1.035.259a3.375 3.375 0 0 0-2.456 2.456ZM16.894 20.567 16.5 21.75l-.394-1.183a2.25 2.25 0 0 0-1.423-1.423L13.5 18.75l1.183-.394a2.25 2.25 0 0 0 1.423-1.423l.394-1.183.394 1.183a2.25 2.25 0 0 0 1.423 1.423l1.183.394-1.183.394a2.25 2.25 0 0 0-1.423 1.423Z" />
-        </svg>
-        <div class="txt-wrapper">
-          <!-- REPLACED: .txt-1/.txt-2 with unified .txt-layer elements for perfect overlap -->
-          <div class="txt-layer default">
-            <span class="btn-letter">A</span><span class="btn-letter">n</span><span class="btn-letter">a</span><span class="btn-letter">l</span><span class="btn-letter">y</span><span class="btn-letter">z</span><span class="btn-letter">e</span>
-            <span class="btn-emoji" aria-hidden="true">✨</span>
-          </div>
-          <div class="txt-layer loading">
-            <span class="btn-letter">A</span><span class="btn-letter">n</span><span class="btn-letter">a</span><span class="btn-letter">l</span><span class="btn-letter">y</span><span class="btn-letter">z</span><span class="btn-letter">i</span><span class="btn-letter">n</span><span class="btn-letter">g</span><span class="btn-letter">…</span>
-            <span class="btn-emoji" aria-hidden="true">✨</span>
-          </div>
-        </div>
-      </button>
-    </span>
-
     <span class="pill" id="pListening">listening</span>
     <span class="pill" id="pProcessing">processing</span>
+    <div id="modeStatus"></div>
     <div id="status">idle</div>
 
-    <!-- Analyze Screen specific CSS (overrides) -->
+    <!-- Analyze Screen specific CSS (overrides global button breathing for this button only) -->
     <style>
-      /* Analyze Screen specific CSS (overrides) */
       .btn-wrapper { position:relative; display:inline-flex; }
-
       #analyzeBtn.btn {
         position:relative;
         display:inline-flex;
@@ -458,69 +454,68 @@
         background:#1a1a1a;
         color:#ddd;
         padding:8px 14px;
-        border-radius:20px;
+        border-radius:8px;
         cursor:pointer;
-        overflow:visible;
+        overflow:hidden;
         font-size:13px;
         letter-spacing:.4px;
         transition:background .4s ease, border .4s ease;
       }
-
-      #analyzeBtn .btn-svg {
-        width:22px; height:22px;
-        stroke:var(--accent); fill:none; stroke-width:1.4;
-        flex-shrink:0;
-        transition:stroke .6s ease;
-      }
+      #analyzeBtn .btn-svg { width:22px; height:22px; stroke:var(--accent); fill:none; stroke-width:1.4; flex-shrink:0; transition:stroke .6s ease; }
       body.god-mode #analyzeBtn .btn-svg { stroke:var(--accent); }
 
-      #analyzeBtn:hover {
-        animation:none !important;
-        transform:none !important;
-        box-shadow:0 0 12px var(--accent-glow), 0 0 22px var(--accent-glow), inset 0 0 8px var(--accent-glow);
-      }
+      /* Disable global breathing animation & scale for this button */
+      #analyzeBtn:hover { animation:none !important; transform:none !important; box-shadow:0 0 12px var(--accent-glow), 0 0 22px var(--accent-glow), inset 0 0 8px var(--accent-glow); }
 
-      /* Keep both text states in the exact same place */
-      #analyzeBtn .txt-wrapper {
-        position:relative;
-        width:auto;
-        min-height:1.2em;
-        white-space:nowrap;
-      }
-      #analyzeBtn .txt-layer {
-        position:absolute;
-        top:50%;
-        left:0;
-        transform:translateY(-50%);
-        display:inline-flex;
-        gap:1px;
-        white-space:nowrap;
-        pointer-events:none;
-        opacity:0;
-        transition:opacity .35s ease;
-      }
-      #analyzeBtn .txt-layer.default { opacity:1; }
-      #analyzeBtn.loading .txt-layer.default { opacity:0; }
-      #analyzeBtn.loading .txt-layer.loading { opacity:1; }
+      /* Text swap states */
+      #analyzeBtn .txt-wrapper { position:relative; display:grid; }
+      #analyzeBtn .txt-1,
+      #analyzeBtn .txt-2 { display:inline-flex; gap:1px; transition:opacity .35s ease, transform .35s ease; }
+      #analyzeBtn .txt-2 { position:absolute; inset:0; opacity:0; transform:translateY(6px); }
+      #analyzeBtn.loading .txt-1 { opacity:0; transform:translateY(-6px); }
+      #analyzeBtn.loading .txt-2 { opacity:1; transform:translateY(0); }
+      #analyzeBtn.loading { pointer-events:none; opacity:.85; }
 
-      #analyzeBtn .btn-letter { line-height:1; }
-      .btn-emoji { margin-left:6px; filter: drop-shadow(0 0 2px var(--accent-glow)); }
-      #analyzeBtn.loading .txt-layer.loading .btn-letter { animation: analyzeWave 1.4s ease-in-out infinite; }
-      #analyzeBtn.loading .txt-layer.loading .btn-letter:nth-child(1){animation-delay:0s}
-      #analyzeBtn.loading .txt-layer.loading .btn-letter:nth-child(2){animation-delay:.07s}
-      #analyzeBtn.loading .txt-layer.loading .btn-letter:nth-child(3){animation-delay:.14s}
-      #analyzeBtn.loading .txt-layer.loading .btn-letter:nth-child(4){animation-delay:.21s}
-      #analyzeBtn.loading .txt-layer.loading .btn-letter:nth-child(5){animation-delay:.28s}
-      #analyzeBtn.loading .txt-layer.loading .btn-letter:nth-child(6){animation-delay:.35s}
-      #analyzeBtn.loading .txt-layer.loading .btn-letter:nth-child(7){animation-delay:.42s}
-      #analyzeBtn.loading .txt-layer.loading .btn-letter:nth-child(8){animation-delay:.49s}
-      #analyzeBtn.loading .txt-layer.loading .btn-letter:nth-child(9){animation-delay:.56s}
-      #analyzeBtn.loading .txt-layer.loading .btn-letter:nth-child(10){animation-delay:.63s}
-
+      /* Letter wave animation while loading */
+      #analyzeBtn.loading .txt-2 .btn-letter { animation:analyzeWave 1.4s ease-in-out infinite; display:inline-block; }
+      #analyzeBtn.loading .txt-2 .btn-letter:nth-child(1){animation-delay:0s}
+      #analyzeBtn.loading .txt-2 .btn-letter:nth-child(2){animation-delay:.07s}
+      #analyzeBtn.loading .txt-2 .btn-letter:nth-child(3){animation-delay:.14s}
+      #analyzeBtn.loading .txt-2 .btn-letter:nth-child(4){animation-delay:.21s}
+      #analyzeBtn.loading .txt-2 .btn-letter:nth-child(5){animation-delay:.28s}
+      #analyzeBtn.loading .txt-2 .btn-letter:nth-child(6){animation-delay:.35s}
+      #analyzeBtn.loading .txt-2 .btn-letter:nth-child(7){animation-delay:.42s}
+      #analyzeBtn.loading .txt-2 .btn-letter:nth-child(8){animation-delay:.49s}
+      #analyzeBtn.loading .txt-2 .btn-letter:nth-child(9){animation-delay:.56s}
+      #analyzeBtn.loading .txt-2 .btn-letter:nth-child(10){animation-delay:.63s}
       @keyframes analyzeWave {
-        0%,100% { transform: translateY(0); }
-        50% { transform: translateY(-3px); }
+        0%,100% { transform:translateY(0); }
+        50% { transform:translateY(-3px); }
       }
+
+      /* Tooltip */
+      .analyze-tooltip {
+        position:absolute;
+        top:100%;
+        left:50%;
+        transform:translateX(-50%);
+        background:#000;
+        color:#fff;
+        font-size:11px;
+        padding:4px 8px;
+        border-radius:4px;
+        white-space:nowrap;
+        box-shadow:0 2px 6px rgba(0,0,0,0.4);
+        opacity:0;
+        pointer-events:none;
+        transition:opacity .15s ease;
+        margin-top:6px;
+        z-index:30;
+      }
+      .btn-wrapper:hover .analyze-tooltip,
+      #analyzeBtn:hover + .analyze-tooltip { opacity:1; }
+
+      #analyzeBtn:focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
     </style>
   </div>
 
@@ -552,232 +547,6 @@
   <div id="list"></div>
   <pre id="debug"></pre>
 
-  <style>
-/* Uiverse.io style JUST for #analyzeBtn */
-.btn-wrapper {
-  position: relative;
-  display: inline-block;
-}
-
-#analyzeBtn.btn {
-  --border-radius: 20px;
-  --padding: 3px;
-  --transition: 0.4s;
-  --button-color: #101010;
-  --highlight-color-hue: 140deg;
-
-  user-select: none;
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  padding: 0.5em 0.7em;
-  font-family: "Poppins","Inter","Segoe UI",sans-serif;
-  font-size: 0.85em;
-  font-weight: 400;
-  background-color: var(--button-color);
-  box-shadow:
-    inset 0 1px 1px rgba(255,255,255,0.2),
-    inset 0 2px 2px rgba(255,255,255,0.15),
-    inset 0 4px 4px rgba(255,255,255,0.1),
-    inset 0 8px 8px rgba(255,255,255,0.05),
-    inset 0 16px 16px rgba(255,255,255,0.05),
-    0 -1px 1px rgba(0,0,0,0.02),
-    0 -2px 2px rgba(0,0,0,0.03),
-    0 -4px 4px rgba(0,0,0,0.05),
-    0 -8px 8px rgba(0,0,0,0.06),
-    0 -16px 16px rgba(0,0,0,0.08);
-  border: 1px solid #fff2;
-  border-radius: var(--border-radius);
-  cursor: pointer;
-  transition:
-    box-shadow var(--transition),
-    border var(--transition),
-    background-color var(--transition);
-  position: relative;
-  overflow: visible;
-  min-width: 120px;
-}
-
-body.god-mode #analyzeBtn.btn {
-  --highlight-color-hue: 0deg;
-}
-
-#analyzeBtn.btn::before {
-  content: "";
-  position: absolute;
-  top: calc(0px - var(--padding));
-  left: calc(0px - var(--padding));
-  width: calc(100% + var(--padding)*2);
-  height: calc(100% + var(--padding)*2);
-  border-radius: calc(var(--border-radius) + var(--padding));
-  pointer-events: none;
-  background-image: linear-gradient(0deg,#0004,#000a);
-  z-index: -1;
-  transition: box-shadow var(--transition), filter var(--transition);
-  box-shadow:
-    0 -8px 8px -6px #0000 inset,
-    0 -16px 16px -8px #0000 inset,
-    1px 1px 1px #fff2,
-    2px 2px 2px #fff1,
-    -1px -1px 1px #0002,
-    -2px -2px 2px #0001;
-}
-
-#analyzeBtn.btn::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  border-radius: inherit;
-  pointer-events: none;
-  background-image: linear-gradient(
-    0deg,
-    #fff,
-    hsl(var(--highlight-color-hue),100%,70%),
-    hsla(var(--highlight-color-hue),100%,70%,0.5),
-    8%,
-    transparent
-  );
-  background-position: 0 0;
-  opacity: 0;
-  transition: opacity var(--transition), filter var(--transition);
-}
-
-#analyzeBtn .btn-svg {
-  flex-grow: 0;
-  height: 20px;
-  width: 20px;
-  margin-right: .5rem;
-  fill: #e8e8e8;
-  stroke: none;
-  animation: flicker 2s linear infinite;
-  animation-delay: .5s;
-  filter: drop-shadow(0 0 2px #fff9);
-  transition: fill var(--transition), filter var(--transition), opacity var(--transition);
-}
-
-@keyframes flicker {
-  50% { opacity: .3; }
-}
-
-#analyzeBtn .btn-letter {
-  position: relative;
-  display: inline-block;
-  color: #fff5;
-  animation: letter-anim 2s ease-in-out infinite;
-  transition: color var(--transition), text-shadow var(--transition), opacity var(--transition);
-}
-
-@keyframes letter-anim {
-  50% {
-    text-shadow: 0 0 3px #fff8;
-    color: #fff;
-  }
-}
-
-#analyzeBtn .txt-wrapper {
-  position: relative;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  text-align: center;
-  min-height: 1.2em;
-  white-space: nowrap;
-}
-
-#analyzeBtn .txt-layer {
-  position: absolute;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 1px;
-  white-space: nowrap;
-  pointer-events: none;
-  opacity: 0;
-  transition: opacity .15s ease;
-}
-
-#analyzeBtn .txt-layer.default { opacity: 1; }
-#analyzeBtn.loading .txt-layer.default { opacity: 0; }
-#analyzeBtn.loading .txt-layer.loading { opacity: 1; }
-
-/* Wave animation preserved only for loading state letters */
-#analyzeBtn.loading .txt-layer.loading .btn-letter {
-  animation: analyzeWave 1.4s ease-in-out infinite;
-}
-/* Per-letter delay */
-#analyzeBtn.loading .txt-layer.loading .btn-letter:nth-child(1){animation-delay:0s}
-#analyzeBtn.loading .txt-layer.loading .btn-letter:nth-child(2){animation-delay:.07s}
-#analyzeBtn.loading .txt-layer.loading .btn-letter:nth-child(3){animation-delay:.14s}
-#analyzeBtn.loading .txt-layer.loading .btn-letter:nth-child(4){animation-delay:.21s}
-#analyzeBtn.loading .txt-layer.loading .btn-letter:nth-child(5){animation-delay:.28s}
-#analyzeBtn.loading .txt-layer.loading .btn-letter:nth-child(6){animation-delay:.35s}
-#analyzeBtn.loading .txt-layer.loading .btn-letter:nth-child(7){animation-delay:.42s}
-#analyzeBtn.loading .txt-layer.loading .btn-letter:nth-child(8){animation-delay:.49s}
-#analyzeBtn.loading .txt-layer.loading .btn-letter:nth-child(9){animation-delay:.56s}
-#analyzeBtn.loading .txt-layer.loading .btn-letter:nth-child(10){animation-delay:.63s}
-
-#analyzeBtn .btn-letter { line-height: 1; }
-
-@keyframes analyzeWave {
-  0%,100% { transform:translateY(0); }
-  50% { transform:translateY(-3px); }
-}
-
-/* === OVERRIDE: Precise centering so "Analyze" and "Analyzing…" occupy identical position === */
-/* Place near end of file (after existing analyzeBtn styles) */
-<style>
-  /* Remove legacy shifts by neutralizing old selectors */
-  #analyzeBtn .txt-1,
-  #analyzeBtn .txt-2 { display:none !important; }
-
-  #analyzeBtn .txt-wrapper {
-    position:relative;
-    width:auto;          /* Let width be driven by longest word */
-    min-height:1.2em;
-    white-space:nowrap;
-  }
-
-  #analyzeBtn .txt-layer {
-    position:absolute;
-    top:50%;
-    left:0;
-    transform:translateY(-50%); /* vertical centering only */
-    display:inline-flex;
-    gap:1px;
-    white-space:nowrap;
-    pointer-events:none;
-    opacity:0;
-    transition:opacity .35s ease;
-  }
-
-  #analyzeBtn .txt-layer.default { opacity:1; }
-  #analyzeBtn.loading .txt-layer.default { opacity:0; }
-  #analyzeBtn.loading .txt-layer.loading { opacity:1; }
-
-  /* Wave animation preserved only for loading state letters */
-  #analyzeBtn.loading .txt-layer.loading .btn-letter {
-    animation: analyzeWave 1.4s ease-in-out infinite;
-  }
-  /* Per-letter delay */
-  #analyzeBtn.loading .txt-layer.loading .btn-letter:nth-child(1){animation-delay:0s}
-  #analyzeBtn.loading .txt-layer.loading .btn-letter:nth-child(2){animation-delay:.07s}
-  #analyzeBtn.loading .txt-layer.loading .btn-letter:nth-child(3){animation-delay:.14s}
-  #analyzeBtn.loading .txt-layer.loading .btn-letter:nth-child(4){animation-delay:.21s}
-  #analyzeBtn.loading .txt-layer.loading .btn-letter:nth-child(5){animation-delay:.28s}
-  #analyzeBtn.loading .txt-layer.loading .btn-letter:nth-child(6){animation-delay:.35s}
-  #analyzeBtn.loading .txt-layer.loading .btn-letter:nth-child(7){animation-delay:.42s}
-  #analyzeBtn.loading .txt-layer.loading .btn-letter:nth-child(8){animation-delay:.49s}
-  #analyzeBtn.loading .txt-layer.loading .btn-letter:nth-child(9){animation-delay:.56s}
-  #analyzeBtn.loading .txt-layer.loading .btn-letter:nth-child(10){animation-delay:.63s}
-
-  #analyzeBtn .btn-letter { line-height: 1; }
-
-  @keyframes analyzeWave {
-    0%,100% { transform:translateY(0); }
-    50% { transform:translateY(-3px); }
-  }
-</style>
-
   <script>
     (() => {
       const startBtn = document.getElementById("startBtn");
@@ -795,22 +564,6 @@ body.god-mode #analyzeBtn.btn {
       const jdEl = document.getElementById("jd");
       const saveJD = document.getElementById("saveJD");
       const savedTag = document.getElementById("savedTag");
-
-      // Restore Analyze button click -> temporary loading state
-      const analyzeBtn = document.getElementById("analyzeBtn");
-      if (analyzeBtn) {
-        analyzeBtn.addEventListener("click", () => {
-          if (analyzeBtn.classList.contains("loading")) return;
-          analyzeBtn.classList.add("loading");
-          analyzeBtn.setAttribute("aria-busy","true");
-          analyzeBtn.disabled = true;
-          setTimeout(() => {
-            analyzeBtn.classList.remove("loading");
-            analyzeBtn.removeAttribute("aria-busy");
-            analyzeBtn.disabled = false;
-          }, 1600);
-        });
-      }
 
       let pc, dc, tabStream, audioTrack, meterNode, meterCtx;
       let dcOpen = false;
@@ -1136,7 +889,7 @@ End every answer like this:
           }
           // logDbg(msg);
 
-          switch (msg.type) {  // ✅ Fixed
+          switch (msg.type) {
             // VAD lifecycle
             case "input_audio_buffer.speech_started":
               vadActive = true;
@@ -1239,27 +992,15 @@ End every answer like this:
           setStatus("ice: " + pc.iceConnectionState);
 
         // Capture meeting tab/window with audio
-        try {
-          tabStream = await navigator.mediaDevices.getDisplayMedia({
-            video: true,
-            audio: true,
-          });
-        } catch (err) {
-          setStatus("Screen capture cancelled or failed");
-          sessionActive = false;
-          lockModeSwitch(false);  // ✅ This is already there
-          updateModeIndicator();   // ✅ This is already there
-          pc.close(); // ⚠️ ADD THIS - clean up the peer connection
-          console.error("getDisplayMedia error:", err);
-          return;
-        }
-
+        tabStream = await navigator.mediaDevices.getDisplayMedia({
+          video: true,
+          audio: true,
+        });
         const aTracks = tabStream.getAudioTracks();
         if (!aTracks.length) {
-          setStatus("No audio track — re-try & enable Share tab audio.");
-          sessionActive = false;
-          lockModeSwitch(false);
-          updateModeIndicator();
+          setStatus(
+            "No audio track — re-try & enable Share tab audio."
+          );
           return;
         }
         const vTracks = tabStream.getVideoTracks();
