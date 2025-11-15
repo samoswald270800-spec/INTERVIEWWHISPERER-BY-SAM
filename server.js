@@ -748,3 +748,28 @@ app.listen(PORT, HOST, () => {
   console.log(`✅ Server listening on http://${HOST}:${PORT}`);
   console.log("   Paste a JD in the UI (Save JD) to tailor answers.");
 });
+
+// Debug logging utility
+function debugLog(message, data = null) {
+  const debugConsole = document.getElementById('debug-console');
+  if (!debugConsole) return;
+  
+  const timestamp = new Date().toLocaleTimeString();
+  const entry = document.createElement('div');
+  entry.className = 'debug-entry';
+  
+  let text = `[${timestamp}] ${message}`;
+  if (data) {
+    text += `\n${JSON.stringify(data, null, 2)}`;
+  }
+  
+  entry.textContent = text;
+  debugConsole.appendChild(entry);
+  debugConsole.scrollTop = debugConsole.scrollHeight;
+}
+
+// Clear debug console
+function clearDebug() {
+  const debugConsole = document.getElementById('debug-console');
+  if (debugConsole) debugConsole.innerHTML = '';
+}
