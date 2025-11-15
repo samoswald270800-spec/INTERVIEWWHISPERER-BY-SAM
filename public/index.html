@@ -430,9 +430,11 @@
           <!-- REPLACED: .txt-1/.txt-2 with unified .txt-layer elements for perfect overlap -->
           <div class="txt-layer default">
             <span class="btn-letter">A</span><span class="btn-letter">n</span><span class="btn-letter">a</span><span class="btn-letter">l</span><span class="btn-letter">y</span><span class="btn-letter">z</span><span class="btn-letter">e</span>
+            <span class="btn-emoji" aria-hidden="true">✨</span>
           </div>
           <div class="txt-layer loading">
             <span class="btn-letter">A</span><span class="btn-letter">n</span><span class="btn-letter">a</span><span class="btn-letter">l</span><span class="btn-letter">y</span><span class="btn-letter">z</span><span class="btn-letter">i</span><span class="btn-letter">n</span><span class="btn-letter">g</span><span class="btn-letter">…</span>
+            <span class="btn-emoji" aria-hidden="true">✨</span>
           </div>
         </div>
       </button>
@@ -442,8 +444,9 @@
     <span class="pill" id="pProcessing">processing</span>
     <div id="status">idle</div>
 
-    <!-- Analyze Screen specific CSS (overrides global button breathing for this button only) -->
+    <!-- Analyze Screen specific CSS (overrides) -->
     <style>
+      /* Analyze Screen specific CSS (overrides) */
       .btn-wrapper { position:relative; display:inline-flex; }
 
       #analyzeBtn.btn {
@@ -471,27 +474,24 @@
       }
       body.god-mode #analyzeBtn .btn-svg { stroke:var(--accent); }
 
-      /* Disable global breathing animation & scale for this button */
       #analyzeBtn:hover {
         animation:none !important;
         transform:none !important;
         box-shadow:0 0 12px var(--accent-glow), 0 0 22px var(--accent-glow), inset 0 0 8px var(--accent-glow);
       }
 
-      /* ===== ALIGNMENT FIX (single line, perfectly centered, keep animation) ===== */
-      /* Remove earlier grid layout; force centering via absolute + translate */
+      /* Keep both text states in the exact same place */
       #analyzeBtn .txt-wrapper {
         position:relative;
-        width:auto;          /* Let width be driven by longest word */
+        width:auto;
         min-height:1.2em;
         white-space:nowrap;
       }
-
       #analyzeBtn .txt-layer {
         position:absolute;
         top:50%;
         left:0;
-        transform:translateY(-50%); /* vertical centering only */
+        transform:translateY(-50%);
         display:inline-flex;
         gap:1px;
         white-space:nowrap;
@@ -499,15 +499,13 @@
         opacity:0;
         transition:opacity .35s ease;
       }
-
       #analyzeBtn .txt-layer.default { opacity:1; }
       #analyzeBtn.loading .txt-layer.default { opacity:0; }
       #analyzeBtn.loading .txt-layer.loading { opacity:1; }
 
-      /* Keep wave animation for loading */
-      #analyzeBtn.loading .txt-layer.loading .btn-letter {
-        animation: analyzeWave 1.4s ease-in-out infinite;
-      }
+      #analyzeBtn .btn-letter { line-height:1; }
+      .btn-emoji { margin-left:6px; filter: drop-shadow(0 0 2px var(--accent-glow)); }
+      #analyzeBtn.loading .txt-layer.loading .btn-letter { animation: analyzeWave 1.4s ease-in-out infinite; }
       #analyzeBtn.loading .txt-layer.loading .btn-letter:nth-child(1){animation-delay:0s}
       #analyzeBtn.loading .txt-layer.loading .btn-letter:nth-child(2){animation-delay:.07s}
       #analyzeBtn.loading .txt-layer.loading .btn-letter:nth-child(3){animation-delay:.14s}
@@ -519,7 +517,6 @@
       #analyzeBtn.loading .txt-layer.loading .btn-letter:nth-child(9){animation-delay:.56s}
       #analyzeBtn.loading .txt-layer.loading .btn-letter:nth-child(10){animation-delay:.63s}
 
-      #analyzeBtn .btn-letter { line-height: 1; }
       @keyframes analyzeWave {
         0%,100% { transform: translateY(0); }
         50% { transform: translateY(-3px); }
@@ -696,7 +693,7 @@ body.god-mode #analyzeBtn.btn {
   white-space: nowrap;
   pointer-events: none;
   opacity: 0;
-  transition: opacity .35s ease;
+  transition: opacity .15s ease;
 }
 
 #analyzeBtn .txt-layer.default { opacity: 1; }
@@ -798,6 +795,22 @@ body.god-mode #analyzeBtn.btn {
       const jdEl = document.getElementById("jd");
       const saveJD = document.getElementById("saveJD");
       const savedTag = document.getElementById("savedTag");
+
+      // Restore Analyze button click -> temporary loading state
+      const analyzeBtn = document.getElementById("analyzeBtn");
+      if (analyzeBtn) {
+        analyzeBtn.addEventListener("click", () => {
+          if (analyzeBtn.classList.contains("loading")) return;
+          analyzeBtn.classList.add("loading");
+          analyzeBtn.setAttribute("aria-busy","true");
+          analyzeBtn.disabled = true;
+          setTimeout(() => {
+            analyzeBtn.classList.remove("loading");
+            analyzeBtn.removeAttribute("aria-busy");
+            analyzeBtn.disabled = false;
+          }, 1600);
+        });
+      }
 
       let pc, dc, tabStream, audioTrack, meterNode, meterCtx;
       let dcOpen = false;
