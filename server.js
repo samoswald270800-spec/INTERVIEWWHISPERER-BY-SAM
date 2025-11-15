@@ -629,8 +629,12 @@ app.post("/analyze-screen", requireAuth, async (req, res) => {
       content.push({ type: "text", text: transcriptStr });
     }
     content.push({ type: "text", text: promptFromFrontend });
-    // IMPORTANT: image_url must be a string (not {url:...})
-    content.push({ type: "image_url", image_url: imageDataUrl });
+    
+    // ✅ FIX: image_url must be an object with url property
+    content.push({ 
+      type: "image_url", 
+      image_url: { url: imageDataUrl }
+    });
 
     const response = await openai.chat.completions.create({
       model: "gpt-4o",
