@@ -426,16 +426,6 @@
           <path stroke-linecap="round" stroke-linejoin="round"
             d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.09ZM18.259 8.715 18 9.75l-.259-1.035a3.375 3.375 0 0 0-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 0 0 2.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 0 0 2.456 2.456L21.75 6l-1.035.259a3.375 3.375 0 0 0-2.456 2.456ZM16.894 20.567 16.5 21.75l-.394-1.183a2.25 2.25 0 0 0-1.423-1.423L13.5 18.75l1.183-.394a2.25 2.25 0 0 0 1.423-1.423l.394-1.183.394 1.183a2.25 2.25 0 0 0 1.423 1.423l1.183.394-1.183.394a2.25 2.25 0 0 0-1.423 1.423Z" />
         </svg>
-        <div class="txt-wrapper">
-          <div class="txt-1">
-            <span class="btn-letter">A</span><span class="btn-letter">n</span><span class="btn-letter">a</span><span class="btn-letter">l</span><span class="btn-letter">y</span><span class="btn-letter">z</span><span class="btn-letter">e</span>
-            <span class="btn-letter">&nbsp;</span>
-            <span class="btn-letter">S</span><span class="btn-letter">c</span><span class="btn-letter">r</span><span class="btn-letter">e</span><span class="btn-letter">e</span><span class="btn-letter">n</span>
-          </div>
-          <div class="txt-2">
-            <span class="btn-letter">A</span><span class="btn-letter">n</span><span class="btn-letter">a</span><span class="btn-letter">l</span><span class="btn-letter">y</span><span class="btn-letter">z</span><span class="btn-letter">i</span><span class="btn-letter">n</span><span class="btn-letter">g</span><span class="btn-letter">…</span>
-          </div>
-        </div>
       </button>
     </span>
 
@@ -556,7 +546,7 @@
 }
 
 #analyzeBtn.btn {
-  --border-radius: 20px;
+  --border-radius: 50%;
   --padding: 3px;
   --transition: 0.4s;
   --button-color: #101010;
@@ -566,9 +556,9 @@
   display: flex;
   justify-content: center;
   align-items: center;
-  padding: 0.35em 0.35em 0.35em 0.75em;
+  padding: 0.85em;
   font-family: "Poppins","Inter","Segoe UI",sans-serif;
-  font-size: 0.72em; /* Even smaller */
+  font-size: 1em;
   font-weight: 400;
   background-color: var(--button-color);
   box-shadow:
@@ -591,6 +581,8 @@
     background-color var(--transition);
   position: relative;
   overflow: visible;
+  width: 48px;
+  height: 48px;
 }
 
 body.god-mode #analyzeBtn.btn {
@@ -639,9 +631,9 @@ body.god-mode #analyzeBtn.btn {
 
 #analyzeBtn .btn-svg {
   flex-grow: 0;
-  height: 18px; /* Smaller icon */
-  width: 18px;
-  margin-right: .35rem;
+  height: 24px;
+  width: 24px;
+  margin: 0;
   fill: #e8e8e8;
   stroke: none;
   animation: flicker 2s linear infinite;
@@ -654,77 +646,21 @@ body.god-mode #analyzeBtn.btn {
   50% { opacity: .3; }
 }
 
-#analyzeBtn .btn-letter {
-  position: relative;
-  display: inline-block;
-  color: #fff5;
-  animation: letter-anim 2s ease-in-out infinite;
-  transition: color var(--transition), text-shadow var(--transition), opacity var(--transition);
-}
-
-@keyframes letter-anim {
-  50% {
-    text-shadow: 0 0 3px #fff8;
-    color: #fff;
-  }
-}
-
-#analyzeBtn .txt-wrapper {
-  position: relative;
-  display: flex;
-  align-items: center;
-  min-width: 4.2em; /* Even smaller min-width */
-}
-
-#analyzeBtn .txt-1,
-#analyzeBtn .txt-2 {
-  position: absolute;
-  word-spacing: -0.4em;
-  left: 0;
-  white-space: nowrap;
-}
-
-#analyzeBtn .txt-1 { animation: appear-anim 1s ease-in-out forwards; opacity: 1; }
-#analyzeBtn .txt-2 { opacity: 0; }
-
-@keyframes appear-anim {
-  0% { opacity: 0; }
-  100% { opacity: 1; }
-}
-
-/* ✅ FOCUS STATE = Click animation (from Uiverse) */
-#analyzeBtn.btn:focus .txt-1 {
-  animation: opacity-anim 0.3s ease-in-out forwards;
-  animation-delay: 1s;
-}
-#analyzeBtn.btn:focus .txt-2 {
-  animation: opacity-anim 0.3s ease-in-out reverse forwards;
-  animation-delay: 1s;
-}
-@keyframes opacity-anim {
-  0% { opacity: 1; }
-  100% { opacity: 0; }
-}
-
-#analyzeBtn.btn:focus .btn-letter {
-  animation:
-    focused-letter-anim 1s ease-in-out forwards,
-    letter-anim 1.2s ease-in-out infinite;
+/* ✅ FOCUS STATE = Click animation */
+#analyzeBtn.btn:focus .btn-svg {
+  animation: 
+    focused-svg-anim 1s ease-in-out forwards,
+    flicker 2s linear infinite;
   animation-delay: 0s, 1s;
 }
 
-@keyframes focused-letter-anim {
-  0%,100% { filter: blur(0); }
+@keyframes focused-svg-anim {
+  0%,100% { filter: blur(0) drop-shadow(0 0 2px #fff9); }
   50% {
-    transform: scale(2);
-    filter: blur(10px) brightness(150%)
-      drop-shadow(-36px 12px 12px hsl(var(--highlight-color-hue),100%,70%));
+    transform: scale(1.5) rotate(180deg);
+    filter: blur(4px) brightness(150%)
+      drop-shadow(0 0 12px hsl(var(--highlight-color-hue),100%,70%));
   }
-}
-
-#analyzeBtn.btn:focus .btn-svg {
-  animation-duration: 1.2s;
-  animation-delay: .2s;
 }
 
 #analyzeBtn.btn:focus::before {
@@ -736,31 +672,18 @@ body.god-mode #analyzeBtn.btn {
     -1px -1px 1px #0002,
     -2px -2px 2px #0001;
 }
+
 #analyzeBtn.btn:focus::after {
   opacity: .6;
   mask-image: linear-gradient(0deg,#fff,transparent);
   filter: brightness(100%);
 }
 
-/* Letter animation delays */
-#analyzeBtn .btn-letter:nth-child(1), #analyzeBtn.btn:focus .btn-letter:nth-child(1) { animation-delay: 0s; }
-#analyzeBtn .btn-letter:nth-child(2), #analyzeBtn.btn:focus .btn-letter:nth-child(2) { animation-delay: .08s; }
-#analyzeBtn .btn-letter:nth-child(3), #analyzeBtn.btn:focus .btn-letter:nth-child(3) { animation-delay: .16s; }
-#analyzeBtn .btn-letter:nth-child(4), #analyzeBtn.btn:focus .btn-letter:nth-child(4) { animation-delay: .24s; }
-#analyzeBtn .btn-letter:nth-child(5), #analyzeBtn.btn:focus .btn-letter:nth-child(5) { animation-delay: .32s; }
-#analyzeBtn .btn-letter:nth-child(6), #analyzeBtn.btn:focus .btn-letter:nth-child(6) { animation-delay: .4s; }
-#analyzeBtn .btn-letter:nth-child(7), #analyzeBtn.btn:focus .btn-letter:nth-child(7) { animation-delay: .48s; }
-#analyzeBtn .btn-letter:nth-child(8), #analyzeBtn.btn:focus .btn-letter:nth-child(8) { animation-delay: .56s; }
-#analyzeBtn .btn-letter:nth-child(9), #analyzeBtn.btn:focus .btn-letter:nth-child(9) { animation-delay: .64s; }
-#analyzeBtn .btn-letter:nth-child(10), #analyzeBtn.btn:focus .btn-letter:nth-child(10) { animation-delay: .72s; }
-#analyzeBtn .btn-letter:nth-child(11), #analyzeBtn.btn:focus .btn-letter:nth-child(11) { animation-delay: .8s; }
-#analyzeBtn .btn-letter:nth-child(12), #analyzeBtn.btn:focus .btn-letter:nth-child(12) { animation-delay: .88s; }
-#analyzeBtn .btn-letter:nth-child(13), #analyzeBtn.btn:focus .btn-letter:nth-child(13) { animation-delay: .96s; }
-
 /* Hover */
 #analyzeBtn.btn:hover {
   border: 1px solid hsla(var(--highlight-color-hue),100%,80%,0.4);
 }
+
 #analyzeBtn.btn:hover::before {
   box-shadow:
     0 -8px 8px -6px #fffa inset,
@@ -770,10 +693,12 @@ body.god-mode #analyzeBtn.btn {
     -1px -1px 1px #0002,
     -2px -2px 2px #0001;
 }
+
 #analyzeBtn.btn:hover::after {
   opacity: 1;
   mask-image: linear-gradient(0deg,#fff,transparent);
 }
+
 #analyzeBtn.btn:hover .btn-svg {
   fill: #fff;
   filter:
@@ -787,6 +712,7 @@ body.god-mode #analyzeBtn.btn {
   border: 1px solid hsla(var(--highlight-color-hue),100%,80%,0.7);
   background-color: hsla(var(--highlight-color-hue),50%,20%,0.5);
 }
+
 #analyzeBtn.btn:active::before {
   box-shadow:
     0 -8px 12px -6px #fffa inset,
@@ -796,13 +722,10 @@ body.god-mode #analyzeBtn.btn {
     -1px -1px 1px #0002,
     -2px -2px 2px #0001;
 }
+
 #analyzeBtn.btn:active::after {
   opacity: 1;
   filter: brightness(200%);
-}
-#analyzeBtn.btn:active .btn-letter {
-  text-shadow: 0 0 1px hsla(var(--highlight-color-hue),100%,90%,0.9);
-  animation: none;
 }
 
 #analyzeBtn:focus-visible {
@@ -1153,7 +1076,7 @@ End every answer like this:
           }
           // logDbg(msg);
 
-          switch (msg.type) {
+          switch (msg.type {
             // VAD lifecycle
             case "input_audio_buffer.speech_started":
               vadActive = true;
