@@ -355,19 +355,27 @@ app.post("/set-jd", (req, res) => {
   return res.json({ ok: true, length: JOB_DESC.length });
 });
 
+/* ──────────────────────────────────────────────────────────────────
+   WebRTC Realtime Session + Transcript Collection
+   ────────────────────────────────────────────────────────────────── */
+
+// Store active WebRTC data channels per session
+const activeDataChannels = new Map(); // sessionId → { dc, currentTurn: { q, a } }
+
 /* Mint ephemeral session token for the browser */
 app.post("/session", async (req, res) => {
   try {
     const mode = (req.body && req.body.mode) ? String(req.body.mode).toLowerCase() : "smart";
     console.log("→ Creating realtime session with mode:", mode);
 
-    // Add Screen Context Protocol at the TOP
+    // Initialize transcript array in session if not exists
+    if (!req.session.transcript) {
+      req.session.transcript = [];
+    }
+
     const SCREEN_CTX_PROTOCOL = `
 SCREEN CONTEXT PROTOCOL
-- If you cannot confidently answer using your current context, respond with a single first line exactly:
-  #NEED_SCREEN_CONTEXT#
-  Then pause further output until the client updates your session instructions.
-- When screen context is present in your instructions, use it as if you can see the screen.
+- When screen analysis is injected into your instructions, use it to enhance your answer.
 - Do not mention 'screen', 'image', 'screenshot', or 'AI'. Stay in first-person, interview voice.
 `.trim();
 
@@ -454,8 +462,8 @@ Use the STAR structure **without naming STAR**:
 
 4. **Result**
    - Business outcomes with numbers (% conversion, revenue lift, hours saved, cost efficiency)
-   - ALWAYS quantify impact, even if directional (“~22% uplift in CTR”)
-   - Show insight → “Here’s what I learned”
+   - ALWAYS quantify impact, even if directional ("~22% uplift in CTR")
+   - Show insight → "Here's what I learned"
    - Link learning back to THIS role
 
 CONTENT YOU MUST COVER (EVERY TIME)
@@ -471,10 +479,10 @@ IF QUESTION IS SHORT (CRITICAL RULE)
 ------------------------------------
 If interviewer asks something like:
 
-• “Why?”
-• “What project?”
-• “Example?”
-• “How did you handle it?”
+• "Why?"
+• "What project?"
+• "Example?"
+• "How did you handle it?"
 
 → Treat it as permission to give a **full 10-minute storytelling documentary**.
 
@@ -484,7 +492,7 @@ TONE + VOICE RULES
 ------------------
 - First person ("I led…", "I built…")
 - Human sounding
-- Micro fillers allowed, naturally (e.g., “so yeah,” “honestly,” “ahh,”)
+- Micro fillers allowed, naturally (e.g., "so yeah," "honestly," "ahh,")
 - Confidence without arrogance
 - Speak like someone who already works there
 
@@ -494,8 +502,7 @@ Smart Mode = Answer efficiently
 GOD Mode = Leave them speechless
 
 End every answer like this:
-“...and here’s how that applies directly to this role.”
-
+"...and here's how that applies directly to this role."
 `.trim();
 
     const modeText = (mode === "god") ? GOD_MODE : SMART_MODE;
@@ -506,12 +513,6 @@ ${SCREEN_CTX_PROTOCOL}
 ${GLOBAL_RULES}
 
 ${modeText}
-
-/* Tailoring instructions (JD + Resume + Assignment) — highest priority content follows */
-You MUST prioritize:
-1) JOB DESCRIPTION (highest priority)
-2) RESUME (second priority for examples)
-3) ASSIGNMENT (use if relevant)
 
 JOB DESCRIPTION (highest priority):
 ${JOB_DESC || "(JD not provided — give a strong general answer for the role based on resume)"}
@@ -533,19 +534,18 @@ ${assignment || "(no assignment provided)"}
       },
       body: JSON.stringify({
         model: "gpt-4o-realtime-preview",
-        modalities: ["text"], // text-only; VAD on client via session.update too
+        modalities: ["text"],
         input_audio_format: "pcm16",
         turn_detection: {
           type: "server_vad",
           threshold: 0.5,
           prefix_padding_ms: 300,
-          silence_duration_ms: 1200,
-          create_response: true,
+          silence_duration_ms: 700,
+          create_response: false,
           interrupt_response: true,
         },
-        input_audio_transcription: { 
-          model: "gpt-4o-transcribe",
-          language: "en"
+        input_audio_transcription: {
+          model: "whisper-1"
         },
         instructions: fullInstructions,
       }),
@@ -561,92 +561,84 @@ ${assignment || "(no assignment provided)"}
 
 /**
  * POST /analyze-screen
+ * Frontend sends ONLY: { screenshotBase64, mode }
+ * Backend fetches transcript from session, sends to vision, injects into realtime
  */
 app.post("/analyze-screen", requireAuth, async (req, res) => {
   try {
-    const {
-      screenshotBase64,
-      sessionTranscript,
-      image,
-      transcript,
-      mode
-    } = req.body || {};
+    const { screenshotBase64, mode } = req.body || {};
 
-    // Normalize screenshot
-    let screenshot = "";
-    if (typeof screenshotBase64 === "string" && screenshotBase64.trim()) {
-      screenshot = screenshotBase64.trim();
-    } else if (typeof image === "string" && image.trim()) {
-      screenshot = image.trim();
+    if (!screenshotBase64 || typeof screenshotBase64 !== "string") {
+      return res.status(400).json({ error: "screenshotBase64 is required" });
     }
-    if (!screenshot) {
-      return res.status(400).json({ error: "screenshotBase64 (or image) is required" });
-    }
-    const imageDataUrl = screenshot.startsWith("data:")
-      ? screenshot
-      : `data:image/png;base64,${screenshot}`;
+
+    const imageDataUrl = screenshotBase64.startsWith("data:")
+      ? screenshotBase64
+      : `data:image/png;base64,${screenshotBase64}`;
+
     if (imageDataUrl.length > 25_000_000) {
       return res.status(413).json({ error: "screenshot too large" });
     }
 
-    // Normalize transcript
-    let transcriptStr = "";
-    if (typeof sessionTranscript === "string") {
-      transcriptStr = sessionTranscript;
-    } else if (typeof transcript === "string") {
-      transcriptStr = transcript;
-    } else if (Array.isArray(transcript)) {
-      transcriptStr = transcript
-        .map((t) => {
-          const q = (t?.q || "").toString().trim();
-          const a = (t?.a || "").toString().trim();
-          return [q && `Q: ${q}`, a && `A: ${a}`].filter(Boolean).join("\n");
-        })
-        .filter(Boolean)
-        .join("\n\n");
-    }
+    // Extract transcript from session (last 15 turns max)
+    const fullTranscript = req.session.transcript || [];
+    const recentTranscript = fullTranscript.slice(-15);
+    const lastQA = fullTranscript[fullTranscript.length - 1] || { q: "", a: "" };
+
+    // Build readable transcript text
+    let transcriptStr = recentTranscript
+      .map((t) => {
+        const q = (t?.q || "").toString().trim();
+        const a = (t?.a || "").toString().trim();
+        return [q && `Q: ${q}`, a && `A: ${a}`].filter(Boolean).join("\n");
+      })
+      .filter(Boolean)
+      .join("\n\n");
+
     transcriptStr = transcriptStr.slice(0, 8000); // cap
 
-    // Server-authored instructions with mode-bias
-    const basePrompt = [
-      "You are assisting a candidate in a live interview.",
-      "Analyze the screenshot and summarize insights clearly.",
-      "English only. First-person voice. Interview-ready. Do not mention AI or screenshots.",
-      "Use an implicit Situation → Task → Action → Result flow (do not name it).",
-      "Identify patterns, anomalies, and business implications (conversion, revenue, retention, cost, risk).",
-      "Provide concrete, actionable recommendations.",
-    ];
-    const modeStr = (String(mode || "").toLowerCase() === "god")
-      ? "Produce a long, senior-level narrative answer (900+ words) in first person. Use implicit STAR and quantified impact."
-      : "Target 300–500 words. Be concise, confident, and specific.";
-    basePrompt.push(modeStr);
-    basePrompt.push('Return JSON only in this exact shape: {"analysis":"...","answer":"..."}');
-    const promptFromFrontend = basePrompt.join("\n");
+    // Server-authored vision instructions
+    const serverAuthoredInstructions = `
+You are assisting a candidate in a live job interview.
 
-    // Build structured content; include transcript only if present
-    const content = [];
-    if (transcriptStr.trim()) {
-      content.push({ type: "text", text: transcriptStr });
-    }
-    content.push({ type: "text", text: promptFromFrontend });
-    
-    // ✅ FIX: image_url must be an object with url property
-    content.push({ 
-      type: "image_url", 
-      image_url: { url: imageDataUrl }
-    });
+Analyze the screenshot deeply and provide actionable insights.
+
+English only. First-person voice. Interview-ready.
+
+Do NOT mention screenshot, image, screen, camera, or AI.
+
+Use an implicit Situation → Task → Action → Result flow (do not name it).
+
+Identify patterns, anomalies, and business implications (conversion, revenue, retention, cost, risk).
+
+Provide concrete, actionable recommendations.
+
+${mode === "god" ? "Produce a long, senior-level narrative answer (900+ words) in first person. Use implicit STAR and quantified impact." : "Target 300–500 words. Be concise, confident, and specific."}
+
+Return JSON only in this exact shape: {"analysis":"...","answer":"..."}
+
+LAST QUESTION FROM INTERVIEWER:
+"${lastQA.q || "(no question yet)"}"
+
+FULL TRANSCRIPT SO FAR:
+${transcriptStr || "(no transcript yet)"}
+`.trim();
+
+    // Build vision API content
+    const content = [
+      { type: "text", text: serverAuthoredInstructions },
+      { type: "image_url", image_url: { url: imageDataUrl } }
+    ];
 
     const response = await openai.chat.completions.create({
       model: "gpt-4o",
       messages: [{ role: "user", content }],
-      temperature: (String(mode || "").toLowerCase() === "god") ? 0.3 : 0.4,
-      max_tokens: (String(mode || "").toLowerCase() === "god") ? 2000 : 1200,
+      temperature: mode === "god" ? 0.3 : 0.4,
+      max_tokens: mode === "god" ? 2000 : 1200,
       response_format: { type: "json_object" }
     });
 
-    // Extract JSON text safely
     let textOut = response?.choices?.[0]?.message?.content || "";
-    // Robust parse
     let parsed;
     try {
       parsed = JSON.parse(textOut);
@@ -665,9 +657,85 @@ app.post("/analyze-screen", requireAuth, async (req, res) => {
     const analysis = String(parsed.analysis || "").trim();
     const answer = String(parsed.answer || "").trim();
 
-    return res.json({ analysis, answer });
+    // Store analysis in session for realtime injection
+    req.session.latestAnalysis = analysis;
+    req.session.analyzedQuestion = lastQA.q;
+    await req.session.save();
+
+    return res.json({ 
+      ok: true, 
+      analysis, 
+      answer,
+      // Signal frontend that realtime should be updated
+      realtimeUpdate: true
+    });
+
   } catch (err) {
     console.error("[analyze-screen] error:", err);
+    return res.status(500).json({ error: "internal_error" });
+  }
+});
+
+/**
+ * POST /realtime-update
+ * Called by frontend after analyze-screen to inject analysis + trigger response
+ */
+app.post("/realtime-update", requireAuth, async (req, res) => {
+  try {
+    const analysis = req.session.latestAnalysis || "";
+    const question = req.session.analyzedQuestion || "";
+    const mode = req.session.mode || "smart";
+
+    if (!analysis) {
+      return res.status(400).json({ error: "No analysis available" });
+    }
+
+    const enhancedInstructions = `
+SCREEN ANALYSIS:
+${analysis}
+
+CONTEXTUAL ANSWERING RULE:
+Use this analysis to generate a fresh answer to the interviewer's last question:
+
+"${question}"
+
+Apply the ${mode === "god" ? "GOD MODE" : "SMART DETAIL"} style from your original instructions.
+`.trim();
+
+    return res.json({ 
+      ok: true, 
+      instructions: enhancedInstructions,
+      shouldTriggerResponse: true
+    });
+
+  } catch (err) {
+    console.error("[realtime-update] error:", err);
+    return res.status(500).json({ error: "internal_error" });
+  }
+});
+
+/**
+ * POST /save-turn
+ * Frontend sends Q/A pair after each turn completion
+ */
+app.post("/save-turn", requireAuth, async (req, res) => {
+  try {
+    const { q, a } = req.body || {};
+    
+    if (!req.session.transcript) {
+      req.session.transcript = [];
+    }
+
+    req.session.transcript.push({ 
+      q: String(q || "").trim(), 
+      a: String(a || "").trim() 
+    });
+
+    await req.session.save();
+
+    return res.json({ ok: true });
+  } catch (err) {
+    console.error("[save-turn] error:", err);
     return res.status(500).json({ error: "internal_error" });
   }
 });
