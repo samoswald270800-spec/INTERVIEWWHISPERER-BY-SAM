@@ -508,6 +508,78 @@
       transform: scale(1.05);
       opacity: 0.9;
     }
+
+    /* Debug Panel Styles */
+    #debug-panel {
+      position: fixed;
+      top: 60px;
+      right: 20px;
+      width: 300px;
+      max-width: 80%;
+      background: rgba(20, 20, 20, 0.9);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 8px;
+      backdrop-filter: blur(10px);
+      box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+      z-index: 999999;
+      display: none;
+    }
+
+    #debug-panel .debug-header {
+      padding: 10px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    #debug-panel h3 {
+      margin: 0;
+      font-size: 16px;
+      color: #52ff90;
+    }
+
+    #debug-panel button {
+      background: transparent;
+      border: none;
+      color: #52ff90;
+      cursor: pointer;
+      font-size: 14px;
+      transition: color 0.3s ease;
+    }
+
+    #debug-panel button:hover {
+      color: #ffffff;
+    }
+
+    #debug-console {
+      padding: 10px;
+      max-height: 200px;
+      overflow-y: auto;
+      font-family: ui-monospace, Menlo, Consolas;
+      font-size: 12px;
+      color: #eaeaea;
+    }
+
+    #debug-toggle {
+      position: fixed;
+      top: 10px;
+      right: 20px;
+      padding: 10px 15px;
+      background: #52ff90;
+      color: #0b0b0b;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      font-weight: bold;
+      z-index: 9999999;
+      transition: transform 0.2s, opacity 0.2s;
+    }
+
+    #debug-toggle:hover {
+      transform: scale(1.05);
+      opacity: 0.9;
+    }
   </style>
 </head>
 <body>
@@ -567,6 +639,19 @@
   <div id="hint">Q (blue) is what we hear from the meeting tab. A (green) is the answer for you to read.</div>
   <div id="list"></div>
   <pre id="debug"></pre>
+
+  <!-- Debug Panel -->
+  <div id="debug-panel" style="display: none;">
+    <div class="debug-header">
+      <h3>Debug Console</h3>
+      <button onclick="clearDebug()">Clear</button>
+      <button onclick="toggleDebug()">Hide</button>
+    </div>
+    <div id="debug-console" class="debug-console"></div>
+  </div>
+
+  <!-- Debug Toggle Button -->
+  <button id="debug-toggle" onclick="toggleDebug()">Show Debug</button>
 
   <button
     id="logoutBtn"
@@ -1177,6 +1262,24 @@
             requestAnimationFrame(() => activateMode(active));
         });
       })();
+
+      // Debug panel toggle
+      window.toggleDebug = () => {
+        const panel = document.getElementById("debug-panel");
+        const toggleBtn = document.getElementById("debug-toggle");
+        if (panel.style.display === "none" || !panel.style.display) {
+          panel.style.display = "block";
+          toggleBtn.textContent = "Hide Debug";
+        } else {
+          panel.style.display = "none";
+          toggleBtn.textContent = "Show Debug";
+        }
+      };
+
+      window.clearDebug = () => {
+        const consoleEl = document.getElementById("debug-console");
+        consoleEl.textContent = "";
+      };
     })();
   </script>
 </body>
