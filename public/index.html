@@ -444,6 +444,7 @@
     <!-- Analyze Screen specific CSS (overrides global button breathing for this button only) -->
     <style>
       .btn-wrapper { position:relative; display:inline-flex; }
+
       #analyzeBtn.btn {
         position:relative;
         display:inline-flex;
@@ -453,43 +454,88 @@
         background:#1a1a1a;
         color:#ddd;
         padding:8px 14px;
-        border-radius:8px;
+        border-radius:20px;
         cursor:pointer;
-        overflow:hidden;
+        overflow:visible;
         font-size:13px;
         letter-spacing:.4px;
         transition:background .4s ease, border .4s ease;
       }
-      #analyzeBtn .btn-svg { width:22px; height:22px; stroke:var(--accent); fill:none; stroke-width:1.4; flex-shrink:0; transition:stroke .6s ease; }
+
+      #analyzeBtn .btn-svg {
+        width:22px; height:22px;
+        stroke:var(--accent); fill:none; stroke-width:1.4;
+        flex-shrink:0;
+        transition:stroke .6s ease;
+      }
       body.god-mode #analyzeBtn .btn-svg { stroke:var(--accent); }
 
       /* Disable global breathing animation & scale for this button */
-      #analyzeBtn:hover { animation:none !important; transform:none !important; box-shadow:0 0 12px var(--accent-glow), 0 0 22px var(--accent-glow), inset 0 0 8px var(--accent-glow); }
-
-      /* Text swap states */
-      #analyzeBtn .txt-wrapper { position:relative; display:grid; }
-      #analyzeBtn .txt-1,
-      #analyzeBtn .txt-2 { display:inline-flex; gap:1px; transition:opacity .35s ease, transform .35s ease; }
-      #analyzeBtn .txt-2 { position:absolute; inset:0; opacity:0; transform:translateY(6px); }
-      #analyzeBtn.loading .txt-1 { opacity:0; transform:translateY(-6px); }
-      #analyzeBtn.loading .txt-2 { opacity:1; transform:translateY(0); }
-      #analyzeBtn.loading { pointer-events:none; opacity:.85; }
-
-      /* Letter wave animation while loading */
-      #analyzeBtn.loading .txt-2 .btn-letter { 
-        animation: analyzeWave 1.4s ease-in-out infinite; 
-        display: inline-block; 
+      #analyzeBtn:hover {
+        animation:none !important;
+        transform:none !important;
+        box-shadow:0 0 12px var(--accent-glow), 0 0 22px var(--accent-glow), inset 0 0 8px var(--accent-glow);
       }
-      #analyzeBtn.loading .txt-2 .txt-line-1 .btn-letter:nth-child(1){animation-delay:0s}
-      #analyzeBtn.loading .txt-2 .txt-line-1 .btn-letter:nth-child(2){animation-delay:.07s}
-      #analyzeBtn.loading .txt-2 .txt-line-1 .btn-letter:nth-child(3){animation-delay:.14s}
-      #analyzeBtn.loading .txt-2 .txt-line-1 .btn-letter:nth-child(4){animation-delay:.21s}
-      #analyzeBtn.loading .txt-2 .txt-line-1 .btn-letter:nth-child(5){animation-delay:.28s}
-      #analyzeBtn.loading .txt-2 .txt-line-1 .btn-letter:nth-child(6){animation-delay:.35s}
-      #analyzeBtn.loading .txt-2 .txt-line-1 .btn-letter:nth-child(7){animation-delay:.42s}
-      #analyzeBtn.loading .txt-2 .txt-line-1 .btn-letter:nth-child(8){animation-delay:.49s}
-      #analyzeBtn.loading .txt-2 .txt-line-1 .btn-letter:nth-child(9){animation-delay:.56s}
-      #analyzeBtn.loading .txt-2 .txt-line-1 .btn-letter:nth-child(10){animation-delay:.63s}
+
+      /* ===== ALIGNMENT FIX (single line, perfectly centered, keep animation) ===== */
+      /* Remove earlier grid layout; force centering via absolute + translate */
+      #analyzeBtn .txt-wrapper {
+        position:relative;
+        width:100%;
+        display:block;
+        min-height:1.2em;
+        white-space:nowrap;
+      }
+
+      #analyzeBtn .txt-1,
+      #analyzeBtn .txt-2 {
+        position:absolute;
+        top:50%;
+        left:50%;
+        transform:translate(-50%,-50%);
+        display:inline-flex;
+        gap:1px;
+        white-space:nowrap;
+        transition:opacity .35s ease, transform .35s ease;
+        pointer-events:none;
+      }
+
+      /* Initial states */
+      #analyzeBtn .txt-1 { opacity:1; }
+      #analyzeBtn .txt-2 { opacity:0; transform:translate(-50%,-50%) translateY(6px); }
+
+      /* Swap on loading */
+      #analyzeBtn.loading .txt-1 {
+        opacity:0;
+        transform:translate(-50%,-50%) translateY(-6px);
+      }
+      #analyzeBtn.loading .txt-2 {
+        opacity:1;
+        transform:translate(-50%,-50%) translateY(0);
+      }
+
+      /* Keep wave animation */
+      #analyzeBtn.loading .txt-2 .btn-letter {
+        animation: analyzeWave 1.4s ease-in-out infinite;
+        display:inline-block;
+      }
+
+      /* Ensure vertical consistency (avoid jitter) */
+      #analyzeBtn .btn-letter {
+        line-height:1;
+      }
+
+      /* Existing per-letter delays preserved */
+      #analyzeBtn.loading .txt-2 .btn-letter:nth-child(1){animation-delay:0s}
+      #analyzeBtn.loading .txt-2 .btn-letter:nth-child(2){animation-delay:.07s}
+      #analyzeBtn.loading .txt-2 .btn-letter:nth-child(3){animation-delay:.14s}
+      #analyzeBtn.loading .txt-2 .btn-letter:nth-child(4){animation-delay:.21s}
+      #analyzeBtn.loading .txt-2 .btn-letter:nth-child(5){animation-delay:.28s}
+      #analyzeBtn.loading .txt-2 .btn-letter:nth-child(6){animation-delay:.35s}
+      #analyzeBtn.loading .txt-2 .btn-letter:nth-child(7){animation-delay:.42s}
+      #analyzeBtn.loading .txt-2 .btn-letter:nth-child(8){animation-delay:.49s}
+      #analyzeBtn.loading .txt-2 .btn-letter:nth-child(9){animation-delay:.56s}
+      #analyzeBtn.loading .txt-2 .btn-letter:nth-child(10){animation-delay:.63s}
 
       @keyframes analyzeWave {
         0%,100% { transform:translateY(0); }
