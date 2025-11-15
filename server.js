@@ -558,6 +558,159 @@ ${assignment || "(no assignment provided)"}
   }
 });
 
+/**
+ * POST /analyze-screen
+ * Auth: requireAuth (must already exist in codebase)
+ * Body: { image: <dataURL or base64 png>, transcript: [{q,a}], mode: 'smart'|'god' }
+ * Returns: { analysis, mode, answer }
+ */
+app.post('/analyze-screen', requireAuth, async (req, res) => {
+  try {
+    const { image, transcript, mode } = req.body;
+
+    // Basic validation
+    if (!image || typeof image !== 'string') {
+      return res.status(400).json({ error: 'image required (base64 data URL)' });
+    }
+    const isDataUrl = /^data:image\/png;base64,/.test(image);
+    const base64 = isDataUrl ? image.split(',')[1] : image;
+    if (!/^[A-Za-z0-9+/=]+$/.test(base64)) {
+      return res.status(400).json({ error: 'invalid base64 image' });
+    }
+    if (!Array.isArray(transcript)) {
+      return res.status(400).json({ error: 'transcript must be array' });
+    }
+    if (mode !== 'smart' && mode !== 'god') {
+      return res.status(400).json({ error: 'mode must be smart or god' });
+    }
+
+    // Normalize transcript (trim and cap length for safety)
+    const cleanedTranscript = transcript
+      .filter(t => t && typeof t === 'object')
+      .slice(-50) // cap last 50 pairs
+      .map(t => ({
+        q: (t.q || '').toString().trim().slice(0, 2000),
+        a: (t.a || '').toString().trim().slice(0, 4000)
+      }));
+
+    const modeInstructions =
+      mode === 'smart'
+        ? `MODE: SMART DETAIL
+Produce an interview-ready spoken-style answer the candidate can say in about 60–90 seconds (~180–250 words).`
+        : `MODE: GOD MODE
+Produce an ultra-detailed spoken-style answer the candidate can say in 3–5 minutes (900–1400+ words). Go deep, layered, senior-level reasoning.`;
+
+    const analysisInstructions = [
+      `You are analyzing a screenshot that the interviewer is showing.`,
+      `Output MUST be English only.`,
+      `Identify and describe: charts, graphs, dashboards, tables, UI components, KPIs, labels, axes, filters, navigation, anomalies, error states.`,
+      `Infer patterns, trends, correlations, bottlenecks, risks, opportunities.`,
+      `Explain business implications (revenue, conversion, retention, operational efficiency, strategic risk).`,
+      `Provide actionable insights (what I would propose / next steps).`,
+      `Then rewrite the explanation as an interview answer in first person (“I”), human conversational tone, never robotic, never mention AI or screenshots.`,
+      `Use structured storytelling (Situation → Task → Action → Result) but do NOT name the STAR acronym.`,
+      `Tie insights directly to measurable business outcomes.`,
+      `Never break character, never say you are an AI.`,
+      modeInstructions,
+      `Return strict JSON only: {"analysis":"...","answer":"..."}.
+"analysis" = full descriptive breakdown + insights.
+"answer" = spoken-style interview response for the selected mode.`,
+    ].join('\n');
+
+    // Build OpenAI request using official SDK (preferring gpt-4o-mini)
+    // The spec requests chat.completions.create with vision-style "input" array.
+    // If your SDK version requires responses.create instead, adjust accordingly.
+    let resultText;
+    let analysis = '';
+    let answer = '';
+
+    try {
+      const completion = await openai.chat.completions.create({
+        model: 'gpt-4o-mini',
+        // Vision + text hybrid input per spec
+        input: [
+          {
+            type: 'input_image',
+            image_url: `data:image/png;base64,${base64}`,
+          },
+          {
+            type: 'input_text',
+            text: 'Full transcript so far:\n' + JSON.stringify(cleanedTranscript),
+          },
+          {
+            type: 'input_text',
+            text: analysisInstructions,
+          },
+        ],
+        // Safety: force English through system message if supported (fallback via instructions)
+        temperature: 0.7,
+      });
+
+      // Attempt to extract text
+      const raw = completion?.choices?.[0]?.message?.content;
+      resultText = Array.isArray(raw)
+        ? raw.map(part => (typeof part === 'string' ? part : (part?.text || ''))).join('')
+        : (raw || '').toString();
+    } catch (e) {
+      // Fallback: try responses API if chat vision format unsupported
+      const fallback = await openai.responses.create({
+        model: 'gpt-4o-mini',
+        input: [
+          {
+            role: 'user',
+            content: [
+              { type: 'input_image', image_url: `data:image/png;base64,${base64}` },
+              { type: 'input_text', text: 'Full transcript so far:\n' + JSON.stringify(cleanedTranscript) },
+              { type: 'input_text', text: analysisInstructions },
+            ],
+          },
+        ],
+        temperature: 0.7,
+      });
+      resultText = fallback?.output_text || '';
+    }
+
+    // Parse JSON from model output
+    let parsed;
+    try {
+      const jsonStart = resultText.indexOf('{');
+      const jsonEnd = resultText.lastIndexOf('}');
+      if (jsonStart !== -1 && jsonEnd !== -1) {
+        parsed = JSON.parse(resultText.slice(jsonStart, jsonEnd + 1));
+      }
+    } catch {
+      parsed = null;
+    }
+
+    if (parsed && typeof parsed === 'object') {
+      analysis = parsed.analysis || '';
+      answer = parsed.answer || '';
+    } else {
+      // Fallback heuristic split
+      const splitMarker = /"analysis":|"answer":/i.test(resultText)
+        ? resultText
+        : `{"analysis":"${resultText.replace(/"/g, '\\"')}","answer":""}`;
+      try {
+        const tmp = JSON.parse(splitMarker);
+        analysis = tmp.analysis || resultText;
+        answer = tmp.answer || '';
+      } catch {
+        analysis = resultText;
+        answer = '';
+      }
+    }
+
+    return res.json({
+      analysis: analysis.trim(),
+      mode,
+      answer: answer.trim(),
+    });
+  } catch (err) {
+    console.error('[analyze-screen] error', err);
+    return res.status(500).json({ error: 'internal_error' });
+  }
+});
+
 /* ---------- Start the server (Render-safe) ---------- */
 const PORT = process.env.PORT || 3000;
 const HOST = "0.0.0.0";
