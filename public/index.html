@@ -427,10 +427,11 @@
             d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.09ZM18.259 8.715 18 9.75l-.259-1.035a3.375 3.375 0 0 0-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 0 0 2.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 0 0 2.456 2.456L21.75 6l-1.035.259a3.375 3.375 0 0 0-2.456 2.456ZM16.894 20.567 16.5 21.75l-.394-1.183a2.25 2.25 0 0 0-1.423-1.423L13.5 18.75l1.183-.394a2.25 2.25 0 0 0 1.423-1.423l.394-1.183.394 1.183a2.25 2.25 0 0 0 1.423 1.423l1.183.394-1.183.394a2.25 2.25 0 0 0-1.423 1.423Z" />
         </svg>
         <div class="txt-wrapper">
-          <div class="txt-1">
+          <!-- REPLACED: .txt-1/.txt-2 with unified .txt-layer elements for perfect overlap -->
+          <div class="txt-layer default">
             <span class="btn-letter">A</span><span class="btn-letter">n</span><span class="btn-letter">a</span><span class="btn-letter">l</span><span class="btn-letter">y</span><span class="btn-letter">z</span><span class="btn-letter">e</span>
           </div>
-          <div class="txt-2">
+          <div class="txt-layer loading">
             <span class="btn-letter">A</span><span class="btn-letter">n</span><span class="btn-letter">a</span><span class="btn-letter">l</span><span class="btn-letter">y</span><span class="btn-letter">z</span><span class="btn-letter">i</span><span class="btn-letter">n</span><span class="btn-letter">g</span><span class="btn-letter">…</span>
           </div>
         </div>
@@ -487,8 +488,7 @@
         white-space:nowrap;
       }
 
-      #analyzeBtn .txt-1,
-      #analyzeBtn .txt-2 {
+      #analyzeBtn .txt-layer {
         position:absolute;
         top:50%;
         left:50%;
@@ -496,75 +496,37 @@
         display:inline-flex;
         gap:1px;
         white-space:nowrap;
-        transition:opacity .35s ease, transform .35s ease;
         pointer-events:none;
-      }
-
-      /* Initial states */
-      #analyzeBtn .txt-1 { opacity:1; }
-      #analyzeBtn .txt-2 { opacity:0; transform:translate(-50%,-50%) translateY(6px); }
-
-      /* Swap on loading */
-      #analyzeBtn.loading .txt-1 {
         opacity:0;
-        transform:translate(-50%,-50%) translateY(-6px);
-      }
-      #analyzeBtn.loading .txt-2 {
-        opacity:1;
-        transform:translate(-50%,-50%) translateY(0);
+        transition:opacity .35s ease;
       }
 
-      /* Keep wave animation */
-      #analyzeBtn.loading .txt-2 .btn-letter {
+      #analyzeBtn .txt-layer.default { opacity:1; }
+      #analyzeBtn.loading .txt-layer.default { opacity:0; }
+      #analyzeBtn.loading .txt-layer.loading { opacity:1; }
+
+      /* Wave animation preserved only for loading state letters */
+      #analyzeBtn.loading .txt-layer.loading .btn-letter {
         animation: analyzeWave 1.4s ease-in-out infinite;
-        display:inline-block;
       }
+      /* Per-letter delay */
+      #analyzeBtn.loading .txt-layer.loading .btn-letter:nth-child(1){animation-delay:0s}
+      #analyzeBtn.loading .txt-layer.loading .btn-letter:nth-child(2){animation-delay:.07s}
+      #analyzeBtn.loading .txt-layer.loading .btn-letter:nth-child(3){animation-delay:.14s}
+      #analyzeBtn.loading .txt-layer.loading .btn-letter:nth-child(4){animation-delay:.21s}
+      #analyzeBtn.loading .txt-layer.loading .btn-letter:nth-child(5){animation-delay:.28s}
+      #analyzeBtn.loading .txt-layer.loading .btn-letter:nth-child(6){animation-delay:.35s}
+      #analyzeBtn.loading .txt-layer.loading .btn-letter:nth-child(7){animation-delay:.42s}
+      #analyzeBtn.loading .txt-layer.loading .btn-letter:nth-child(8){animation-delay:.49s}
+      #analyzeBtn.loading .txt-layer.loading .btn-letter:nth-child(9){animation-delay:.56s}
+      #analyzeBtn.loading .txt-layer.loading .btn-letter:nth-child(10){animation-delay:.63s}
 
-      /* Ensure vertical consistency (avoid jitter) */
-      #analyzeBtn .btn-letter {
-        line-height:1;
-      }
-
-      /* Existing per-letter delays preserved */
-      #analyzeBtn.loading .txt-2 .btn-letter:nth-child(1){animation-delay:0s}
-      #analyzeBtn.loading .txt-2 .btn-letter:nth-child(2){animation-delay:.07s}
-      #analyzeBtn.loading .txt-2 .btn-letter:nth-child(3){animation-delay:.14s}
-      #analyzeBtn.loading .txt-2 .btn-letter:nth-child(4){animation-delay:.21s}
-      #analyzeBtn.loading .txt-2 .btn-letter:nth-child(5){animation-delay:.28s}
-      #analyzeBtn.loading .txt-2 .btn-letter:nth-child(6){animation-delay:.35s}
-      #analyzeBtn.loading .txt-2 .btn-letter:nth-child(7){animation-delay:.42s}
-      #analyzeBtn.loading .txt-2 .btn-letter:nth-child(8){animation-delay:.49s}
-      #analyzeBtn.loading .txt-2 .btn-letter:nth-child(9){animation-delay:.56s}
-      #analyzeBtn.loading .txt-2 .btn-letter:nth-child(10){animation-delay:.63s}
+      #analyzeBtn .btn-letter { line-height:1; }
 
       @keyframes analyzeWave {
         0%,100% { transform:translateY(0); }
         50% { transform:translateY(-3px); }
       }
-
-      /* Tooltip */
-      .analyze-tooltip {
-        position:absolute;
-        top:100%;
-        left:50%;
-        transform:translateX(-50%);
-        background:#000;
-        color:#fff;
-        font-size:11px;
-        padding:4px 8px;
-        border-radius:4px;
-        white-space:nowrap;
-        box-shadow:0 2px 6px rgba(0,0,0,0.4);
-        opacity:0;
-        pointer-events:none;
-        transition:opacity .15s ease;
-        margin-top:6px;
-        z-index:30;
-      }
-      .btn-wrapper:hover .analyze-tooltip,
-      #analyzeBtn:hover + .analyze-tooltip { opacity:1; }
-
-      #analyzeBtn:focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
     </style>
   </div>
 
@@ -728,147 +690,99 @@ body.god-mode #analyzeBtn.btn {
   white-space: nowrap;
 }
 
-#analyzeBtn .txt-1,
-#analyzeBtn .txt-2 {
+#analyzeBtn .txt-layer {
   position: absolute;
   display: flex;
   align-items: center;
   justify-content: center;
   gap: 1px;
   white-space: nowrap;
-  transition: opacity .35s ease, transform .35s ease;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity .35s ease;
 }
 
-#analyzeBtn .txt-1 { opacity: 1; }
-#analyzeBtn .txt-2 { opacity: 0; transform: translateY(6px); }
+#analyzeBtn .txt-layer.default { opacity: 1; }
+#analyzeBtn.loading .txt-layer.default { opacity: 0; }
+#analyzeBtn.loading .txt-layer.loading { opacity: 1; }
 
-#analyzeBtn.loading .txt-1 { opacity: 0; transform: translateY(-6px); }
-#analyzeBtn.loading .txt-2 { opacity: 1; transform: translateY(0); }
-#analyzeBtn.loading { pointer-events: none; opacity: .85; }
+/* Wave animation preserved only for loading state letters */
+#analyzeBtn.loading .txt-layer.loading .btn-letter {
+  animation: analyzeWave 1.4s ease-in-out infinite;
+}
+/* Per-letter delay */
+#analyzeBtn.loading .txt-layer.loading .btn-letter:nth-child(1){animation-delay:0s}
+#analyzeBtn.loading .txt-layer.loading .btn-letter:nth-child(2){animation-delay:.07s}
+#analyzeBtn.loading .txt-layer.loading .btn-letter:nth-child(3){animation-delay:.14s}
+#analyzeBtn.loading .txt-layer.loading .btn-letter:nth-child(4){animation-delay:.21s}
+#analyzeBtn.loading .txt-layer.loading .btn-letter:nth-child(5){animation-delay:.28s}
+#analyzeBtn.loading .txt-layer.loading .btn-letter:nth-child(6){animation-delay:.35s}
+#analyzeBtn.loading .txt-layer.loading .btn-letter:nth-child(7){animation-delay:.42s}
+#analyzeBtn.loading .txt-layer.loading .btn-letter:nth-child(8){animation-delay:.49s}
+#analyzeBtn.loading .txt-layer.loading .btn-letter:nth-child(9){animation-delay:.56s}
+#analyzeBtn.loading .txt-layer.loading .btn-letter:nth-child(10){animation-delay:.63s}
 
-@keyframes appear-anim {
-  0% { opacity: 0; }
-  100% { opacity: 1; }
+#analyzeBtn .btn-letter { line-height: 1; }
+
+@keyframes analyzeWave {
+  0%,100% { transform:translateY(0); }
+  50% { transform:translateY(-3px); }
 }
 
-/* ✅ FOCUS STATE = Click animation (from Uiverse) */
-#analyzeBtn.btn:focus .txt-1 {
-  animation: opacity-anim 0.3s ease-in-out forwards;
-  animation-delay: 1s;
-}
-#analyzeBtn.btn:focus .txt-2 {
-  animation: opacity-anim 0.3s ease-in-out reverse forwards;
-  animation-delay: 1s;
-}
-@keyframes opacity-anim {
-  0% { opacity: 1; }
-  100% { opacity: 0; }
-}
+/* === OVERRIDE: Precise centering so "Analyze" and "Analyzing…" occupy identical position === */
+/* Place near end of file (after existing analyzeBtn styles) */
+<style>
+  /* Remove legacy shifts by neutralizing old selectors */
+  #analyzeBtn .txt-1,
+  #analyzeBtn .txt-2 { display:none !important; }
 
-#analyzeBtn.btn:focus .btn-letter {
-  animation:
-    focused-letter-anim 1s ease-in-out forwards,
-    letter-anim 1.2s ease-in-out infinite;
-  animation-delay: 0s, 1s;
-}
-
-@keyframes focused-letter-anim {
-  0%,100% { filter: blur(0); }
-  50% {
-    transform: scale(2);
-    filter: blur(10px) brightness(150%)
-      drop-shadow(-36px 12px 12px hsl(var(--highlight-color-hue),100%,70%));
+  #analyzeBtn .txt-wrapper {
+    position:relative;
+    width:100%;
+    height:1.2em;
+    white-space:nowrap;
   }
-}
 
-#analyzeBtn.btn:focus .btn-svg {
-  animation-duration: 1.2s;
-  animation-delay: .2s;
-}
+  #analyzeBtn .txt-layer {
+    position:absolute;
+    top:50%;
+    left:50%;
+    transform:translate(-50%,-50%);
+    display:inline-flex;
+    gap:1px;
+    white-space:nowrap;
+    pointer-events:none;
+    opacity:0;
+    transition:opacity .35s ease;
+  }
 
-#analyzeBtn.btn:focus::before {
-  box-shadow:
-    0 -8px 12px -6px #fff3 inset,
-    0 -16px 16px -8px hsla(var(--highlight-color-hue),100%,70%,0.2) inset,
-    1px 1px 1px #fff3,
-    2px 2px 2px #fff1,
-    -1px -1px 1px #0002,
-    -2px -2px 2px #0001;
-}
-#analyzeBtn.btn:focus::after {
-  opacity: .6;
-  mask-image: linear-gradient(0deg,#fff,transparent);
-  filter: brightness(100%);
-}
+  #analyzeBtn .txt-layer.default { opacity:1; }
+  #analyzeBtn.loading .txt-layer.default { opacity:0; }
+  #analyzeBtn.loading .txt-layer.loading { opacity:1; }
 
-/* Letter animation delays */
-#analyzeBtn .btn-letter:nth-child(1), #analyzeBtn.btn:focus .btn-letter:nth-child(1) { animation-delay: 0s; }
-#analyzeBtn .btn-letter:nth-child(2), #analyzeBtn.btn:focus .btn-letter:nth-child(2) { animation-delay: .08s; }
-#analyzeBtn .btn-letter:nth-child(3), #analyzeBtn.btn:focus .btn-letter:nth-child(3) { animation-delay: .16s; }
-#analyzeBtn .btn-letter:nth-child(4), #analyzeBtn.btn:focus .btn-letter:nth-child(4) { animation-delay: .24s; }
-#analyzeBtn .btn-letter:nth-child(5), #analyzeBtn.btn:focus .btn-letter:nth-child(5) { animation-delay: .32s; }
-#analyzeBtn .btn-letter:nth-child(6), #analyzeBtn.btn:focus .btn-letter:nth-child(6) { animation-delay: .4s; }
-#analyzeBtn .btn-letter:nth-child(7), #analyzeBtn.btn:focus .btn-letter:nth-child(7) { animation-delay: .48s; }
-#analyzeBtn .btn-letter:nth-child(8), #analyzeBtn.btn:focus .btn-letter:nth-child(8) { animation-delay: .56s; }
-#analyzeBtn .btn-letter:nth-child(9), #analyzeBtn.btn:focus .btn-letter:nth-child(9) { animation-delay: .64s; }
-#analyzeBtn .btn-letter:nth-child(10), #analyzeBtn.btn:focus .btn-letter:nth-child(10) { animation-delay: .72s; }
-#analyzeBtn .btn-letter:nth-child(11), #analyzeBtn.btn:focus .btn-letter:nth-child(11) { animation-delay: .8s; }
-#analyzeBtn .btn-letter:nth-child(12), #analyzeBtn.btn:focus .btn-letter:nth-child(12) { animation-delay: .88s; }
-#analyzeBtn .btn-letter:nth-child(13), #analyzeBtn.btn:focus .btn-letter:nth-child(13) { animation-delay: .96s; }
+  /* Wave animation preserved only for loading state letters */
+  #analyzeBtn.loading .txt-layer.loading .btn-letter {
+    animation: analyzeWave 1.4s ease-in-out infinite;
+  }
+  /* Per-letter delay */
+  #analyzeBtn.loading .txt-layer.loading .btn-letter:nth-child(1){animation-delay:0s}
+  #analyzeBtn.loading .txt-layer.loading .btn-letter:nth-child(2){animation-delay:.07s}
+  #analyzeBtn.loading .txt-layer.loading .btn-letter:nth-child(3){animation-delay:.14s}
+  #analyzeBtn.loading .txt-layer.loading .btn-letter:nth-child(4){animation-delay:.21s}
+  #analyzeBtn.loading .txt-layer.loading .btn-letter:nth-child(5){animation-delay:.28s}
+  #analyzeBtn.loading .txt-layer.loading .btn-letter:nth-child(6){animation-delay:.35s}
+  #analyzeBtn.loading .txt-layer.loading .btn-letter:nth-child(7){animation-delay:.42s}
+  #analyzeBtn.loading .txt-layer.loading .btn-letter:nth-child(8){animation-delay:.49s}
+  #analyzeBtn.loading .txt-layer.loading .btn-letter:nth-child(9){animation-delay:.56s}
+  #analyzeBtn.loading .txt-layer.loading .btn-letter:nth-child(10){animation-delay:.63s}
 
-/* Hover */
-#analyzeBtn.btn:hover {
-  border: 1px solid hsla(var(--highlight-color-hue),100%,80%,0.4);
-}
-#analyzeBtn.btn:hover::before {
-  box-shadow:
-    0 -8px 8px -6px #fffa inset,
-    0 -16px 16px -8px hsla(var(--highlight-color-hue),100%,70%,0.3) inset,
-    1px 1px 1px #fff2,
-    2px 2px 2px #fff1,
-    -1px -1px 1px #0002,
-    -2px -2px 2px #0001;
-}
-#analyzeBtn.btn:hover::after {
-  opacity: 1;
-  mask-image: linear-gradient(0deg,#fff,transparent);
-}
-#analyzeBtn.btn:hover .btn-svg {
-  fill: #fff;
-  filter:
-    drop-shadow(0 0 3px hsl(var(--highlight-color-hue),100%,70%))
-    drop-shadow(0 -4px 6px #0009);
-  animation: none;
-}
+  #analyzeBtn .btn-letter { line-height: 1; }
 
-/* Active */
-#analyzeBtn.btn:active {
-  border: 1px solid hsla(var(--highlight-color-hue),100%,80%,0.7);
-  background-color: hsla(var(--highlight-color-hue),50%,20%,0.5);
-}
-#analyzeBtn.btn:active::before {
-  box-shadow:
-    0 -8px 12px -6px #fffa inset,
-    0 -16px 16px -8px hsla(var(--highlight-color-hue),100%,70%,0.8) inset,
-    1px 1px 1px #fff4,
-    2px 2px 2px #fff2,
-    -1px -1px 1px #0002,
-    -2px -2px 2px #0001;
-}
-#analyzeBtn.btn:active::after {
-  opacity: 1;
-  filter: brightness(200%);
-}
-#analyzeBtn.btn:active .btn-letter {
-  text-shadow: 0 0 1px hsla(var(--highlight-color-hue),100%,90%,0.9);
-  animation: none;
-}
-
-#analyzeBtn:focus-visible {
-  outline: 2px solid hsl(var(--highlight-color-hue),100%,60%);
-  outline-offset: 3px;
-}
-  </style>
+  @keyframes analyzeWave {
+    0%,100% { transform:translateY(0); }
+    50% { transform:translateY(-3px); }
+  }
+</style>
 
   <script>
     (() => {
