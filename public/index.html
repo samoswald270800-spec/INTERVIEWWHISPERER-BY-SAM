@@ -889,7 +889,7 @@ End every answer like this:
           }
           // logDbg(msg);
 
-          switch (msg.type) {
+          switch (msg.type {
             // VAD lifecycle
             case "input_audio_buffer.speech_started":
               vadActive = true;
@@ -1195,5 +1195,266 @@ End every answer like this:
       window.location.href = "/login";
     }
   </script>
+
+  <style>
+/* Uiverse.io style JUST for #analyzeBtn */
+.btn-wrapper {
+  position: relative;
+  display: inline-block;
+}
+
+#analyzeBtn.btn {
+  --border-radius: 24px;
+  --padding: 4px;
+  --transition: 0.4s;
+  --button-color: #101010;
+  --highlight-color-hue: 140deg;
+
+  user-select: none;
+  display: flex;
+  justify-content: center;
+  padding: 0.5em 0.5em 0.5em 1.1em;
+  font-family: "Poppins","Inter","Segoe UI",sans-serif;
+  font-size: .95em;
+  font-weight: 400;
+  background-color: var(--button-color);
+  box-shadow:
+    inset 0 1px 1px rgba(255,255,255,0.2),
+    inset 0 2px 2px rgba(255,255,255,0.15),
+    inset 0 4px 4px rgba(255,255,255,0.1),
+    inset 0 8px 8px rgba(255,255,255,0.05),
+    inset 0 16px 16px rgba(255,255,255,0.05),
+    0 -1px 1px rgba(0,0,0,0.02),
+    0 -2px 2px rgba(0,0,0,0.03),
+    0 -4px 4px rgba(0,0,0,0.05),
+    0 -8px 8px rgba(0,0,0,0.06),
+    0 -16px 16px rgba(0,0,0,0.08);
+  border: 1px solid #fff2;
+  border-radius: var(--border-radius);
+  cursor: pointer;
+  transition:
+    box-shadow var(--transition),
+    border var(--transition),
+    background-color var(--transition);
+  position: relative;
+  overflow: visible;
+}
+
+body.god-mode #analyzeBtn.btn {
+  --highlight-color-hue: 0deg;
+}
+
+#analyzeBtn.btn::before {
+  content: "";
+  position: absolute;
+  top: calc(0px - var(--padding));
+  left: calc(0px - var(--padding));
+  width: calc(100% + var(--padding)*2);
+  height: calc(100% + var(--padding)*2);
+  border-radius: calc(var(--border-radius) + var(--padding));
+  pointer-events: none;
+  background-image: linear-gradient(0deg,#0004,#000a);
+  z-index: -1;
+  transition: box-shadow var(--transition), filter var(--transition);
+  box-shadow:
+    0 -8px 8px -6px #0000 inset,
+    0 -16px 16px -8px #0000 inset,
+    1px 1px 1px #fff2,
+    2px 2px 2px #fff1,
+    -1px -1px 1px #0002,
+    -2px -2px 2px #0001;
+}
+
+#analyzeBtn.btn::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  background-image: linear-gradient(
+    0deg,
+    #fff,
+    hsl(var(--highlight-color-hue),100%,70%),
+    hsla(var(--highlight-color-hue),100%,70%,0.5),
+    8%,
+    transparent
+  );
+  background-position: 0 0;
+  opacity: 0;
+  transition: opacity var(--transition), filter var(--transition);
+}
+
+#analyzeBtn .btn-svg {
+  flex-grow: 0;
+  height: 24px;
+  width: 24px;
+  margin-right: .55rem;
+  fill: #e8e8e8;
+  stroke: none;
+  animation: flicker 2s linear infinite;
+  animation-delay: .5s;
+  filter: drop-shadow(0 0 2px #fff9);
+  transition: fill var(--transition), filter var(--transition), opacity var(--transition);
+}
+
+@keyframes flicker {
+  50% { opacity: .3; }
+}
+
+#analyzeBtn .btn-letter {
+  position: relative;
+  display: inline-block;
+  color: #fff5;
+  animation: letter-anim 2s ease-in-out infinite;
+  transition: color var(--transition), text-shadow var(--transition), opacity var(--transition);
+}
+
+@keyframes letter-anim {
+  50% {
+    text-shadow: 0 0 3px #fff8;
+    color: #fff;
+  }
+}
+
+#analyzeBtn .txt-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+  min-width: 6.4em;
+}
+
+#analyzeBtn .txt-1,
+#analyzeBtn .txt-2 {
+  position: absolute;
+  word-spacing: -1em;
+  left: 0;
+}
+
+#analyzeBtn .txt-1 { animation: appear-anim 1s ease-in-out forwards; opacity: 1; }
+#analyzeBtn .txt-2 { opacity: 0; }
+
+@keyframes appear-anim {
+  0% { opacity: 0; }
+  100% { opacity: 1; }
+}
+
+/* ✅ FOCUS STATE = Click animation (from Uiverse) */
+#analyzeBtn.btn:focus .txt-1 {
+  animation: opacity-anim 0.3s ease-in-out forwards;
+  animation-delay: 1s;
+}
+#analyzeBtn.btn:focus .txt-2 {
+  animation: opacity-anim 0.3s ease-in-out reverse forwards;
+  animation-delay: 1s;
+}
+@keyframes opacity-anim {
+  0% { opacity: 1; }
+  100% { opacity: 0; }
+}
+
+#analyzeBtn.btn:focus .btn-letter {
+  animation:
+    focused-letter-anim 1s ease-in-out forwards,
+    letter-anim 1.2s ease-in-out infinite;
+  animation-delay: 0s, 1s;
+}
+
+@keyframes focused-letter-anim {
+  0%,100% { filter: blur(0); }
+  50% {
+    transform: scale(2);
+    filter: blur(10px) brightness(150%)
+      drop-shadow(-36px 12px 12px hsl(var(--highlight-color-hue),100%,70%));
+  }
+}
+
+#analyzeBtn.btn:focus .btn-svg {
+  animation-duration: 1.2s;
+  animation-delay: .2s;
+}
+
+#analyzeBtn.btn:focus::before {
+  box-shadow:
+    0 -8px 12px -6px #fff3 inset,
+    0 -16px 16px -8px hsla(var(--highlight-color-hue),100%,70%,0.2) inset,
+    1px 1px 1px #fff3,
+    2px 2px 2px #fff1,
+    -1px -1px 1px #0002,
+    -2px -2px 2px #0001;
+}
+#analyzeBtn.btn:focus::after {
+  opacity: .6;
+  mask-image: linear-gradient(0deg,#fff,transparent);
+  filter: brightness(100%);
+}
+
+/* Letter animation delays */
+#analyzeBtn .btn-letter:nth-child(1), #analyzeBtn.btn:focus .btn-letter:nth-child(1) { animation-delay: 0s; }
+#analyzeBtn .btn-letter:nth-child(2), #analyzeBtn.btn:focus .btn-letter:nth-child(2) { animation-delay: .08s; }
+#analyzeBtn .btn-letter:nth-child(3), #analyzeBtn.btn:focus .btn-letter:nth-child(3) { animation-delay: .16s; }
+#analyzeBtn .btn-letter:nth-child(4), #analyzeBtn.btn:focus .btn-letter:nth-child(4) { animation-delay: .24s; }
+#analyzeBtn .btn-letter:nth-child(5), #analyzeBtn.btn:focus .btn-letter:nth-child(5) { animation-delay: .32s; }
+#analyzeBtn .btn-letter:nth-child(6), #analyzeBtn.btn:focus .btn-letter:nth-child(6) { animation-delay: .4s; }
+#analyzeBtn .btn-letter:nth-child(7), #analyzeBtn.btn:focus .btn-letter:nth-child(7) { animation-delay: .48s; }
+#analyzeBtn .btn-letter:nth-child(8), #analyzeBtn.btn:focus .btn-letter:nth-child(8) { animation-delay: .56s; }
+#analyzeBtn .btn-letter:nth-child(9), #analyzeBtn.btn:focus .btn-letter:nth-child(9) { animation-delay: .64s; }
+#analyzeBtn .btn-letter:nth-child(10), #analyzeBtn.btn:focus .btn-letter:nth-child(10) { animation-delay: .72s; }
+#analyzeBtn .btn-letter:nth-child(11), #analyzeBtn.btn:focus .btn-letter:nth-child(11) { animation-delay: .8s; }
+#analyzeBtn .btn-letter:nth-child(12), #analyzeBtn.btn:focus .btn-letter:nth-child(12) { animation-delay: .88s; }
+#analyzeBtn .btn-letter:nth-child(13), #analyzeBtn.btn:focus .btn-letter:nth-child(13) { animation-delay: .96s; }
+
+/* Hover */
+#analyzeBtn.btn:hover {
+  border: 1px solid hsla(var(--highlight-color-hue),100%,80%,0.4);
+}
+#analyzeBtn.btn:hover::before {
+  box-shadow:
+    0 -8px 8px -6px #fffa inset,
+    0 -16px 16px -8px hsla(var(--highlight-color-hue),100%,70%,0.3) inset,
+    1px 1px 1px #fff2,
+    2px 2px 2px #fff1,
+    -1px -1px 1px #0002,
+    -2px -2px 2px #0001;
+}
+#analyzeBtn.btn:hover::after {
+  opacity: 1;
+  mask-image: linear-gradient(0deg,#fff,transparent);
+}
+#analyzeBtn.btn:hover .btn-svg {
+  fill: #fff;
+  filter:
+    drop-shadow(0 0 3px hsl(var(--highlight-color-hue),100%,70%))
+    drop-shadow(0 -4px 6px #0009);
+  animation: none;
+}
+
+/* Active */
+#analyzeBtn.btn:active {
+  border: 1px solid hsla(var(--highlight-color-hue),100%,80%,0.7);
+  background-color: hsla(var(--highlight-color-hue),50%,20%,0.5);
+}
+#analyzeBtn.btn:active::before {
+  box-shadow:
+    0 -8px 12px -6px #fffa inset,
+    0 -16px 16px -8px hsla(var(--highlight-color-hue),100%,70%,0.8) inset,
+    1px 1px 1px #fff4,
+    2px 2px 2px #fff2,
+    -1px -1px 1px #0002,
+    -2px -2px 2px #0001;
+}
+#analyzeBtn.btn:active::after {
+  opacity: 1;
+  filter: brightness(200%);
+}
+#analyzeBtn.btn:active .btn-letter {
+  text-shadow: 0 0 1px hsla(var(--highlight-color-hue),100%,90%,0.9);
+  animation: none;
+}
+
+#analyzeBtn:focus-visible {
+  outline: 2px solid hsl(var(--highlight-color-hue),100%,60%);
+  outline-offset: 3px;
+}
+  </style>
 </body>
 </html>
