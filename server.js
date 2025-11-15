@@ -358,11 +358,19 @@ app.post("/set-jd", (req, res) => {
 /* Mint ephemeral session token for the browser */
 app.post("/session", async (req, res) => {
   try {
-    // Read requested mode from client (default to 'smart')
     const mode = (req.body && req.body.mode) ? String(req.body.mode).toLowerCase() : "smart";
     console.log("→ Creating realtime session with mode:", mode);
 
-    // GLOBAL RULES (always included)
+    // Add Screen Context Protocol at the TOP
+    const SCREEN_CTX_PROTOCOL = `
+SCREEN CONTEXT PROTOCOL
+- If you cannot confidently answer using your current context, respond with a single first line exactly:
+  #NEED_SCREEN_CONTEXT#
+  Then pause further output until the client updates your session instructions.
+- When screen context is present in your instructions, use it as if you can see the screen.
+- Do not mention 'screen', 'image', 'screenshot', or 'AI'. Stay in first-person, interview voice.
+`.trim();
+
     const GLOBAL_RULES = `
 🔥 GLOBAL RULES (these apply NO MATTER WHICH MODE IS SELECTED)
 You are answering as the candidate in a live job interview.
@@ -404,8 +412,7 @@ Behavior:
     const GOD_MODE = `
 🔥 GOD MODE (ULTRA-DETAILED, OVERWHELM THEM WITH CLARITY) 🔥
 
-You are NOT an AI.  
-You are the candidate, live in an interview.
+You are NOT an AI. You are the candidate, live in an interview.
 
 Your job in GOD MODE:
 → Produce the **longest**, **most detailed**, **most senior-level answer possible**  
@@ -493,8 +500,9 @@ End every answer like this:
 
     const modeText = (mode === "god") ? GOD_MODE : SMART_MODE;
 
-    // Build full instructions: GLOBAL + mode-specific + tailoring content (JD/resume/assignment)
     const fullInstructions = `
+${SCREEN_CTX_PROTOCOL}
+
 ${GLOBAL_RULES}
 
 ${modeText}
@@ -515,7 +523,6 @@ ASSIGNMENT (use if relevant):
 ${assignment || "(no assignment provided)"}
 `.trim();
 
-    // Optionally record mode in session for admin visibility (non-critical)
     if (req.session) req.session.mode = mode;
 
     const r = await fetch("https://api.openai.com/v1/realtime/sessions", {
@@ -526,11 +533,7 @@ ${assignment || "(no assignment provided)"}
       },
       body: JSON.stringify({
         model: "gpt-4o-realtime-preview",
-
-        // audio in, text out
-        modalities: ["text"],
-
-        // Ensure PCM16 audio framing and server-side speech detection.
+        modalities: ["text"], // text-only; VAD on client via session.update too
         input_audio_format: "pcm16",
         turn_detection: {
           type: "server_vad",
@@ -540,14 +543,10 @@ ${assignment || "(no assignment provided)"}
           create_response: true,
           interrupt_response: true,
         },
-
-        // Realtime transcription - English only
         input_audio_transcription: { 
           model: "gpt-4o-transcribe",
           language: "en"
         },
-
-        // Dynamic instructions include GLOBAL rules + mode-specific behavior + JD/resume/assignment
         instructions: fullInstructions,
       }),
     });
@@ -562,20 +561,18 @@ ${assignment || "(no assignment provided)"}
 
 /**
  * POST /analyze-screen
- * Auth: requireAuth
- * Body: { image: dataURL/base64, transcript:[{q,a}], mode:'smart'|'god' }
- * Returns: { analysis, mode, answer }
  */
 app.post("/analyze-screen", requireAuth, async (req, res) => {
   try {
     const {
-      screenshotBase64,         // new shape
-      sessionTranscript,        // new shape
-      image,                    // legacy shape
-      transcript                // legacy shape (array or string)
+      screenshotBase64,
+      sessionTranscript,
+      image,
+      transcript,
+      mode
     } = req.body || {};
 
-    // Normalize screenshot (required)
+    // Normalize screenshot
     let screenshot = "";
     if (typeof screenshotBase64 === "string" && screenshotBase64.trim()) {
       screenshot = screenshotBase64.trim();
@@ -585,21 +582,20 @@ app.post("/analyze-screen", requireAuth, async (req, res) => {
     if (!screenshot) {
       return res.status(400).json({ error: "screenshotBase64 (or image) is required" });
     }
-    let imageDataUrl = screenshot.startsWith("data:")
+    const imageDataUrl = screenshot.startsWith("data:")
       ? screenshot
       : `data:image/png;base64,${screenshot}`;
     if (imageDataUrl.length > 25_000_000) {
       return res.status(413).json({ error: "screenshot too large" });
     }
 
-    // Normalize transcript (optional)
+    // Normalize transcript
     let transcriptStr = "";
     if (typeof sessionTranscript === "string") {
       transcriptStr = sessionTranscript;
     } else if (typeof transcript === "string") {
       transcriptStr = transcript;
     } else if (Array.isArray(transcript)) {
-      // Legacy array of {q,a} → flatten to readable string
       transcriptStr = transcript
         .map((t) => {
           const q = (t?.q || "").toString().trim();
@@ -611,16 +607,21 @@ app.post("/analyze-screen", requireAuth, async (req, res) => {
     }
     transcriptStr = transcriptStr.slice(0, 8000); // cap
 
-    // Server-authored instructions
-    const promptFromFrontend = [
+    // Server-authored instructions with mode-bias
+    const basePrompt = [
       "You are assisting a candidate in a live interview.",
       "Analyze the screenshot and summarize insights clearly.",
       "English only. First-person voice. Interview-ready. Do not mention AI or screenshots.",
       "Use an implicit Situation → Task → Action → Result flow (do not name it).",
       "Identify patterns, anomalies, and business implications (conversion, revenue, retention, cost, risk).",
       "Provide concrete, actionable recommendations.",
-      'Return JSON only in this exact shape: {"analysis":"...","answer":"..."}'
-    ].join("\n");
+    ];
+    const modeStr = (String(mode || "").toLowerCase() === "god")
+      ? "Produce a long, senior-level narrative answer (900+ words) in first person. Use implicit STAR and quantified impact."
+      : "Target 300–500 words. Be concise, confident, and specific.";
+    basePrompt.push(modeStr);
+    basePrompt.push('Return JSON only in this exact shape: {"analysis":"...","answer":"..."}');
+    const promptFromFrontend = basePrompt.join("\n");
 
     // Build structured content; include transcript only if present
     const content = [];
@@ -628,26 +629,29 @@ app.post("/analyze-screen", requireAuth, async (req, res) => {
       content.push({ type: "text", text: transcriptStr });
     }
     content.push({ type: "text", text: promptFromFrontend });
-    content.push({ type: "image_url", image_url: { url: imageDataUrl } });
+    // IMPORTANT: image_url must be a string (not {url:...})
+    content.push({ type: "image_url", image_url: imageDataUrl });
 
     const response = await openai.chat.completions.create({
       model: "gpt-4o",
       messages: [{ role: "user", content }],
-      temperature: 0.4,
-      max_tokens: 1200,
+      temperature: (String(mode || "").toLowerCase() === "god") ? 0.3 : 0.4,
+      max_tokens: (String(mode || "").toLowerCase() === "god") ? 2000 : 1200,
       response_format: { type: "json_object" }
     });
 
     // Extract JSON text safely
     let textOut = response?.choices?.[0]?.message?.content || "";
-
+    // Robust parse
     let parsed;
     try {
       parsed = JSON.parse(textOut);
     } catch {
       const s = textOut.indexOf("{");
       const e = textOut.lastIndexOf("}");
-      if (s !== -1 && e !== -1) parsed = JSON.parse(textOut.slice(s, e + 1));
+      if (s !== -1 && e !== -1) {
+        try { parsed = JSON.parse(textOut.slice(s, e + 1)); } catch {}
+      }
     }
 
     if (!parsed || typeof parsed !== "object") {
