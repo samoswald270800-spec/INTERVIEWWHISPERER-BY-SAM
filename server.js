@@ -199,8 +199,19 @@ async function deleteTempUser(username) {
 
 // API endpoints
 app.post("/admin/api/users", requireAdmin, async (req, res) => {
-  const { username, password, hours = 24 } = req.body;
-  await createTempUser(username, password, Number(hours));
+    const { username, password, hours = 24 } = req.body || {};
+
+  // basic validation to avoid writing unusable temp accounts
+  if (!username || !password) {
+    return res.status(400).json({ error: "username and password are required" });
+  }
+
+  const ttlHours = Number(hours);
+  if (!Number.isFinite(ttlHours) || ttlHours <= 0) {
+    return res.status(400).json({ error: "hours must be a positive number" });
+  }
+
+  await createTempUser(username, password, ttlHours);
   return res.json({ ok: true });
 });
 
