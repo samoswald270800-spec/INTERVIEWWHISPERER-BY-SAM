@@ -1,3 +1,5 @@
+
+// Replace your existing server.js with this updated version (keeps existing behavior; adds mode-aware instructions)
 import express from "express";
 import fetch from "node-fetch";
 import "dotenv/config";
@@ -6,34 +8,18 @@ import path from "path";
 import { fileURLToPath } from "url";
 import OpenAI from "openai";
 
+
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const app = express();
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
-// ====== SERVER DEBUG LOGGING ======
-const DEBUG_ENABLED = true; // Set to false to disable server debug logs
-
-function debugLog(context, message, data = null) {
-  if (!DEBUG_ENABLED) return;
-  
-  const timestamp = new Date().toISOString();
-  const prefix = `[${timestamp}] [${context}]`;
-  
-  if (data) {
-    console.log(`${prefix} ${message}`, JSON.stringify(data, null, 2));
-  } else {
-    console.log(`${prefix} ${message}`);
-  }
-}
-
 // Trust proxy for Render so secure cookies work
 app.set("trust proxy", 1);
 
 // Parse JSON before auth routes (needed for /api/login and /set-jd)
-app.use(express.json({ limit: "25mb" })); // ✅ Increased for screenshots
-
+app.use(express.json({ limit: "1mb" })); // for /set-jd and login
 /* =======================================================================
    Redis session store (connect-redis v8 + node-redis v4, ESM)
    ======================================================================= */
@@ -49,8 +35,6 @@ if (!process.env.REDIS_URL) {
 const redisUrl = process.env.REDIS_URL.trim();
 const useTLS = redisUrl.startsWith("rediss://");
 
-debugLog('REDIS', 'Initializing Redis client', { url: redisUrl.substring(0, 20) + '...', useTLS });
-
 // Create the Redis client
 const redisClient = createClient({
   url: redisUrl,
@@ -60,11 +44,9 @@ const redisClient = createClient({
 });
 
 redisClient.on("error", (err) => {
-  debugLog('REDIS', 'Redis error', { error: err.message });
   console.error("❌ Redis error:", err);
 });
 redisClient.on("ready", () => {
-  debugLog('REDIS', 'Redis client ready');
   console.log("✅ Redis client ready");
 });
 
@@ -74,10 +56,8 @@ await redisClient.connect();
 // Optional quick health check
 try {
   const pong = await redisClient.ping();
-  debugLog('REDIS', 'Redis PING successful', { response: pong });
   console.log("🔎 Redis PING:", pong);
 } catch (e) {
-  debugLog('REDIS', 'Redis ping failed', { error: e.message });
   console.error("❌ Redis ping failed:", e);
 }
 
@@ -101,7 +81,6 @@ app.use(
     },
   })
 );
-
 /* ============================================================================================= */
 // ---[ADD] Temp-user pre-handler for /api/login (kept before your existing /api/login) ---
 const TEMP_USER_PREFIX = "tempuser:";
@@ -110,27 +89,21 @@ const TEMP_USER_PREFIX = "tempuser:";
 app.post("/api/login", async (req, res, next) => {
   try {
     const { username, password } = req.body || {};
-    debugLog('AUTH', 'Login attempt (temp user path)', { username });
-    
     if (!username || !password) return next();
 
     const key = `${TEMP_USER_PREFIX}${username}`;
     const raw = await redisClient.get(key);
-    if (!raw) {
-      debugLog('AUTH', 'Not a temp user, trying admin path', { username });
-      return next();
-    }
+    if (!raw) return next(); // not a temp user → let your existing /api/login handle admin
 
     let data;
     try {
       data = JSON.parse(raw);
     } catch {
-      debugLog('AUTH', 'Malformed temp user data', { username });
       return next(); // malformed → ignore, let admin path try
     }
 
     if (data?.password !== password) {
-      debugLog('AUTH', 'Wrong temp user password', { username });
+      // wrong temp password → let admin path try
       return next();
     }
 
@@ -140,48 +113,41 @@ app.post("/api/login", async (req, res, next) => {
     req.session.ip = req.headers["x-forwarded-for"] || req.ip;
     req.session.loginAt = Date.now();
 
-    debugLog('AUTH', 'Temp user login successful', { username, role: 'user' });
     return res.json({ ok: true, role: "user" });
   } catch (e) {
-    debugLog('AUTH', 'Temp user login error', { error: e.message });
+    // On any unexpected error we fall through to admin path to avoid blocking it
     return next();
   }
 });
 
+
 /* ---------- Minimal login/logout endpoints ---------- */
+// Render: set ADMIN_USER and ADMIN_PASS in Environment
+/* ---------- Minimal login/logout endpoints ---------- */
+// Render: set ADMIN_USER and ADMIN_PASS in Environment
 app.post("/api/login", (req, res) => {
   const { username, password } = req.body || {};
   const ADMIN_USER = process.env.ADMIN_USER || "";
   const ADMIN_PASS = process.env.ADMIN_PASS || "";
 
-  debugLog('AUTH', 'Login attempt (admin path)', { username });
-
   if (username === ADMIN_USER && password === ADMIN_PASS) {
     req.session.userId = username;
-    req.session.role = "admin";
+    req.session.role = "admin";   // ✅ keep admin role set
     req.session.ip = req.headers["x-forwarded-for"] || req.ip;
     req.session.loginAt = Date.now();
-    
-    debugLog('AUTH', 'Admin login successful', { username, role: 'admin' });
     return res.json({ ok: true, role: "admin" });
   }
 
-  debugLog('AUTH', 'Login failed - invalid credentials', { username });
   return res.status(401).json({ error: "Invalid username or password" });
 });
 
 app.post("/api/logout", (req, res) => {
-  const userId = req.session?.userId;
-  debugLog('AUTH', 'Logout', { userId });
   req.session.destroy(() => res.json({ ok: true }));
 });
 
 // Serve the login page itself
 app.get("/login", (req, res) => {
-  if (req.session?.userId) {
-    debugLog('AUTH', 'Already logged in, redirecting to /', { userId: req.session.userId });
-    return res.redirect("/");
-  }
+  if (req.session?.userId) return res.redirect("/");
   res.sendFile(path.join(__dirname, "public", "login.html"));
 });
 
@@ -189,11 +155,11 @@ app.get("/login", (req, res) => {
 function requireAuth(req, res, next) {
   if (req.path === "/login" || req.path === "/api/login") return next();
   if (req.session?.userId) return next();
-  
-  debugLog('AUTH', 'Unauthorized access attempt, redirecting to /login', { path: req.path });
   return res.redirect("/login");
 }
 app.use(requireAuth);
+
+
 
 // ---[ADD] Post-auth annotator so we capture IP/loginAt even if admin logged in via your handler ---
 app.use((req, _res, next) => {
@@ -206,14 +172,10 @@ app.use((req, _res, next) => {
   next();
 });
 
+// Serve static files only after auth
 // ✅ ADMIN CONSOLE (protected area)
 function requireAdmin(req, res, next) {
   if (req.session?.role === "admin") return next();
-  
-  debugLog('ADMIN', 'Non-admin access attempt blocked', { 
-    userId: req.session?.userId, 
-    role: req.session?.role 
-  });
   return res.status(403).json({ error: "Admin only" });
 }
 
@@ -222,7 +184,6 @@ async function createTempUser(username, password, ttlHours = 24) {
   const now = Date.now();
   const payload = { password, createdAt: now, expiresAt: now + ttlSeconds * 1000 };
   await redisClient.set(`tempuser:${username}`, JSON.stringify(payload), { EX: ttlSeconds });
-  debugLog('ADMIN', 'Temp user created', { username, ttlHours });
 }
 
 async function getTempUser(username) {
@@ -232,19 +193,18 @@ async function getTempUser(username) {
 
 async function deleteTempUser(username) {
   await redisClient.del(`tempuser:${username}`);
-  debugLog('ADMIN', 'Temp user deleted', { username });
 }
+
+
 
 // API endpoints
 app.post("/admin/api/users", requireAdmin, async (req, res) => {
   const { username, password, hours = 24 } = req.body;
-  debugLog('ADMIN', 'Creating temp user', { username, hours });
   await createTempUser(username, password, Number(hours));
   return res.json({ ok: true });
 });
 
 app.get("/admin/api/users", requireAdmin, async (_req, res) => {
-  debugLog('ADMIN', 'Fetching temp users list');
   const users = [];
   for await (const key of redisClient.scanIterator({ MATCH: "tempuser:*" })) {
     const username = key.replace("tempuser:", "");
@@ -252,40 +212,42 @@ app.get("/admin/api/users", requireAdmin, async (_req, res) => {
     const ttl = await redisClient.ttl(key);
     users.push({ username, ttlSeconds: ttl, expiresAt: data.expiresAt });
   }
-  debugLog('ADMIN', 'Temp users fetched', { count: users.length });
   return res.json({ ok: true, users });
 });
 
 app.delete("/admin/api/users/:username", requireAdmin, async (req, res) => {
-  const { username } = req.params;
-  debugLog('ADMIN', 'Deleting temp user', { username });
-  await deleteTempUser(username);
+  await deleteTempUser(req.params.username);
   res.json({ ok: true });
 });
 
 /* ---------- Admin: session management endpoints ---------- */
+/* Return list of active sessions (sessionId, userId, ip, loginAt, ttlSeconds) */
 app.get("/admin/api/sessions", requireAdmin, async (_req, res) => {
-  debugLog('ADMIN', 'Fetching active sessions');
   try {
     const sessions = [];
 
+    // The session keys stored by connect-redis use the prefix we configured ("sess:")
     for await (const key of redisClient.scanIterator({ MATCH: "sess:*" })) {
       try {
         const raw = await redisClient.get(key);
         if (!raw) continue;
 
+        // Some session stores store JSON; parse it
         let parsed;
         try {
           parsed = JSON.parse(raw);
         } catch {
+          // If not JSON, skip
           continue;
         }
 
+        // sessionId is key without prefix
         const sessionId = key.replace(/^sess:/, "");
         const userId = parsed.userId || parsed.user || null;
         const ip = parsed.ip || (parsed?.cookie?.ip) || null;
         const loginAt = parsed.loginAt ? Number(parsed.loginAt) : null;
 
+        // TTL (seconds) - optional but useful
         let ttlSeconds = null;
         try {
           const ttl = await redisClient.ttl(key);
@@ -302,55 +264,69 @@ app.get("/admin/api/sessions", requireAdmin, async (_req, res) => {
           ttlSeconds,
         });
       } catch (e) {
-        debugLog('ADMIN', 'Error reading session key', { key, error: e.message });
+        console.error("Error reading session key", key, e);
       }
     }
 
-    debugLog('ADMIN', 'Sessions fetched', { count: sessions.length });
     return res.json({ ok: true, sessions });
   } catch (e) {
-    debugLog('ADMIN', 'Failed to list sessions', { error: e.message });
+    console.error("Failed to list sessions:", e);
     return res.status(500).json({ error: "Failed to list sessions" });
   }
 });
 
+/* Force-logout (destroy) a single session by sessionId */
 app.post("/admin/api/sessions/:sessionId/logout", requireAdmin, async (req, res) => {
   try {
     const { sessionId } = req.params;
-    debugLog('ADMIN', 'Force logout session', { sessionId });
-    
     if (!sessionId) return res.status(400).json({ error: "Missing sessionId" });
 
     const key = `sess:${sessionId}`;
+
+    // Check existence
     const exists = await redisClient.exists(key);
-    
     if (!exists) {
-      debugLog('ADMIN', 'Session not found', { sessionId });
       return res.status(404).json({ error: "Session not found" });
     }
 
+    // Remove the session key (destroy session)
     await redisClient.del(key);
-    debugLog('ADMIN', 'Session logged out successfully', { sessionId });
+
+    // Optionally, if you prefer to use the store API:
+    // if (store && typeof store.destroy === 'function') {
+    //   await new Promise((resolve, reject) => store.destroy(sessionId, (err) => (err ? reject(err) : resolve())));
+    // }
+
     return res.json({ ok: true, sessionId });
   } catch (e) {
-    debugLog('ADMIN', 'Failed to logout session', { error: e.message });
+    console.error("Failed to logout session:", e);
     return res.status(500).json({ error: "Failed to logout session" });
   }
 });
 
+// ...existing code continues (static serving etc.)...
+// Serve the Admin UI (React SPA build)
+
+
 /* ---------- Static & Admin SPA (order matters) ---------- */
+
+// Public assets (still behind your requireAuth middleware earlier)
 app.use(express.static(path.join(__dirname, "public")));
 
+// React Admin build (protected)
 app.use(
   "/admin",
   requireAdmin,
   express.static(path.join(__dirname, "admin", "dist"))
 );
 
+// SPA fallback for any nested admin routes
 app.get("/admin/*", requireAdmin, (req, res) => {
   res.sendFile(path.join(__dirname, "admin", "dist", "index.html"));
 });
 
+
+// Explicit route for "/"
 app.get("/", (req, res) => {
   res.sendFile(path.join(__dirname, "public", "index.html"));
 });
@@ -360,51 +336,34 @@ let resume = "";
 let assignment = "";
 try {
   resume = fs.readFileSync("./resume.txt", "utf8");
-  debugLog('INIT', 'Resume loaded', { length: resume.length });
   console.log("ℹ️  Loaded resume.txt");
 } catch {
-  debugLog('INIT', 'No resume.txt found');
   console.log("ℹ️  No resume.txt found (optional).");
 }
 try {
   assignment = fs.readFileSync("./assignment.txt", "utf8");
-  debugLog('INIT', 'Assignment loaded', { length: assignment.length });
   console.log("ℹ️  Loaded assignment.txt");
 } catch {
-  debugLog('INIT', 'No assignment.txt found');
   console.log("ℹ️  No assignment.txt found (optional).");
 }
-
 /* Store JD in memory (resets when you restart the server) */
 let JOB_DESC = "";
 
 /* Paste/Update JD from the browser */
 app.post("/set-jd", (req, res) => {
   const jd = (req.body?.jd || "").toString();
-  JOB_DESC = jd.slice(0, 20000);
-  debugLog('JD', 'Job description saved', { length: JOB_DESC.length });
+  JOB_DESC = jd.slice(0, 20000); // simple size guard
   return res.json({ ok: true, length: JOB_DESC.length });
 });
 
-/* ──────────────────────────────────────────────────────────────────
-   WebRTC Realtime Session + Transcript Collection
-   ────────────────────────────────────────────────────────────────── */
-
+/* Mint ephemeral session token for the browser */
 app.post("/session", async (req, res) => {
   try {
+    // Read requested mode from client (default to 'smart')
     const mode = (req.body && req.body.mode) ? String(req.body.mode).toLowerCase() : "smart";
-    debugLog('SESSION', 'Creating realtime session', { mode, userId: req.session?.userId });
+    console.log("→ Creating realtime session with mode:", mode);
 
-    if (!req.session.transcript) {
-      req.session.transcript = [];
-    }
-
-    const SCREEN_CTX_PROTOCOL = `
-SCREEN CONTEXT PROTOCOL
-- When screen analysis is injected into your instructions, use it to enhance your answer.
-- Do not mention 'screen', 'image', 'screenshot', or 'AI'. Stay in first-person, interview voice.
-`.trim();
-
+    // GLOBAL RULES (always included)
     const GLOBAL_RULES = `
 🔥 GLOBAL RULES (these apply NO MATTER WHICH MODE IS SELECTED)
 You are answering as the candidate in a live job interview.
@@ -446,7 +405,8 @@ Behavior:
     const GOD_MODE = `
 🔥 GOD MODE (ULTRA-DETAILED, OVERWHELM THEM WITH CLARITY) 🔥
 
-You are NOT an AI. You are the candidate, live in an interview.
+You are NOT an AI.  
+You are the candidate, live in an interview.
 
 Your job in GOD MODE:
 → Produce the **longest**, **most detailed**, **most senior-level answer possible**  
@@ -488,8 +448,8 @@ Use the STAR structure **without naming STAR**:
 
 4. **Result**
    - Business outcomes with numbers (% conversion, revenue lift, hours saved, cost efficiency)
-   - ALWAYS quantify impact, even if directional ("~22% uplift in CTR")
-   - Show insight → "Here's what I learned"
+   - ALWAYS quantify impact, even if directional (“~22% uplift in CTR”)
+   - Show insight → “Here’s what I learned”
    - Link learning back to THIS role
 
 CONTENT YOU MUST COVER (EVERY TIME)
@@ -505,10 +465,10 @@ IF QUESTION IS SHORT (CRITICAL RULE)
 ------------------------------------
 If interviewer asks something like:
 
-• "Why?"
-• "What project?"
-• "Example?"
-• "How did you handle it?"
+• “Why?”
+• “What project?”
+• “Example?”
+• “How did you handle it?”
 
 → Treat it as permission to give a **full 10-minute storytelling documentary**.
 
@@ -518,7 +478,7 @@ TONE + VOICE RULES
 ------------------
 - First person ("I led…", "I built…")
 - Human sounding
-- Micro fillers allowed, naturally (e.g., "so yeah," "honestly," "ahh,")
+- Micro fillers allowed, naturally (e.g., “so yeah,” “honestly,” “ahh,”)
 - Confidence without arrogance
 - Speak like someone who already works there
 
@@ -528,17 +488,23 @@ Smart Mode = Answer efficiently
 GOD Mode = Leave them speechless
 
 End every answer like this:
-"...and here's how that applies directly to this role."
+“...and here’s how that applies directly to this role.”
+
 `.trim();
 
     const modeText = (mode === "god") ? GOD_MODE : SMART_MODE;
 
+    // Build full instructions: GLOBAL + mode-specific + tailoring content (JD/resume/assignment)
     const fullInstructions = `
-${SCREEN_CTX_PROTOCOL}
-
 ${GLOBAL_RULES}
 
 ${modeText}
+
+/* Tailoring instructions (JD + Resume + Assignment) — highest priority content follows */
+You MUST prioritize:
+1) JOB DESCRIPTION (highest priority)
+2) RESUME (second priority for examples)
+3) ASSIGNMENT (use if relevant)
 
 JOB DESCRIPTION (highest priority):
 ${JOB_DESC || "(JD not provided — give a strong general answer for the role based on resume)"}
@@ -550,6 +516,7 @@ ASSIGNMENT (use if relevant):
 ${assignment || "(no assignment provided)"}
 `.trim();
 
+    // Optionally record mode in session for admin visibility (non-critical)
     if (req.session) req.session.mode = mode;
 
     const r = await fetch("https://api.openai.com/v1/realtime/sessions", {
@@ -560,456 +527,149 @@ ${assignment || "(no assignment provided)"}
       },
       body: JSON.stringify({
         model: "gpt-4o-realtime-preview",
+
+        // audio in, text out
         modalities: ["text"],
+
+        // Ensure PCM16 audio framing and server-side speech detection.
         input_audio_format: "pcm16",
         turn_detection: {
           type: "server_vad",
           threshold: 0.5,
           prefix_padding_ms: 300,
-          silence_duration_ms: 700,
-          create_response: false,
+          silence_duration_ms: 1200,
+          create_response: true,
           interrupt_response: true,
         },
-        input_audio_transcription: {
-          model: "whisper-1"
+
+        // Realtime transcription - English only
+        input_audio_transcription: { 
+          model: "gpt-4o-transcribe",
+          language: "en"
         },
+
+        // Dynamic instructions include GLOBAL rules + mode-specific behavior + JD/resume/assignment
         instructions: fullInstructions,
       }),
     });
 
     const session = await r.json();
-    debugLog('SESSION', 'Realtime session created', { hasToken: !!session?.client_secret?.value });
     res.json(session);
   } catch (e) {
-    debugLog('SESSION', 'Session creation error', { error: e.message });
     console.error("Session error:", e);
     res.status(500).json({ error: String(e) });
   }
 });
 
-/* ========================================================================
-   ANALYZE SCREEN ENDPOINT (Vision API)
-   ======================================================================== */
+/**
+ * POST /analyze-screen
+ * Auth: requireAuth
+ * Body: { image: dataURL/base64, transcript:[{q,a}], mode:'smart'|'god' }
+ * Returns: { analysis, mode, answer }
+ */
 app.post("/analyze-screen", requireAuth, async (req, res) => {
   try {
-    const { screenshotBase64, mode } = req.body || {};
-    const userId = req.session?.userId;
-    
-    debugLog('ANALYZE', 'Screen analysis requested', { 
-      mode, 
-      imageSize: screenshotBase64?.length || 0,
-      userId 
-    });
+    const {
+      screenshotBase64,         // new shape
+      sessionTranscript,        // new shape
+      image,                    // legacy shape
+      transcript                // legacy shape (array or string)
+    } = req.body || {};
 
-    if (!screenshotBase64 || typeof screenshotBase64 !== "string") {
-      debugLog('ANALYZE', 'Missing screenshot data');
-      return res.status(400).json({ error: "screenshotBase64 is required" });
+    // Normalize screenshot (required)
+    let screenshot = "";
+    if (typeof screenshotBase64 === "string" && screenshotBase64.trim()) {
+      screenshot = screenshotBase64.trim();
+    } else if (typeof image === "string" && image.trim()) {
+      screenshot = image.trim();
+    }
+    if (!screenshot) {
+      return res.status(400).json({ error: "screenshotBase64 (or image) is required" });
+    }
+    let imageDataUrl = screenshot.startsWith("data:")
+      ? screenshot
+      : `data:image/png;base64,${screenshot}`;
+    if (imageDataUrl.length > 25_000_000) {
+      return res.status(413).json({ error: "screenshot too large" });
     }
 
-    const imageDataUrl = screenshotBase64.startsWith("data:")
-      ? screenshotBase64
-      : `data:image/png;base64,${screenshotBase64}`;
-
-    if (imageDataUrl.length > 20_000_000) {
-      debugLog('ANALYZE', 'Screenshot too large', { size: imageDataUrl.length });
-      return res.status(413).json({ error: "screenshot too large (max 20MB)" });
+    // Normalize transcript (optional)
+    let transcriptStr = "";
+    if (typeof sessionTranscript === "string") {
+      transcriptStr = sessionTranscript;
+    } else if (typeof transcript === "string") {
+      transcriptStr = transcript;
+    } else if (Array.isArray(transcript)) {
+      // Legacy array of {q,a} → flatten to readable string
+      transcriptStr = transcript
+        .map((t) => {
+          const q = (t?.q || "").toString().trim();
+          const a = (t?.a || "").toString().trim();
+          return [q && `Q: ${q}`, a && `A: ${a}`].filter(Boolean).join("\n");
+        })
+        .filter(Boolean)
+        .join("\n\n");
     }
+    transcriptStr = transcriptStr.slice(0, 8000); // cap
 
-    const fullTranscript = req.session.transcript || [];
-    const recentTranscript = fullTranscript.slice(-15);
-    const lastQA = fullTranscript[fullTranscript.length - 1] || { q, a: "" };
+    // Server-authored instructions
+    const promptFromFrontend = [
+      "You are assisting a candidate in a live interview.",
+      "Analyze the screenshot and summarize insights clearly.",
+      "English only. First-person voice. Interview-ready. Do not mention AI or screenshots.",
+      "Use an implicit Situation → Task → Action → Result flow (do not name it).",
+      "Identify patterns, anomalies, and business implications (conversion, revenue, retention, cost, risk).",
+      "Provide concrete, actionable recommendations.",
+      'Return JSON only in this exact shape: {"analysis":"...","answer":"..."}'
+    ].join("\n");
 
-    debugLog('ANALYZE', 'Transcript context', { 
-      totalTurns: fullTranscript.length,
-      recentTurns: recentTranscript.length,
-      lastQuestion: lastQA.q?.slice(0, 50)
-    });
-
-    let transcriptStr = recentTranscript
-      .map((t) => {
-        const q = (t?.q || "").toString().trim();
-        const a = (t?.a || "").toString().trim();
-        return [q && `Q: ${q}`, a && `A: ${a}`].filter(Boolean).join("\n");
-      })
-      .filter(Boolean)
-      .join("\n\n");
-
-    transcriptStr = transcriptStr.slice(0, 8000);
-
-    // ✅ SIMPLIFIED PROMPT - No JSON wrapper, direct answer
-    const visionPrompt = `You are helping a candidate in a live job interview.
-
-Analyze this screenshot and provide a recommended answer the candidate should give.
-
-RULES:
-- Respond in first person as the candidate
-- Focus on business impact (revenue, conversion, retention, cost)
-- Use numbers and specifics from the screenshot
-- ${mode === "god" ? "Give a detailed 900+ word answer" : "Give a concise 300-500 word answer"}
-- Never mention AI, screenshot, or image
-- Start your answer immediately, no preamble
-
-CONTEXT:
-Last question: "${lastQA.q || "(no question yet)"}"
-
-Recent conversation:
-${transcriptStr || "(no transcript yet)"}
-
-Provide ONLY the recommended answer the candidate should say:`;
-
-    debugLog('ANALYZE', 'Sending to OpenAI vision API', { 
-      mode,
-      promptLength: visionPrompt.length,
-      imageUrlPrefix: imageDataUrl.slice(0, 50)
-    });
-
-    let response;
-    let attempt = 0;
-    const maxAttempts = 3; // ✅ Increased to 3 attempts
-
-    while (attempt < maxAttempts) {
-      attempt++;
-      
-      try {
-        debugLog('ANALYZE', `Vision API attempt ${attempt}/${maxAttempts}`);
-        
-        response = await openai.chat.completions.create({
-          model: "gpt-4o",
-          messages: [{
-            role: "user",
-            content: [
-              { type: "text", text: visionPrompt },
-              { 
-                type: "image_url", 
-                image_url: { 
-                  url: imageDataUrl,
-                  detail: "high"
-                } 
-              }
-            ]
-          }],
-          temperature: mode === "god" ? 0.3 : 0.5,
-          max_tokens: mode === "god" ? 8000 : 5000, // ✅ INCREASED significantly
-        });
-
-        debugLog('ANALYZE', 'Vision API response received', {
-          attempt,
-          hasChoices: !!response?.choices?.length,
-          contentLength: response?.choices?.[0]?.message?.content?.length || 0,
-          finishReason: response?.choices?.[0]?.finish_reason
-        });
-
-        // ✅ CHECK FINISH REASON
-        if (response?.choices?.[0]?.finish_reason === 'length') {
-          debugLog('ANALYZE', '⚠️ Response truncated due to token limit, retrying with higher limit');
-          
-          // Retry with even higher token limit
-          if (attempt < maxAttempts) {
-            await new Promise(r => setTimeout(r, 1000)); // Wait 1s before retry
-            continue;
-          }
-        }
-
-        if (response?.choices?.length) break;
-      } catch (e) {
-        debugLog('ANALYZE', 'Vision API error', { attempt, error: e.message, stack: e.stack });
-        if (attempt >= maxAttempts) throw e;
-        
-        // Wait before retry
-        await new Promise(r => setTimeout(r, 2000));
-      }
+    // Build structured content; include transcript only if present
+    const content = [];
+    if (transcriptStr.trim()) {
+      content.push({ type: "text", text: transcriptStr });
     }
-
-    if (!response?.choices?.length) {
-      return res.status(500).json({ 
-        error: "Failed to get a valid response from the vision API after 3 attempts" 
-      });
-    }
-
-    const rawText = (response.choices[0]?.message?.content || "").trim();
-    const finishReason = response.choices[0]?.finish_reason;
-    
-    debugLog('ANALYZE', 'Raw response from vision', {
-      length: rawText.length,
-      finishReason,
-      preview: rawText.slice(0, 200),
-      ending: rawText.slice(-100)
-    });
-
-    // ✅ VALIDATE RESPONSE QUALITY
-    if (!rawText || rawText.length < 50) {
-      debugLog('ANALYZE', 'Response too short', { length: rawText.length });
-      return res.status(502).json({
-        error: "bad_model_output",
-        message: "Vision API returned empty or too short response. Try again.",
-        raw: rawText
-      });
-    }
-
-    // ✅ WARN IF TRUNCATED (but still use it)
-    if (finishReason === 'length') {
-      debugLog('ANALYZE', '⚠️ Response was truncated, but using anyway', { 
-        length: rawText.length 
-      });
-    }
-
-    // ✅ SUCCESS - Store the analysis in session
-    if (!req.session.visionAnalysis) {
-      req.session.visionAnalysis = {};
-    }
-    
-    req.session.visionAnalysis = {
-      timestamp: Date.now(),
-      mode,
-      analysis: `Screen analysis for: ${lastQA.q?.slice(0, 100) || 'current question'}`,
-      answer: rawText // ✅ Use direct answer, no JSON parsing
-    };
-
-    debugLog('ANALYZE', 'Analysis processed successfully', { 
-      answerLength: rawText.length,
-      finishReason
-    });
-
-    return res.json({ 
-      ok: true, 
-      analysis: req.session.visionAnalysis.analysis,
-      answer: rawText
-    });
-  } catch (e) {
-    debugLog('ANALYZE', 'Screen analysis error', { 
-      error: e.message, 
-      stack: e.stack,
-      name: e.name,
-      code: e.code
-    });
-    
-    return res.status(500).json({ 
-      error: "Screen analysis error",
-      message: e.message || "Unknown error occurred"
-    });
-  }
-});
-
-/* ========================================================================
-   REALTIME UPDATE ENDPOINT (Inject screen analysis into realtime session)
-   ======================================================================== */
-app.post("/realtime-update", requireAuth, async (req, res) => {
-  try {
-    const userId = req.session?.userId;
-    const mode = req.session?.mode || "smart";
-    const visionData = req.session?.visionAnalysis;
-
-    debugLog('REALTIME', 'Update requested', { 
-      userId, 
-      mode, 
-      hasVision: !!visionData 
-    });
-
-    if (!visionData || !visionData.analysis || !visionData.answer) {
-      debugLog('REALTIME', 'No vision data available');
-      return res.status(400).json({ 
-        error: "No screen analysis available. Click Analyze Screen first." 
-      });
-    }
-
-    const age = Date.now() - (visionData.timestamp || 0);
-    if (age > 5 * 60 * 1000) {
-      debugLog('REALTIME', 'Vision data too old', { ageMs: age });
-      return res.status(410).json({ 
-        error: "Screen analysis expired (>5min). Capture again." 
-      });
-    }
-
-    const SCREEN_CTX = `
-📸 SCREEN CONTEXT (use this to answer the current question):
-
-WHAT YOU SEE:
-${visionData.analysis}
-
-RECOMMENDED ANSWER:
-${visionData.answer}
-
-INSTRUCTIONS:
-- Use the recommended answer as your base response
-- Adapt it naturally to fit the conversation flow
-- Keep first-person voice ("I noticed...", "I see...")
-- DO NOT say "based on the screen" or "in the image"
-- Speak as if you're naturally observing and analyzing
-`.trim();
-
-    const GLOBAL_RULES = `
-🔥 GLOBAL RULES
-You are the candidate in a live interview.
-Never mention AI, screen, image, or screenshot.
-Respond in first person ("I" / "my").
-Sound conversational and human.
-`.trim();
-
-    const modeInstructions = mode === "god" 
-      ? "Provide detailed 900+ word answers with deep analysis."
-      : "Provide concise 300-500 word answers with key points.";
-
-    const fullInstructions = `
-${SCREEN_CTX}
-
-${GLOBAL_RULES}
-
-${modeInstructions}
-
-JOB DESCRIPTION:
-${JOB_DESC || "(not provided)"}
-
-RESUME:
-${resume || "(not provided)"}
-`.trim();
-
-    debugLog('REALTIME', 'Instructions built', { 
-      instructionsLength: fullInstructions.length,
-      mode 
-    });
-
-    // Clear the vision data after use (one-time injection)
-    delete req.session.visionAnalysis;
-
-    return res.json({ 
-      ok: true, 
-      instructions: fullInstructions,
-      shouldTriggerResponse: true
-    });
-  } catch (e) {
-    debugLog('REALTIME', 'Update error', { error: e.message });
-    return res.status(500).json({ error: "Realtime update error" });
-  }
-});
-
-/* ========================================================================
-   SAVE TURN ENDPOINT (Save Q&A pairs to session transcript)
-   ======================================================================== */
-app.post("/save-turn", requireAuth, async (req, res) => {
-  try {
-    const { q, a } = req.body || {};
-    
-    if (!req.session.transcript) {
-      req.session.transcript = [];
-    }
-
-    const turn = {
-      q: (q || "").toString().trim(),
-      a: (a || "").toString().trim(),
-      timestamp: Date.now()
-    };
-
-    req.session.transcript.push(turn);
-
-    // Keep only last 50 turns
-    if (req.session.transcript.length > 50) {
-      req.session.transcript = req.session.transcript.slice(-50);
-    }
-
-    debugLog('TRANSCRIPT', 'Turn saved', { 
-      qLength: turn.q.length, 
-      aLength: turn.a.length,
-      totalTurns: req.session.transcript.length
-    });
-
-    return res.json({ ok: true });
-  } catch (e) {
-    debugLog('TRANSCRIPT', 'Save turn error', { error: e.message });
-    return res.status(500).json({ error: "Failed to save turn" });
-  }
-});
-
-/* ========================================================================
-   OpenAI API Proxy (for direct API calls from the browser)
-   ======================================================================== */
-app.post("/api/proxy/openai", requireAuth, async (req, res) => {
-  try {
-    const { messages, model = "gpt-4o", temperature = 0.7, max_tokens = 1500 } = req.body;
-    debugLog('PROXY', 'OpenAI API proxy request', { 
-      userId: req.session.userId, 
-      model, 
-      temperature, 
-      max_tokens 
-    });
-
-    if (!Array.isArray(messages) || messages.length === 0) {
-      return res.status(400).json({ error: "Invalid messages format" });
-    }
+    content.push({ type: "text", text: promptFromFrontend });
+    content.push({ type: "image_url", image_url: { url: imageDataUrl } });
 
     const response = await openai.chat.completions.create({
-      model,
-      messages,
-      temperature,
-      max_tokens,
+      model: "gpt-4o",
+      messages: [{ role: "user", content }],
+      temperature: 0.4,
+      max_tokens: 1200,
+      response_format: { type: "json_object" }
     });
 
-    debugLog('PROXY', 'OpenAI API response', { 
-      hasChoices: !!response?.choices?.length, 
-      usage: response?.usage 
-    });
+    // Extract JSON text safely
+    let textOut = response?.choices?.[0]?.message?.content || "";
 
-    if (response?.choices?.length) {
-      return res.json({ ok: true, result: response.choices[0].message });
-    } else {
-      return res.status(500).json({ error: "No response from OpenAI API" });
+    let parsed;
+    try {
+      parsed = JSON.parse(textOut);
+    } catch {
+      const s = textOut.indexOf("{");
+      const e = textOut.lastIndexOf("}");
+      if (s !== -1 && e !== -1) parsed = JSON.parse(textOut.slice(s, e + 1));
     }
-  } catch (e) {
-    debugLog('PROXY', 'OpenAI API proxy error', { error: e.message });
-    return res.status(500).json({ error: "OpenAI API proxy error" });
+
+    if (!parsed || typeof parsed !== "object") {
+      return res.status(502).json({ error: "bad_model_output", raw: textOut?.slice(0, 1000) });
+    }
+
+    const analysis = String(parsed.analysis || "").trim();
+    const answer = String(parsed.answer || "").trim();
+
+    return res.json({ analysis, answer });
+  } catch (err) {
+    console.error("[analyze-screen] error:", err);
+    return res.status(500).json({ error: "internal_error" });
   }
 });
 
-/* ========================================================================
-   Debugging & Admin Tools
-   ======================================================================== */
-app.post("/admin/api/debug/redis", requireAdmin, async (req, res) => {
-  try {
-    const keys = req.body.keys || [];
-    debugLog('DEBUG', 'Redis debug request', { keys });
-
-    if (!Array.isArray(keys) || keys.length === 0) {
-      return res.status(400).json({ error: "Invalid keys format" });
-    }
-
-    const results = {};
-    for (const key of keys) {
-      try {
-        const value = await redisClient.get(key);
-        results[key] = value ? JSON.parse(value) : null;
-      } catch (e) {
-        results[key] = null;
-      }
-    }
-
-    debugLog('DEBUG', 'Redis debug results', { count: Object.keys(results).length });
-    return res.json({ ok: true, results });
-  } catch (e) {
-    debugLog('DEBUG', 'Redis debug error', { error: e.message });
-    return res.status(500).json({ error: "Redis debug error" });
-  }
-});
-
-// Health check endpoint
-app.get("/health", (_req, res) => {
-  res.json({ status: "ok" });
-});
-
-// 404 handler
-app.use((req, res) => {
-  res.status(404).send("Not found");
-});
-
-// Global error handler
-app.use((err, req, res, next) => {
-  debugLog('ERROR', 'Unexpected error', { error: err.message });
-  res.status(500).json({ error: "Internal server error" });
-});
-
-/* ========================================================================
-   Start the server
-   ======================================================================== */
+/* ---------- Start the server (Render-safe) ---------- */
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => {
-  debugLog('SERVER', `Server running on port ${PORT}`);
-  console.log(`✅ Server is running on port ${PORT}`);
+const HOST = "0.0.0.0";
+
+app.listen(PORT, HOST, () => {
+  console.log(`✅ Server listening on http://${HOST}:${PORT}`);
+  console.log("   Paste a JD in the UI (Save JD) to tailor answers.");
 });
