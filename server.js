@@ -701,7 +701,7 @@ Return JSON: {"analysis":"what you see + insights","answer":"recommended respons
         });
 
         // ✅ If we got a response, break the retry loop
-        if response?.choices?.[0]?.message?.content) {
+        if (response?.choices?.[0]?.message?.content) {
           break;
         }
 
