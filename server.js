@@ -690,7 +690,7 @@ Return JSON: {"analysis":"what you see + insights","answer":"recommended respons
             ]
           }],
           temperature: mode === "god" ? 0.3 : 0.4,
-          max_tokens: mode === "god" ? 4000 : 2000, // ✅ INCREASED from 3000/1500
+          max_tokens: mode === "god" ? 6000 : 4000, // ✅ INCREASED (was 3000/1500)
           response_format: { type: "json_object" }
         });
 
@@ -701,174 +701,207 @@ Return JSON: {"analysis":"what you see + insights","answer":"recommended respons
         });
 
         // ✅ If we got a response, break the retry loop
-        if (response?.choices?.[0]?.message?.content) {
-          break;
-        }
-
-      } catch (apiError) {
-        debugLog('ANALYZE', `Vision API attempt ${attempt} failed`, { 
-          error: apiError.message,
-          code: apiError.code 
-        });
-        
-        // ✅ If last attempt, throw
-        if (attempt === maxAttempts) {
-          throw apiError;
-        }
-        
-        // ✅ Wait before retry
-        await new Promise(r => setTimeout(r, 1000));
+        if (response?.choices?.length) break;
+      } catch (e) {
+        debugLog('ANALYZE', 'Vision API error', { attempt, error: e.message });
       }
     }
 
-    let textOut = response?.choices?.[0]?.message?.content || "";
-    
-    debugLog('ANALYZE', 'Raw response from vision', { 
-      length: textOut.length,
-      preview: textOut.slice(0, 200)
+    if (!response?.choices?.length) {
+      return res.status(500).json({ error: "Failed to get a valid response from the vision API" });
+    }
+
+    const rawText = response.choices[0]?.message?.content || "";
+    console.log(`[${timestamp()}] [ANALYZE] Raw response from vision`, {
+      length: rawText.length,
+      preview: rawText.slice(0, 200)
     });
 
-    if (!textOut || textOut.trim() === "") {
-      debugLog('ANALYZE', 'Empty response from vision API');
-      return res.status(502).json({ 
-        error: "vision_empty_response", 
-        message: "Vision API returned empty response. Try again or use a clearer screenshot."
+    let parsed;
+    
+    // ✅ TRY 1: Direct parse
+    try {
+      parsed = JSON.parse(rawText);
+    } catch (parseErr) {
+      console.log(`[${timestamp()}] [ANALYZE] Direct JSON parse failed, trying extraction`);
+      
+      // ✅ TRY 2: Extract from markdown code block
+      const match = rawText.match(/```(?:json)?\s*(\{[\s\S]*\})\s*```/);
+      if (match) {
+        try {
+          parsed = JSON.parse(match[1]);
+        } catch {}
+      }
+      
+      // ✅ TRY 3: Find first { to last }
+      if (!parsed) {
+        const startIdx = rawText.indexOf('{');
+        const endIdx = rawText.lastIndexOf('}');
+        if (startIdx !== -1 && endIdx !== -1 && endIdx > startIdx) {
+          try {
+            const extracted = rawText.slice(startIdx, endIdx + 1);
+            parsed = JSON.parse(extracted);
+          } catch {}
+        }
+      }
+      
+      // ✅ TRY 4: Attempt to complete truncated JSON
+      if (!parsed && rawText.includes('"answer"')) {
+        try {
+          let fixed = rawText.trim();
+          // Count open braces
+          const openBraces = (fixed.match(/{/g) || []).length;
+          const closeBraces = (fixed.match(/}/g) || []).length;
+          
+          // Add missing closing braces
+          for (let i = 0; i < openBraces - closeBraces; i++) {
+            fixed += '}';
+          }
+          
+          // If answer field is incomplete, try to close the string
+          if (!fixed.endsWith('"}}') && !fixed.endsWith('"}')) {
+            fixed = fixed.replace(/"answer":\s*"([^"]*?)$/, '"answer":"$1"');
+          }
+          
+          parsed = JSON.parse(fixed);
+        } catch (fixErr) {
+          console.log(`[${timestamp()}] [ANALYZE] Auto-fix failed:`, fixErr.message);
+        }
+      }
+    }
+
+    // ✅ VALIDATION
+    if (!parsed || !parsed.analysis || !parsed.answer) {
+      console.error(`[${timestamp()}] [ANALYZE] Bad model output`, {
+        raw: rawText.slice(0, 500),
+        hasParsed: !!parsed,
+        hasAnalysis: !!(parsed?.analysis),
+        hasAnswer: !!(parsed?.answer)
+      });
+      
+      return res.status(502).json({
+        error: "bad_model_output",
+        message: "Vision API returned incomplete response. Try again.",
+        raw: rawText.slice(0, 500)
       });
     }
 
-    // ✅ ROBUST JSON PARSING
-    let parsed;
-    
-    // Try direct parse
-    try {
-      parsed = JSON.parse(textOut);
-    } catch {
-      debugLog('ANALYZE', 'Direct JSON parse failed, trying extraction');
-      
-      // Try extracting JSON from markdown code blocks
-      const codeBlockMatch = textOut.match(/```(?:json)?\s*(\{[\s\S]*?\})\s*```/);
-      if (codeBlockMatch?.[1]) {
-        try {
-          parsed = JSON.parse(codeBlockMatch[1]);
-          debugLog('ANALYZE', 'Extracted JSON from code block', { 
-            length: JSON.stringify(parsed).length 
-          });
-        } catch (extractionError) {
-          debugLog('ANALYZE', 'JSON extraction from code block failed', { error: extractionError.message });
-        }
+    // ✅ SUCCESS - Store the analysis
+    userStates[userId].lastVisionAnalysis = {
+      timestamp: Date.now(),
+      mode,
+      analysis: parsed.analysis,
+      answer: parsed.answer
+    };
+
+    debugLog('ANALYZE', 'Analysis processed', { 
+      detailedAnalysisLength: detailedAnalysis.length, 
+      answerLength: answer.length 
+    });
+
+    return res.json({ 
+      ok: true, 
+      analysis: detailedAnalysis, 
+      answer 
+    });
+  } catch (e) {
+    debugLog('ANALYZE', 'Screen analysis error', { error: e.message });
+    return res.status(500).json({ error: "Screen analysis error" });
+  }
+});
+
+/* ========================================================================
+   OpenAI API Proxy (for direct API calls from the browser)
+   ======================================================================== */
+app.post("/api/proxy/openai", requireAuth, async (req, res) => {
+  try {
+    const { messages, model = "gpt-4o", temperature = 0.7, max_tokens = 1500 } = req.body;
+    debugLog('PROXY', 'OpenAI API proxy request', { 
+      userId: req.session.userId, 
+      model, 
+      temperature, 
+      max_tokens 
+    });
+
+    if (!Array.isArray(messages) || messages.length === 0) {
+      return res.status(400).json({ error: "Invalid messages format" });
+    }
+
+    // Forward the request to OpenAI API
+    const response = await openai.chat.completions.create({
+      model,
+      messages,
+      temperature,
+      max_tokens,
+    });
+
+    debugLog('PROXY', 'OpenAI API response', { 
+      hasChoices: !!response?.choices?.length, 
+      usage: response?.usage 
+    });
+
+    if (response?.choices?.length) {
+      return res.json({ ok: true, result: response.choices[0].message });
+    } else {
+      return res.status(500).json({ error: "No response from OpenAI API" });
+    }
+  } catch (e) {
+    debugLog('PROXY', 'OpenAI API proxy error', { error: e.message });
+    return res.status(500).json({ error: "OpenAI API proxy error" });
+  }
+});
+
+/* ========================================================================
+   Debugging & Admin Tools (for testing and diagnostics)
+   ======================================================================== */
+app.post("/admin/api/debug/redis", requireAdmin, async (req, res) => {
+  try {
+    const keys = req.body.keys || [];
+    debugLog('DEBUG', 'Redis debug request', { keys });
+
+    if (!Array.isArray(keys) || keys.length === 0) {
+      return res.status(400).json({ error: "Invalid keys format" });
+    }
+
+    const results = {};
+    for (const key of keys) {
+      try {
+        const value = await redisClient.get(key);
+        results[key] = value ? JSON.parse(value) : null;
+      } catch (e) {
+        results[key] = null;
       }
     }
 
-    if (!parsed || typeof parsed !== "object") {
-      debugLog('ANALYZE', 'Bad model output', { raw: textOut?.slice(0, 200) });
-      return res.status(502).json({ error: "bad_model_output", raw: textOut?.slice(0, 1000) });
-    }
-
-    const analysis = String(parsed.analysis || "").trim();
-    const answer = String(parsed.answer || "").trim();
-
-    debugLog('ANALYZE', 'Analysis complete', { 
-      analysisLength: analysis.length,
-      answerLength: answer.length
-    });
-
-    req.session.latestAnalysis = analysis;
-    req.session.analyzedQuestion = lastQA.q;
-    await req.session.save();
-
-    return res.json({ 
-      ok: true, 
-      analysis, 
-      answer,
-      realtimeUpdate: true
-    });
-
-  } catch (err) {
-    debugLog('ANALYZE', 'Analysis error', { error: err.message, stack: err.stack });
-    console.error("[analyze-screen] error:", err);
-    return res.status(500).json({ error: "internal_error" });
+    debugLog('DEBUG', 'Redis debug results', { count: Object.keys(results).length });
+    return res.json({ ok: true, results });
+  } catch (e) {
+    debugLog('DEBUG', 'Redis debug error', { error: e.message });
+    return res.status(500).json({ error: "Redis debug error" });
   }
 });
 
-app.post("/realtime-update", requireAuth, async (req, res) => {
-  try {
-    const analysis = req.session.latestAnalysis || "";
-    const question = req.session.analyzedQuestion || "";
-    const mode = req.session.mode || "smart";
-
-    debugLog('REALTIME', 'Injecting analysis into session', { 
-      mode, 
-      hasAnalysis: !!analysis,
-      question: question?.slice(0, 50)
-    });
-
-    if (!analysis) {
-      debugLog('REALTIME', 'No analysis available');
-      return res.status(400).json({ error: "No analysis available" });
-    }
-
-    const enhancedInstructions = `
-SCREEN ANALYSIS:
-${analysis}
-
-CONTEXTUAL ANSWERING RULE:
-Use this analysis to generate a fresh answer to the interviewer's last question:
-
-"${question}"
-
-Apply the ${mode === "god" ? "GOD MODE" : "SMART DETAIL"} style from your original instructions.
-`.trim();
-
-    debugLog('REALTIME', 'Instructions prepared for injection');
-    return res.json({ 
-      ok: true, 
-      instructions: enhancedInstructions,
-      shouldTriggerResponse: true
-    });
-
-  } catch (err) {
-    debugLog('REALTIME', 'Update error', { error: err.message });
-    console.error("[realtime-update] error:", err);
-    return res.status(500).json({ error: "internal_error" });
-  }
+// Health check endpoint
+app.get("/health", (_req, res) => {
+  res.json({ status: "ok" });
 });
 
-app.post("/save-turn", requireAuth, async (req, res) => {
-  try {
-    const { q, a } = req.body || {};
-    
-    debugLog('TRANSCRIPT', 'Saving turn', { 
-      qLength: q?.length || 0,
-      aLength: a?.length || 0,
-      userId: req.session?.userId
-    });
-    
-    if (!req.session.transcript) {
-      req.session.transcript = [];
-    }
-
-    req.session.transcript.push({ 
-      q: String(q || "").trim(), 
-      a: String(a || "").trim() 
-    });
-
-    await req.session.save();
-
-    debugLog('TRANSCRIPT', 'Turn saved', { totalTurns: req.session.transcript.length });
-    return res.json({ ok: true });
-  } catch (err) {
-    debugLog('TRANSCRIPT', 'Save turn error', { error: err.message });
-    console.error("[save-turn] error:", err);
-    return res.status(500).json({ error: "internal_error" });
-  }
+// 404 handler
+app.use((req, res) => {
+  res.status(404).send("Not found");
 });
 
-/* ---------- Start the server (Render-safe) ---------- */
+// Global error handler
+app.use((err, req, res, next) => {
+  debugLog('ERROR', 'Unexpected error', { error: err.message });
+  res.status(500).json({ error: "Internal server error" });
+});
+
+/* ========================================================================
+   Start the server
+   ======================================================================== */
 const PORT = process.env.PORT || 3000;
-const HOST = "0.0.0.0";
-
-app.listen(PORT, HOST, () => {
-  debugLog('SERVER', 'Server started', { port: PORT, host: HOST, env: process.env.NODE_ENV });
-  console.log(`✅ Server listening on http://${HOST}:${PORT}`);
-  console.log("   Paste a JD in the UI (Save JD) to tailor answers.");
+app.listen(PORT, () => {
+  debugLog('SERVER', `Server running on port ${PORT}`);
+  console.log(`✅ Server is running on port ${PORT}`);
 });
