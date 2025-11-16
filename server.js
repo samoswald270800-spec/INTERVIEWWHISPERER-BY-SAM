@@ -19,7 +19,7 @@ const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 app.set("trust proxy", 1);
 
 // Parse JSON before auth routes (needed for /api/login and /set-jd)
-app.use(express.json({ limit: "1mb" })); // for /set-jd and login
+app.use(express.json({ limit: "25mb" })); // for /set-jd and login
 /* =======================================================================
    Redis session store (connect-redis v8 + node-redis v4, ESM)
    ======================================================================= */
@@ -600,7 +600,7 @@ app.post("/analyze-screen", requireAuth, async (req, res) => {
     let imageDataUrl = screenshot.startsWith("data:")
       ? screenshot
       : `data:image/png;base64,${screenshot}`;
-    if (imageDataUrl.length > 25_000_000) {
+    if (imageDataUrl.length > 50_000_000) {
       return res.status(413).json({ error: "screenshot too large" });
     }
 
@@ -621,7 +621,7 @@ app.post("/analyze-screen", requireAuth, async (req, res) => {
         .filter(Boolean)
         .join("\n\n");
     }
-    transcriptStr = transcriptStr.slice(0, 8000); // cap
+    transcriptStr = transcriptStr.slice(0, 20000); // cap
 
     // Server-authored instructions
     const promptFromFrontend = [
@@ -646,7 +646,7 @@ app.post("/analyze-screen", requireAuth, async (req, res) => {
       model: "gpt-4o",
       messages: [{ role: "user", content }],
       temperature: 0.4,
-      max_tokens: 1200,
+      max_tokens: 3000,
       response_format: { type: "json_object" }
     });
 
