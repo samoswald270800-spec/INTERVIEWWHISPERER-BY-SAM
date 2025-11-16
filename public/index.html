@@ -1219,10 +1219,19 @@
           case "response.audio_transcript.delta": {
             const d = extractText(msg);
             if (d) {
-              ensureCard(); // ✅ CRITICAL: Ensure card exists
+              ensureCard();
               partialA += d;
               
-              // ✅ DEFENSIVE CHECK
+              // ✅ TEMPORARY: Log full state
+              debugLog('Delta received', { 
+                delta: d, 
+                partialALength: partialA.length,
+                hasQa: !!qa,
+                hasQaEl: !!(qa?.qEl),
+                hasAEl: !!(qa?.aEl),
+                aElTextContent: qa?.aEl?.textContent
+              });
+              
               if (qa && qa.aEl) {
                 qa.aEl.textContent = "A: " + partialA;
                 debugLog('Answer delta applied to DOM', { length: d.length, total: partialA.length });
