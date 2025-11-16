@@ -689,7 +689,7 @@
     entry.className = 'debug-entry';
     entry.style.marginBottom = '8px';
     entry.style.paddingBottom = '6px';
-    entry.style.borderBottom = '1px solid rgba(255,255,255,0.05)';
+    entry.style.borderBottom = '1px solid rgba(255, 255, 255, 0.05)';
     
     let text = `[${timestamp}] ${message}`;
     if (data !== null && data !== undefined) {
@@ -1168,7 +1168,9 @@
             setStatus("listening…");
             return;
 
-          case "response.input_audio_transcription.delta": {
+          // ✅ HANDLE TRANSCRIPT DELTAS (for Questions)
+          case "conversation.item.input_audio_transcription.delta":
+          case "input_audio_buffer.transcription.delta": {
             const t = msg.delta || extractText(msg);
             if (t) {
               partialQ += t;
@@ -1179,7 +1181,8 @@
             return;
           }
           
-          case "response.input_audio_transcription.completed": {
+          case "conversation.item.input_audio_transcription.completed":
+          case "input_audio_buffer.transcription.completed": {
             finalQ = msg.transcript || extractText(msg) || partialQ;
             ensureCard();
             qa.qEl.textContent = "Q: " + finalQ;
@@ -1208,15 +1211,66 @@
             return;
           }
 
+          // ✅ COMPREHENSIVE ANSWER HANDLERS (ALL POSSIBLE DELTA TYPES)
           case "response.text.delta":
           case "response.output_text.delta":
-          case "response.delta": {
+          case "response.delta":
+          case "response.content_part.delta":
+          case "response.audio_transcript.delta": {
             const d = extractText(msg);
             if (d) {
               ensureCard();
               partialA += d;
-              qa.aEl.textContent += d;
+              // ✅ FIX: Use textContent assignment, not +=
+              qa.aEl.textContent = "A: " + partialA;
               debugLog('Answer delta', { length: d.length, total: partialA.length });
+            }
+            return;
+          }
+
+          // ✅ HANDLE TEXT DONE (final text)
+          case "response.text.done": {
+            if (msg.text) {
+              ensureCard();
+              // Use the complete text if we have it
+              if (!partialA || partialA.length < 10) {
+                partialA = msg.text;
+                qa.aEl.textContent = "A: " + partialA;
+                debugLog('Answer from text.done', { length: partialA.length });
+              }
+            }
+            return;
+          }
+
+          // ✅ HANDLE RESPONSE DONE
+          case "response.done": {
+            pillOn(pProcessing, false);
+            finalA = partialA;
+            debugLog('Response completed', { answerLength: finalA.length });
+            
+            // ✅ Log if we got no answer
+            if (!finalA || finalA.length < 5) {
+              debugLog('⚠️ Response completed but no answer!', { 
+                msgType: msg.type,
+                partialA,
+                fullEvent: msg 
+              });
+            }
+            
+            resetTurn();
+            setStatus("ready — speak in the meeting tab");
+            return;
+          }
+
+          // ✅ HANDLE CONTENT PART DONE
+          case "response.content_part.done":
+          case "response.output_item.done": {
+            // Sometimes the complete text is here
+            if (msg.part?.text && (!partialA || partialA.length < 10)) {
+              ensureCard();
+              partialA = msg.part.text;
+              qa.aEl.textContent = "A: " + partialA;
+              debugLog('Answer from content_part.done', { length: partialA.length });
             }
             return;
           }
@@ -1226,21 +1280,20 @@
             if (t) {
               ensureCard();
               partialA += t;
-              qa.aEl.textContent += t;
+              qa.aEl.textContent = "A: " + partialA;
               debugLog('Answer message', { length: t.length });
             }
             return;
           }
 
-          case "response.completed":
-            pillOn(pProcessing, false);
-            finalA = partialA;
-            debugLog('Response completed', { answerLength: finalA.length });
-            resetTurn();
-            setStatus("ready — speak in the meeting tab");
-            return;
-
+          // ✅ LOG UNHANDLED EVENTS (debugging)
           default:
+            if (msg.type && !msg.type.startsWith('session.') && 
+                !msg.type.startsWith('input_audio_buffer.committed') &&
+                !msg.type.startsWith('rate_limits.') &&
+                !msg.type.startsWith('conversation.item.created')) {
+              debugLog('Unhandled event type', { type: msg.type, msg });
+            }
             return;
         }
       };
