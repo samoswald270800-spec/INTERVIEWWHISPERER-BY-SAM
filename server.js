@@ -32,7 +32,7 @@ function debugLog(context, message, data = null) {
 app.set("trust proxy", 1);
 
 // Parse JSON before auth routes (needed for /api/login and /set-jd)
-app.use(express.json({ limit: "1mb" })); // for /set-jd and login
+app.use(express.json({ limit: "25mb" })); // ✅ Increased for screenshots
 
 /* =======================================================================
    Redis session store (connect-redis v8 + node-redis v4, ESM)
@@ -390,8 +390,6 @@ app.post("/set-jd", (req, res) => {
    WebRTC Realtime Session + Transcript Collection
    ────────────────────────────────────────────────────────────────── */
 
-const activeDataChannels = new Map();
-
 app.post("/session", async (req, res) => {
   try {
     const mode = (req.body && req.body.mode) ? String(req.body.mode).toLowerCase() : "smart";
@@ -589,13 +587,18 @@ ${assignment || "(no assignment provided)"}
   }
 });
 
+/* ========================================================================
+   ANALYZE SCREEN ENDPOINT (Vision API)
+   ======================================================================== */
 app.post("/analyze-screen", requireAuth, async (req, res) => {
   try {
     const { screenshotBase64, mode } = req.body || {};
+    const userId = req.session?.userId;
+    
     debugLog('ANALYZE', 'Screen analysis requested', { 
       mode, 
       imageSize: screenshotBase64?.length || 0,
-      userId: req.session?.userId 
+      userId 
     });
 
     if (!screenshotBase64 || typeof screenshotBase64 !== "string") {
@@ -607,7 +610,6 @@ app.post("/analyze-screen", requireAuth, async (req, res) => {
       ? screenshotBase64
       : `data:image/png;base64,${screenshotBase64}`;
 
-    // ✅ Reduce max size to 20MB (OpenAI limit)
     if (imageDataUrl.length > 20_000_000) {
       debugLog('ANALYZE', 'Screenshot too large', { size: imageDataUrl.length });
       return res.status(413).json({ error: "screenshot too large (max 20MB)" });
@@ -634,7 +636,6 @@ app.post("/analyze-screen", requireAuth, async (req, res) => {
 
     transcriptStr = transcriptStr.slice(0, 8000);
 
-    // ✅ SIMPLIFIED PROMPT (more direct)
     const visionPrompt = `You are helping a candidate in a live job interview.
 
 Analyze this screenshot and provide:
@@ -663,7 +664,6 @@ Return JSON: {"analysis":"what you see + insights","answer":"recommended respons
       imageUrlPrefix: imageDataUrl.slice(0, 50)
     });
 
-    // ✅ ADD RETRY LOGIC
     let response;
     let attempt = 0;
     const maxAttempts = 2;
@@ -690,7 +690,7 @@ Return JSON: {"analysis":"what you see + insights","answer":"recommended respons
             ]
           }],
           temperature: mode === "god" ? 0.3 : 0.4,
-          max_tokens: mode === "god" ? 6000 : 4000, // ✅ INCREASED (was 3000/1500)
+          max_tokens: mode === "god" ? 6000 : 4000,
           response_format: { type: "json_object" }
         });
 
@@ -700,10 +700,10 @@ Return JSON: {"analysis":"what you see + insights","answer":"recommended respons
           contentLength: response?.choices?.[0]?.message?.content?.length || 0
         });
 
-        // ✅ If we got a response, break the retry loop
         if (response?.choices?.length) break;
       } catch (e) {
         debugLog('ANALYZE', 'Vision API error', { attempt, error: e.message });
+        if (attempt >= maxAttempts) throw e;
       }
     }
 
@@ -712,7 +712,7 @@ Return JSON: {"analysis":"what you see + insights","answer":"recommended respons
     }
 
     const rawText = response.choices[0]?.message?.content || "";
-    console.log(`[${timestamp()}] [ANALYZE] Raw response from vision`, {
+    debugLog('ANALYZE', 'Raw response from vision', {
       length: rawText.length,
       preview: rawText.slice(0, 200)
     });
@@ -723,7 +723,7 @@ Return JSON: {"analysis":"what you see + insights","answer":"recommended respons
     try {
       parsed = JSON.parse(rawText);
     } catch (parseErr) {
-      console.log(`[${timestamp()}] [ANALYZE] Direct JSON parse failed, trying extraction`);
+      debugLog('ANALYZE', 'Direct JSON parse failed, trying extraction');
       
       // ✅ TRY 2: Extract from markdown code block
       const match = rawText.match(/```(?:json)?\s*(\{[\s\S]*\})\s*```/);
@@ -749,30 +749,27 @@ Return JSON: {"analysis":"what you see + insights","answer":"recommended respons
       if (!parsed && rawText.includes('"answer"')) {
         try {
           let fixed = rawText.trim();
-          // Count open braces
           const openBraces = (fixed.match(/{/g) || []).length;
           const closeBraces = (fixed.match(/}/g) || []).length;
           
-          // Add missing closing braces
           for (let i = 0; i < openBraces - closeBraces; i++) {
             fixed += '}';
           }
           
-          // If answer field is incomplete, try to close the string
           if (!fixed.endsWith('"}}') && !fixed.endsWith('"}')) {
             fixed = fixed.replace(/"answer":\s*"([^"]*?)$/, '"answer":"$1"');
           }
           
           parsed = JSON.parse(fixed);
         } catch (fixErr) {
-          console.log(`[${timestamp()}] [ANALYZE] Auto-fix failed:`, fixErr.message);
+          debugLog('ANALYZE', 'Auto-fix failed', { error: fixErr.message });
         }
       }
     }
 
     // ✅ VALIDATION
     if (!parsed || !parsed.analysis || !parsed.answer) {
-      console.error(`[${timestamp()}] [ANALYZE] Bad model output`, {
+      debugLog('ANALYZE', 'Bad model output', {
         raw: rawText.slice(0, 500),
         hasParsed: !!parsed,
         hasAnalysis: !!(parsed?.analysis),
@@ -786,8 +783,12 @@ Return JSON: {"analysis":"what you see + insights","answer":"recommended respons
       });
     }
 
-    // ✅ SUCCESS - Store the analysis
-    userStates[userId].lastVisionAnalysis = {
+    // ✅ SUCCESS - Store the analysis in session
+    if (!req.session.visionAnalysis) {
+      req.session.visionAnalysis = {};
+    }
+    
+    req.session.visionAnalysis = {
       timestamp: Date.now(),
       mode,
       analysis: parsed.analysis,
@@ -795,18 +796,147 @@ Return JSON: {"analysis":"what you see + insights","answer":"recommended respons
     };
 
     debugLog('ANALYZE', 'Analysis processed', { 
-      detailedAnalysisLength: detailedAnalysis.length, 
-      answerLength: answer.length 
+      analysisLength: parsed.analysis.length,
+      answerLength: parsed.answer.length
     });
 
     return res.json({ 
       ok: true, 
-      analysis: detailedAnalysis, 
-      answer 
+      analysis: parsed.analysis, 
+      answer: parsed.answer 
     });
   } catch (e) {
-    debugLog('ANALYZE', 'Screen analysis error', { error: e.message });
+    debugLog('ANALYZE', 'Screen analysis error', { error: e.message, stack: e.stack });
     return res.status(500).json({ error: "Screen analysis error" });
+  }
+});
+
+/* ========================================================================
+   REALTIME UPDATE ENDPOINT (Inject screen analysis into realtime session)
+   ======================================================================== */
+app.post("/realtime-update", requireAuth, async (req, res) => {
+  try {
+    const userId = req.session?.userId;
+    const mode = req.session?.mode || "smart";
+    const visionData = req.session?.visionAnalysis;
+
+    debugLog('REALTIME', 'Update requested', { 
+      userId, 
+      mode, 
+      hasVision: !!visionData 
+    });
+
+    if (!visionData || !visionData.analysis || !visionData.answer) {
+      debugLog('REALTIME', 'No vision data available');
+      return res.status(400).json({ 
+        error: "No screen analysis available. Click Analyze Screen first." 
+      });
+    }
+
+    const age = Date.now() - (visionData.timestamp || 0);
+    if (age > 5 * 60 * 1000) {
+      debugLog('REALTIME', 'Vision data too old', { ageMs: age });
+      return res.status(410).json({ 
+        error: "Screen analysis expired (>5min). Capture again." 
+      });
+    }
+
+    const SCREEN_CTX = `
+📸 SCREEN CONTEXT (use this to answer the current question):
+
+WHAT YOU SEE:
+${visionData.analysis}
+
+RECOMMENDED ANSWER:
+${visionData.answer}
+
+INSTRUCTIONS:
+- Use the recommended answer as your base response
+- Adapt it naturally to fit the conversation flow
+- Keep first-person voice ("I noticed...", "I see...")
+- DO NOT say "based on the screen" or "in the image"
+- Speak as if you're naturally observing and analyzing
+`.trim();
+
+    const GLOBAL_RULES = `
+🔥 GLOBAL RULES
+You are the candidate in a live interview.
+Never mention AI, screen, image, or screenshot.
+Respond in first person ("I" / "my").
+Sound conversational and human.
+`.trim();
+
+    const modeInstructions = mode === "god" 
+      ? "Provide detailed 900+ word answers with deep analysis."
+      : "Provide concise 300-500 word answers with key points.";
+
+    const fullInstructions = `
+${SCREEN_CTX}
+
+${GLOBAL_RULES}
+
+${modeInstructions}
+
+JOB DESCRIPTION:
+${JOB_DESC || "(not provided)"}
+
+RESUME:
+${resume || "(not provided)"}
+`.trim();
+
+    debugLog('REALTIME', 'Instructions built', { 
+      instructionsLength: fullInstructions.length,
+      mode 
+    });
+
+    // Clear the vision data after use (one-time injection)
+    delete req.session.visionAnalysis;
+
+    return res.json({ 
+      ok: true, 
+      instructions: fullInstructions,
+      shouldTriggerResponse: true
+    });
+  } catch (e) {
+    debugLog('REALTIME', 'Update error', { error: e.message });
+    return res.status(500).json({ error: "Realtime update error" });
+  }
+});
+
+/* ========================================================================
+   SAVE TURN ENDPOINT (Save Q&A pairs to session transcript)
+   ======================================================================== */
+app.post("/save-turn", requireAuth, async (req, res) => {
+  try {
+    const { q, a } = req.body || {};
+    
+    if (!req.session.transcript) {
+      req.session.transcript = [];
+    }
+
+    const turn = {
+      q: (q || "").toString().trim(),
+      a: (a || "").toString().trim(),
+      timestamp: Date.now()
+    };
+
+    req.session.transcript.push(turn);
+
+    // Keep only last 50 turns
+    if (req.session.transcript.length > 50) {
+      req.session.transcript = req.session.transcript.slice(-50);
+    }
+
+    debugLog('TRANSCRIPT', 'Turn saved', { 
+      qLength: turn.q.length, 
+      aLength: turn.a.length,
+      totalTurns: req.session.transcript.length
+    });
+
+    return res.json({ ok: true });
+  } catch (e) {
+    debugLog('TRANSCRIPT', 'Save turn error', { error: e.message });
+    return res.status(500).json({ error: "Failed to save turn" });
   }
 });
 
@@ -827,7 +957,6 @@ app.post("/api/proxy/openai", requireAuth, async (req, res) => {
       return res.status(400).json({ error: "Invalid messages format" });
     }
 
-    // Forward the request to OpenAI API
     const response = await openai.chat.completions.create({
       model,
       messages,
@@ -852,7 +981,7 @@ app.post("/api/proxy/openai", requireAuth, async (req, res) => {
 });
 
 /* ========================================================================
-   Debugging & Admin Tools (for testing and diagnostics)
+   Debugging & Admin Tools
    ======================================================================== */
 app.post("/admin/api/debug/redis", requireAdmin, async (req, res) => {
   try {
