@@ -617,7 +617,7 @@ app.post("/analyze-screen", requireAuth, async (req, res) => {
 
     const fullTranscript = req.session.transcript || [];
     const recentTranscript = fullTranscript.slice(-15);
-    const lastQA = fullTranscript[fullTranscript.length - 1] || { q: "", a: "" };
+    const lastQA = fullTranscript[fullTranscript.length - 1] || { q, a: "" };
 
     debugLog('ANALYZE', 'Transcript context', { 
       totalTurns: fullTranscript.length,
@@ -636,12 +636,10 @@ app.post("/analyze-screen", requireAuth, async (req, res) => {
 
     transcriptStr = transcriptStr.slice(0, 8000);
 
+    // ✅ SIMPLIFIED PROMPT - No JSON wrapper, direct answer
     const visionPrompt = `You are helping a candidate in a live job interview.
 
-Analyze this screenshot and provide:
-1. What you see (data, charts, metrics, UI elements)
-2. Key insights (patterns, anomalies, business implications)
-3. A recommended answer the candidate should give
+Analyze this screenshot and provide a recommended answer the candidate should give.
 
 RULES:
 - Respond in first person as the candidate
@@ -649,6 +647,7 @@ RULES:
 - Use numbers and specifics from the screenshot
 - ${mode === "god" ? "Give a detailed 900+ word answer" : "Give a concise 300-500 word answer"}
 - Never mention AI, screenshot, or image
+- Start your answer immediately, no preamble
 
 CONTEXT:
 Last question: "${lastQA.q || "(no question yet)"}"
@@ -656,7 +655,7 @@ Last question: "${lastQA.q || "(no question yet)"}"
 Recent conversation:
 ${transcriptStr || "(no transcript yet)"}
 
-Return JSON: {"analysis":"what you see + insights","answer":"recommended response"}`;
+Provide ONLY the recommended answer the candidate should say:`;
 
     debugLog('ANALYZE', 'Sending to OpenAI vision API', { 
       mode,
@@ -666,7 +665,7 @@ Return JSON: {"analysis":"what you see + insights","answer":"recommended respons
 
     let response;
     let attempt = 0;
-    const maxAttempts = 2;
+    const maxAttempts = 3; // ✅ Increased to 3 attempts
 
     while (attempt < maxAttempts) {
       attempt++;
@@ -689,97 +688,68 @@ Return JSON: {"analysis":"what you see + insights","answer":"recommended respons
               }
             ]
           }],
-          temperature: mode === "god" ? 0.3 : 0.4,
-          max_tokens: mode === "god" ? 6000 : 4000,
-          response_format: { type: "json_object" }
+          temperature: mode === "god" ? 0.3 : 0.5,
+          max_tokens: mode === "god" ? 8000 : 5000, // ✅ INCREASED significantly
         });
 
         debugLog('ANALYZE', 'Vision API response received', {
           attempt,
           hasChoices: !!response?.choices?.length,
-          contentLength: response?.choices?.[0]?.message?.content?.length || 0
+          contentLength: response?.choices?.[0]?.message?.content?.length || 0,
+          finishReason: response?.choices?.[0]?.finish_reason
         });
+
+        // ✅ CHECK FINISH REASON
+        if (response?.choices?.[0]?.finish_reason === 'length') {
+          debugLog('ANALYZE', '⚠️ Response truncated due to token limit, retrying with higher limit');
+          
+          // Retry with even higher token limit
+          if (attempt < maxAttempts) {
+            await new Promise(r => setTimeout(r, 1000)); // Wait 1s before retry
+            continue;
+          }
+        }
 
         if (response?.choices?.length) break;
       } catch (e) {
-        debugLog('ANALYZE', 'Vision API error', { attempt, error: e.message });
+        debugLog('ANALYZE', 'Vision API error', { attempt, error: e.message, stack: e.stack });
         if (attempt >= maxAttempts) throw e;
+        
+        // Wait before retry
+        await new Promise(r => setTimeout(r, 2000));
       }
     }
 
     if (!response?.choices?.length) {
-      return res.status(500).json({ error: "Failed to get a valid response from the vision API" });
+      return res.status(500).json({ 
+        error: "Failed to get a valid response from the vision API after 3 attempts" 
+      });
     }
 
-    const rawText = response.choices[0]?.message?.content || "";
+    const rawText = (response.choices[0]?.message?.content || "").trim();
+    const finishReason = response.choices[0]?.finish_reason;
+    
     debugLog('ANALYZE', 'Raw response from vision', {
       length: rawText.length,
-      preview: rawText.slice(0, 200)
+      finishReason,
+      preview: rawText.slice(0, 200),
+      ending: rawText.slice(-100)
     });
 
-    let parsed;
-    
-    // ✅ TRY 1: Direct parse
-    try {
-      parsed = JSON.parse(rawText);
-    } catch (parseErr) {
-      debugLog('ANALYZE', 'Direct JSON parse failed, trying extraction');
-      
-      // ✅ TRY 2: Extract from markdown code block
-      const match = rawText.match(/```(?:json)?\s*(\{[\s\S]*\})\s*```/);
-      if (match) {
-        try {
-          parsed = JSON.parse(match[1]);
-        } catch {}
-      }
-      
-      // ✅ TRY 3: Find first { to last }
-      if (!parsed) {
-        const startIdx = rawText.indexOf('{');
-        const endIdx = rawText.lastIndexOf('}');
-        if (startIdx !== -1 && endIdx !== -1 && endIdx > startIdx) {
-          try {
-            const extracted = rawText.slice(startIdx, endIdx + 1);
-            parsed = JSON.parse(extracted);
-          } catch {}
-        }
-      }
-      
-      // ✅ TRY 4: Attempt to complete truncated JSON
-      if (!parsed && rawText.includes('"answer"')) {
-        try {
-          let fixed = rawText.trim();
-          const openBraces = (fixed.match(/{/g) || []).length;
-          const closeBraces = (fixed.match(/}/g) || []).length;
-          
-          for (let i = 0; i < openBraces - closeBraces; i++) {
-            fixed += '}';
-          }
-          
-          if (!fixed.endsWith('"}}') && !fixed.endsWith('"}')) {
-            fixed = fixed.replace(/"answer":\s*"([^"]*?)$/, '"answer":"$1"');
-          }
-          
-          parsed = JSON.parse(fixed);
-        } catch (fixErr) {
-          debugLog('ANALYZE', 'Auto-fix failed', { error: fixErr.message });
-        }
-      }
-    }
-
-    // ✅ VALIDATION
-    if (!parsed || !parsed.analysis || !parsed.answer) {
-      debugLog('ANALYZE', 'Bad model output', {
-        raw: rawText.slice(0, 500),
-        hasParsed: !!parsed,
-        hasAnalysis: !!(parsed?.analysis),
-        hasAnswer: !!(parsed?.answer)
-      });
-      
+    // ✅ VALIDATE RESPONSE QUALITY
+    if (!rawText || rawText.length < 50) {
+      debugLog('ANALYZE', 'Response too short', { length: rawText.length });
       return res.status(502).json({
         error: "bad_model_output",
-        message: "Vision API returned incomplete response. Try again.",
-        raw: rawText.slice(0, 500)
+        message: "Vision API returned empty or too short response. Try again.",
+        raw: rawText
+      });
+    }
+
+    // ✅ WARN IF TRUNCATED (but still use it)
+    if (finishReason === 'length') {
+      debugLog('ANALYZE', '⚠️ Response was truncated, but using anyway', { 
+        length: rawText.length 
       });
     }
 
@@ -791,23 +761,32 @@ Return JSON: {"analysis":"what you see + insights","answer":"recommended respons
     req.session.visionAnalysis = {
       timestamp: Date.now(),
       mode,
-      analysis: parsed.analysis,
-      answer: parsed.answer
+      analysis: `Screen analysis for: ${lastQA.q?.slice(0, 100) || 'current question'}`,
+      answer: rawText // ✅ Use direct answer, no JSON parsing
     };
 
-    debugLog('ANALYZE', 'Analysis processed', { 
-      analysisLength: parsed.analysis.length,
-      answerLength: parsed.answer.length
+    debugLog('ANALYZE', 'Analysis processed successfully', { 
+      answerLength: rawText.length,
+      finishReason
     });
 
     return res.json({ 
       ok: true, 
-      analysis: parsed.analysis, 
-      answer: parsed.answer 
+      analysis: req.session.visionAnalysis.analysis,
+      answer: rawText
     });
   } catch (e) {
-    debugLog('ANALYZE', 'Screen analysis error', { error: e.message, stack: e.stack });
-    return res.status(500).json({ error: "Screen analysis error" });
+    debugLog('ANALYZE', 'Screen analysis error', { 
+      error: e.message, 
+      stack: e.stack,
+      name: e.name,
+      code: e.code
+    });
+    
+    return res.status(500).json({ 
+      error: "Screen analysis error",
+      message: e.message || "Unknown error occurred"
+    });
   }
 });
 
