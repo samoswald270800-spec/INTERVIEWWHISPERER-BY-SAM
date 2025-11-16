@@ -684,13 +684,13 @@ Return JSON: {"analysis":"what you see + insights","answer":"recommended respons
                 type: "image_url", 
                 image_url: { 
                   url: imageDataUrl,
-                  detail: "high" // ✅ Request high detail
+                  detail: "high"
                 } 
               }
             ]
           }],
           temperature: mode === "god" ? 0.3 : 0.4,
-          max_tokens: mode === "god" ? 3000 : 1500, // ✅ Increased token limit
+          max_tokens: mode === "god" ? 4000 : 2000, // ✅ INCREASED from 3000/1500
           response_format: { type: "json_object" }
         });
 
