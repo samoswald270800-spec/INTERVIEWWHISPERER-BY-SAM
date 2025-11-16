@@ -1106,7 +1106,12 @@ End every answer like this:
               qa.qEl.textContent = "Q: " + finalQ;
               return;
             }
-
+ case "response.input_text.completed": {
+              finalQ = msg.text || extractText(msg) || partialQ;
+              ensureCard();
+              qa.qEl.textContent = "Q: " + finalQ;
+              return;
+            }
             case "input_audio_buffer.speech_stopped":
               vadActive = false;
               pillOn(pListening, false);
