@@ -863,7 +863,22 @@
     }
 
     function resetTurn() {
+      // ✅ CRITICAL DEBUG: Log state BEFORE reset
+      debugLog('🔍 PRE-RESET STATE CHECK', { 
+        hasQa: !!qa,
+        hasQEl: !!(qa?.qEl),
+        hasAEl: !!(qa?.aEl),
+        qElText: qa?.qEl?.textContent,
+        aElText: qa?.aEl?.textContent,
+        partialQ,
+        partialA,
+        finalQ,
+        finalA,
+        gotAnswerThisTurn
+      });
+      
       debugLog('Resetting turn', { hadQ: !!finalQ, hadA: !!finalA });
+      
       // Send Q/A to backend before resetting
       if (finalQ || finalA) {
         debugLog('Saving turn to backend', { q: finalQ.slice(0, 50), a: finalA.slice(0, 50) });
@@ -1261,11 +1276,15 @@
           // ✅ HANDLE RESPONSE DONE
           case "response.done": {
             pillOn(pProcessing, false);
+            
+            // ✅ WAIT FOR ANSWER TO SETTLE
+            await new Promise(r => setTimeout(r, 100));
+            
             finalA = partialA;
             debugLog('Response completed', { answerLength: finalA.length });
             
             // ✅ FORCE UPDATE THE DOM ONE LAST TIME
-            if (qa && qa.aEl && finalA) {
+            if (qa && qa.aEl) {
               qa.aEl.textContent = "A: " + finalA;
               debugLog('Final answer forced to DOM', { length: finalA.length });
             }
@@ -1280,6 +1299,9 @@
                 fullEvent: msg 
               });
             }
+            
+            // ✅ DELAY RESET TO ENSURE DOM UPDATE COMPLETES
+            await new Promise(r => setTimeout(r, 200));
             
             resetTurn();
             setStatus("ready — speak in the meeting tab");
