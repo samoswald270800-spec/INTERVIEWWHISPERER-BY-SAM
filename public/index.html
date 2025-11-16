@@ -1219,11 +1219,16 @@
           case "response.audio_transcript.delta": {
             const d = extractText(msg);
             if (d) {
-              ensureCard();
+              ensureCard(); // ✅ CRITICAL: Ensure card exists
               partialA += d;
-              // ✅ FIX: Use textContent assignment, not +=
-              qa.aEl.textContent = "A: " + partialA;
-              debugLog('Answer delta', { length: d.length, total: partialA.length });
+              
+              // ✅ DEFENSIVE CHECK
+              if (qa && qa.aEl) {
+                qa.aEl.textContent = "A: " + partialA;
+                debugLog('Answer delta applied to DOM', { length: d.length, total: partialA.length });
+              } else {
+                debugLog('⚠️ Cannot update answer - qa or aEl is null!', { hasQa: !!qa, hasAEl: !!(qa?.aEl) });
+              }
             }
             return;
           }
@@ -1235,8 +1240,10 @@
               // Use the complete text if we have it
               if (!partialA || partialA.length < 10) {
                 partialA = msg.text;
-                qa.aEl.textContent = "A: " + partialA;
-                debugLog('Answer from text.done', { length: partialA.length });
+                if (qa && qa.aEl) {
+                  qa.aEl.textContent = "A: " + partialA;
+                  debugLog('Answer from text.done', { length: partialA.length });
+                }
               }
             }
             return;
@@ -1248,11 +1255,19 @@
             finalA = partialA;
             debugLog('Response completed', { answerLength: finalA.length });
             
+            // ✅ FORCE UPDATE THE DOM ONE LAST TIME
+            if (qa && qa.aEl && finalA) {
+              qa.aEl.textContent = "A: " + finalA;
+              debugLog('Final answer forced to DOM', { length: finalA.length });
+            }
+            
             // ✅ Log if we got no answer
             if (!finalA || finalA.length < 5) {
               debugLog('⚠️ Response completed but no answer!', { 
                 msgType: msg.type,
                 partialA,
+                hasQa: !!qa,
+                hasAEl: !!(qa?.aEl),
                 fullEvent: msg 
               });
             }
@@ -1269,8 +1284,10 @@
             if (msg.part?.text && (!partialA || partialA.length < 10)) {
               ensureCard();
               partialA = msg.part.text;
-              qa.aEl.textContent = "A: " + partialA;
-              debugLog('Answer from content_part.done', { length: partialA.length });
+              if (qa && qa.aEl) {
+                qa.aEl.textContent = "A: " + partialA;
+                debugLog('Answer from content_part.done', { length: partialA.length });
+              }
             }
             return;
           }
@@ -1280,8 +1297,10 @@
             if (t) {
               ensureCard();
               partialA += t;
-              qa.aEl.textContent = "A: " + partialA;
-              debugLog('Answer message', { length: t.length });
+              if (qa && qa.aEl) {
+                qa.aEl.textContent = "A: " + partialA;
+                debugLog('Answer message', { length: t.length });
+              }
             }
             return;
           }
