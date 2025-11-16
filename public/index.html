@@ -1100,6 +1100,16 @@ End every answer like this:
               }
               return;
             }
+                          case "response.input_text.delta": {
+              // Some events stream as input_text instead of input_audio_transcription
+              const t = msg.delta || extractText(msg);
+              if (t) {
+                partialQ += t;
+                ensureCard();
+                qa.qEl.textContent = "Q: " + partialQ;
+              }
+              return;
+            }
             case "response.input_audio_transcription.completed": {
               finalQ = msg.transcript || extractText(msg) || partialQ;
               ensureCard();
