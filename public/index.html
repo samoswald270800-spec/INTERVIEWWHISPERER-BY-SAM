@@ -1014,6 +1014,15 @@ End every answer like this:
 
       function extractText(msg) {
         if (typeof msg.delta === "string") return msg.delta;
+         if (Array.isArray(msg.delta)) {
+          for (const part of msg.delta) {
+            if (typeof part === "string" && part) return part;
+            if (part && typeof part.text === "string" && part.text)
+              return part.text;
+          }
+        }
+        if (msg.delta && typeof msg.delta.text === "string")
+          return msg.delta.text;
         if (msg.message && Array.isArray(msg.message.content)) {
           for (const c of msg.message.content) {
             if (typeof c.text === "string" && c.text) return c.text;
@@ -1102,7 +1111,7 @@ End every answer like this:
             }
                           case "response.input_text.delta": {
               // Some events stream as input_text instead of input_audio_transcription
-              const t = msg.delta || extractText(msg);
+             const t = extractText(msg);
               if (t) {
                 partialQ += t;
                 ensureCard();
@@ -1110,13 +1119,13 @@ End every answer like this:
               }
               return;
             }
-            case "response.input_audio_transcription.completed": {
+             case "response.input_audio_transcription.completed": {
               finalQ = msg.transcript || extractText(msg) || partialQ;
               ensureCard();
               qa.qEl.textContent = "Q: " + finalQ;
               return;
             }
- case "response.input_text.completed": {
+            case "response.input_text.completed": {
               finalQ = msg.text || extractText(msg) || partialQ;
               ensureCard();
               qa.qEl.textContent = "Q: " + finalQ;
