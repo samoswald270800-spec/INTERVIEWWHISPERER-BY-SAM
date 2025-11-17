@@ -504,6 +504,7 @@ End every answer like this:
 `.trim();
 
     const modeText = (mode === "god") ? GOD_MODE : SMART_MODE;
+  const screenAnalysisContext = req.session?.screenAnalysisContext || "";
 
     // Build full instructions: GLOBAL + mode-specific + tailoring content (JD/resume/assignment)
     const fullInstructions = `
@@ -525,6 +526,8 @@ ${resume || "(no resume provided)"}
 
 ASSIGNMENT (use if relevant):
 ${assignment || "(no assignment provided)"}
+
+${screenAnalysisContext ? `${screenAnalysisContext}` : ""}
 `.trim();
 
     // Optionally record mode in session for admin visibility (non-critical)
@@ -621,25 +624,107 @@ app.post("/analyze-screen", requireAuth, async (req, res) => {
         .filter(Boolean)
         .join("\n\n");
     }
-    transcriptStr = transcriptStr.slice(0, 20000); // cap
+// Pull the most recent transcript (if any) from Redis so we send the full conversation
+    let redisTranscript = "";
+    if (req.sessionID) {
+      try {
+        redisTranscript = (await redisClient.get(`transcript:${req.sessionID}`)) || "";
+      } catch (err) {
+        console.warn("[analyze-screen] failed to read redis transcript", err);
+      }
+    }
 
-    // Server-authored instructions
-    const promptFromFrontend = [
-      "You are assisting a candidate in a live interview.",
-      "Analyze the screenshot and summarize insights clearly.",
-      "English only. First-person voice. Interview-ready. Do not mention AI or screenshots.",
-      "Use an implicit Situation → Task → Action → Result flow (do not name it).",
-      "Identify patterns, anomalies, and business implications (conversion, revenue, retention, cost, risk).",
-      "Provide concrete, actionable recommendations.",
-      'Return JSON only in this exact shape: {"analysis":"...","answer":"..."}'
-    ].join("\n");
+    // Combine Redis + incoming transcript and persist for future calls
+    const combinedTranscript = [redisTranscript, transcriptStr]
+      .filter(Boolean)
+      .join("\n\n")
+      .trim()
+      .slice(0, 50000);
+
+    if (req.sessionID && combinedTranscript) {
+      try {
+        await redisClient.set(`transcript:${req.sessionID}`, combinedTranscript, {
+          EX: 60 * 60 * 24,
+        });
+      } catch (err) {
+        console.warn("[analyze-screen] failed to persist redis transcript", err);
+      }
+    }
+
+    // Server-authored instructions (exact user-provided format)
+    const visionPrompt = `
+--------------------------------------------------------------------------------
+You are assisting a candidate in a live job interview.
+
+Your job is to analyze the screenshot with MAXIMUM detail, accuracy, and depth.  
+This analysis will be injected into a realtime model that answers interview questions, so it MUST be:
+- extremely detailed
+- extremely precise
+- business-focused
+- technically rigorous
+- fully structured
+- written in clean English
+- free of fluff
+- optimized to explain EVERYTHING on the screen digitally
+
+You MUST output ONLY a JSON object with exactly these required fields:
+
+{
+  "analysis": "...",
+  "key_points": "...",
+  "answer_guidance": "..."
+}
+
+REQUIREMENTS FOR EACH FIELD:
+
+1. "analysis":
+   - extremely detailed breakdown of everything visible in the screenshot
+   - describe charts, tables, metrics, UI elements, values, categories, patterns, anomalies
+   - include exact numbers and labels if readable
+   - infer the business meaning of each metric (conversion, retention, revenue, CAC, ROAS, etc.)
+   - connect visuals to possible user behavior, funnel stages, product performance
+   - describe what is healthy vs. concerning in the data
+
+2. "key_points":
+   - extract 6–20 bullet points summarizing the MOST important insights
+   - each bullet must contain a business implication
+   - do not repeat sentences
+   - must be short, sharp, high-signal bullets
+
+3. "answer_guidance":
+   - This is the MOST IMPORTANT PART.
+   - Explain EXACTLY how to answer ANY question the interviewer may ask based on this screen.
+   - Include:
+     • what the data *means*
+     • what insights matter most
+     • what actions a senior analyst/PM/marketer would recommend
+     • how to explain trends
+     • how to estimate root causes
+     • how to communicate this clearly in an interview
+   - This section must be 400–800 words minimum.
+
+GLOBAL RULES:
+- English only
+- First-person voice NOT needed here (the realtime model handles tone)
+- Do NOT mention screenshots, images, or that you are analyzing an image
+- Do NOT talk about AI, prompts, or instructions
+- Do NOT speculate about unreadable text (say “unreadable label” instead)
+- Everything must be factual, structured, and extremely high signal
+
+OUTPUT:
+Return ONLY the JSON. No explanations or text outside the JSON.
+--------------------------------------------------------------------------------
+`.trim();
 
     // Build structured content; include transcript only if present
     const content = [];
-    if (transcriptStr.trim()) {
-      content.push({ type: "text", text: transcriptStr });
+    if (combinedTranscript) {
+      content.push({
+        type: "text",
+        text: `FULL TRANSCRIPT (from Redis):\n${combinedTranscript}`,
+      });
     }
-    content.push({ type: "text", text: promptFromFrontend });
+    content.push({ type: "text", text: visionPrompt });
     content.push({ type: "image_url", image_url: { url: imageDataUrl } });
 
     const response = await openai.chat.completions.create({
@@ -667,9 +752,43 @@ app.post("/analyze-screen", requireAuth, async (req, res) => {
     }
 
     const analysis = String(parsed.analysis || "").trim();
-    const answer = String(parsed.answer || "").trim();
+   const keyPoints = String(parsed.key_points || "").trim();
+    const answerGuidance = String(parsed.answer_guidance || "").trim();
 
-    return res.json({ analysis, answer });
+    const screenAnalysisContext =
+      analysis && answerGuidance
+        ? `<SCREEN_ANALYSIS>\n${analysis}\n\n${answerGuidance}\n</SCREEN_ANALYSIS>`
+        : "";
+
+   if (req.session && screenAnalysisContext) {
+      req.session.screenAnalysisContext = screenAnalysisContext;
+      try {
+        await new Promise((resolve, reject) =>
+          req.session.save((err) => (err ? reject(err) : resolve()))
+        );
+      } catch (err) {
+        console.warn("[analyze-screen] session save failed", err);
+      }
+    }
+
+    if (req.sessionID && screenAnalysisContext) {
+      try {
+        await redisClient.set(
+          `screen-analysis:${req.sessionID}`,
+          screenAnalysisContext,
+          { EX: 60 * 60 * 6 }
+        );
+      } catch (err) {
+        console.warn("[analyze-screen] failed to persist screen analysis", err);
+      }
+    }
+
+    return res.json({
+      analysis,
+      key_points: keyPoints,
+      answer_guidance: answerGuidance,
+      screen_analysis_context: screenAnalysisContext,
+    });
   } catch (err) {
     console.error("[analyze-screen] error:", err);
     return res.status(500).json({ error: "internal_error" });
