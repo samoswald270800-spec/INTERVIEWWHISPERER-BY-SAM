@@ -761,7 +761,7 @@ body.god-mode #analyzeBtn.btn {
       let finalQ = "";
       let gotAnswerThisTurn = false;
       let vadActive = false;
-
+ window.screenAnalysisContext = window.screenAnalysisContext || "";
       const setStatus = (t) => {
         statusEl.textContent = t;
         console.log("[status]", t);
@@ -1001,9 +1001,17 @@ End every answer like this:
             ? jdEl.value.trim()
             : "(JD not provided — give a strong general answer for the role based on resume)";
 
-        return [GLOBAL, modeText, "JOB DESCRIPTION (highest priority):", jdText].join(
-          "\n\n"
-        );
+       const screenAnalysis = (window.screenAnalysisContext || "").trim();
+
+        return [
+          GLOBAL,
+          modeText,
+          "JOB DESCRIPTION (highest priority):",
+          jdText,
+          screenAnalysis,
+        ]
+          .filter(Boolean)
+          .join("\n\n");
       }
 
       muteBtn.onclick = () => {
@@ -1460,11 +1468,38 @@ End every answer like this:
           if (!resp.ok) {
             analysisOutput.textContent = 'Server error: ' + (data.error || resp.status);
           } else {
-            analysisOutput.innerHTML =
-              '<strong>Screen Analysis:</strong><br>' +
-              (data.analysis ? data.analysis.replace(/</g,'&lt;') : '(none)') +
-              '<br><br><strong>Interview Answer (' + data.mode + '):</strong><br>' +
-              (data.answer ? data.answer.replace(/</g,'&lt;') : '(none)');
+           const contextFromServer =
+              data.screen_analysis_context ||
+              (data.analysis && data.answer_guidance
+                ? `<SCREEN_ANALYSIS>\n${data.analysis}\n\n${data.answer_guidance}\n</SCREEN_ANALYSIS>`
+                : '');
+
+            if (contextFromServer) {
+              window.screenAnalysisContext = contextFromServer;
+
+              try {
+                if (dc && dcOpen && typeof dc.send === 'function') {
+                  const instructions = buildRealtimeInstructions(
+                    window.currentAIStrategy || 'smart'
+                  );
+                  dc.send(
+                    JSON.stringify({
+                      type: 'session.update',
+                      session: { instructions },
+                    })
+                  );
+                  console.log('→ sent session.update (screen analysis)');
+                }
+              } catch (err) {
+                console.warn('session.update (screen analysis) failed:', err);
+              }
+
+              analysisOutput.textContent =
+                'Screen context refreshed for realtime answers.';
+            } else {
+              analysisOutput.textContent =
+                'Analysis completed but no context was returned.';
+            }
           }
         } catch (e) {
           console.error(e);
