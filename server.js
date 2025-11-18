@@ -561,11 +561,7 @@ ${screenAnalysisContext ? `${screenAnalysisContext}` : ""}
           model: "gpt-4o-transcribe",
           language: "en"
         },
-         language: {
-
-forced_output_language: "en"
-
-},
+      
         // Dynamic instructions include GLOBAL rules + mode-specific behavior + JD/resume/assignment
         instructions: fullInstructions,
       }),
