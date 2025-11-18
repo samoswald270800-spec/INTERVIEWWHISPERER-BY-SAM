@@ -940,7 +940,7 @@ End every answer like this:
               vadActive = true;
               pillOn(pListening, true);
               pillOn(pProcessing, false);
-              reset
+              resetTurn(); // was: reset
               setStatus("listening…");
               return;
             case "response.input_audio_transcription.delta": {
@@ -1001,6 +1001,7 @@ End every answer like this:
             case "response.completed":
               pillOn(pProcessing, false);
               qa = null;
+              gotAnswerThisTurn = false; // allow next turn
               return;
             default: return;
           }
@@ -1289,9 +1290,9 @@ End every answer like this:
   <script>
     (function () {
       const slot = document.getElementById('threadsSlot');
-      if (!slot || !window.OGL) return;
+      if (!slot || !window.ogl) return; // revert to original
 
-      const { Renderer, Program, Mesh, Triangle, Vec3, Vec2, Color } = OGL;
+      const { Renderer, Program, Mesh, Triangle, Vec3, Vec2, Color } = ogl; // revert to original
 
       const vertexShader = `
         attribute vec2 position;
