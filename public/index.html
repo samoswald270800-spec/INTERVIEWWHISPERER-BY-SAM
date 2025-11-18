@@ -427,8 +427,10 @@
 
     /* Hero Banner - Glassmorphic Typing */
     .hero-banner {
-      position: fixed;
-      inset: 0 0 auto 0;
+      position: absolute;  /* Changed from fixed */
+      top: 0;
+      left: 0;
+      right: 0;
       z-index: 1000;
       display: flex;
       justify-content: center;
@@ -1438,9 +1440,9 @@ End every answer like this:
       const heroTyping = document.getElementById('heroTyping');
       if (!heroTyping) return;
 
-    const messages = [
-  "INTERVIEW WHISPERER"
-];
+      const messages = [
+        "SHHH...its an Interview",
+      ];
 
       let messageIndex = 0;
       let charIndex = 0;
