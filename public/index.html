@@ -6,6 +6,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Doto:wght@100..900&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/ogl@1/dist/ogl.js"></script>
   <style>
     /* ====== GLASSMORPHIC MODE SWITCH (Smart Detail ↔ GodMode) ====== */
     .mode-switch {
@@ -438,20 +439,23 @@
       background: #000000;
       border-bottom: 1px solid rgba(255,255,255,0.18);
       box-shadow: 0 8px 28px rgba(0,0,0,0.55);
+      overflow: hidden; /* ADD THIS */
     }
-    .hero-banner::after {
-      content:"";
-      position:absolute;
-      inset:0;
-      pointer-events:none;
-      background:
-        radial-gradient(circle at 25% 25%, rgba(255,255,255,0.08), transparent 60%),
-        radial-gradient(circle at 75% 70%, rgba(255,255,255,0.05), transparent 65%);
-      mix-blend-mode: overlay;
-      opacity:.25;
+    
+    /* ADD THIS NEW CLASS */
+    .hero-ripple-canvas {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      opacity: 0.3;
+      pointer-events: none;
+      z-index: 0;
     }
+    
     .hero-text {
       position: relative;
+      z-index: 1; /* Ensure text is above canvas */
       padding: 12px 24px;
       border-radius: 30px;
       background: rgba(255,255,255,0.05);
@@ -502,6 +506,7 @@
 </head>
 <body>
   <div id="heroBanner" class="hero-banner">
+    <canvas id="heroRippleCanvas" class="hero-ripple-canvas"></canvas>
     <div class="hero-text">
       <span id="heroTyping"></span>
       <span class="hero-cursor">|</span>
@@ -1441,7 +1446,8 @@ End every answer like this:
       if (!heroTyping) return;
 
       const messages = [
-        "Made by someone who absolutely did NOT pass interviews honestly.",
+        "Hi, I am your Interview Whisperer",
+            "Powered by chaos. Fueled by desperation.",
         "Made by someone who absolutely did NOT pass interviews honestly.",
        " Passed interviews using this tool? Me too - I built it out of fear.",
         "Interview cheating? No. 'Strategic intelligence assistance.",
@@ -1450,9 +1456,6 @@ End every answer like this:
         "Powered by chaos. Fueled by desperation.",
         "If this fails, we blame the economy. Not you.",
         "Get hired before your ex finds out you’re unemployed.",
-        "Powered by chaos. Fueled by desperation.",
-        
-        
       ];
 
       let messageIndex = 0;
@@ -1485,6 +1488,209 @@ End every answer like this:
 
       setTimeout(typeLoop, 400);
     })();
+  </script>
+
+  <script>
+(() => {
+  const canvas = document.getElementById('heroRippleCanvas');
+  if (!canvas) return;
+
+  const { Renderer, Program, Triangle, Mesh } = window.OGL || {};
+  if (!Renderer) {
+    console.warn('OGL library not loaded');
+    return;
+  }
+
+  const hexToRgb = hex => {
+    const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+    return result
+      ? [parseInt(result[1], 16) / 255, parseInt(result[2], 16) / 255, parseInt(result[3], 16) / 255]
+      : [1, 1, 1];
+  };
+
+  const renderer = new Renderer({
+    canvas,
+    dpr: Math.min(window.devicePixelRatio, 2),
+    alpha: true
+  });
+  
+  const gl = renderer.gl;
+  gl.enable(gl.BLEND);
+  gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+
+  const vert = `
+attribute vec2 position;
+varying vec2 vUv;
+void main() {
+    vUv = position * 0.5 + 0.5;
+    gl_Position = vec4(position, 0.0, 1.0);
+}`;
+
+  const frag = `precision highp float;
+uniform float iTime;
+uniform vec2 iResolution;
+uniform bool enableRainbow;
+uniform vec3 gridColor;
+uniform float rippleIntensity;
+uniform float gridSize;
+uniform float gridThickness;
+uniform float fadeDistance;
+uniform float vignetteStrength;
+uniform float glowIntensity;
+uniform float opacity;
+uniform float gridRotation;
+uniform bool mouseInteraction;
+uniform vec2 mousePosition;
+uniform float mouseInfluence;
+uniform float mouseInteractionRadius;
+varying vec2 vUv;
+
+float pi = 3.141592;
+
+mat2 rotate(float angle) {
+    float s = sin(angle);
+    float c = cos(angle);
+    return mat2(c, -s, s, c);
+}
+
+void main() {
+    vec2 uv = vUv * 2.0 - 1.0;
+    uv.x *= iResolution.x / iResolution.y;
+
+    if (gridRotation != 0.0) {
+        uv = rotate(gridRotation * pi / 180.0) * uv;
+    }
+
+    float dist = length(uv);
+    float func = sin(pi * (iTime - dist));
+    vec2 rippleUv = uv + uv * func * rippleIntensity;
+
+    if (mouseInteraction && mouseInfluence > 0.0) {
+        vec2 mouseUv = (mousePosition * 2.0 - 1.0);
+        mouseUv.x *= iResolution.x / iResolution.y;
+        float mouseDist = length(uv - mouseUv);
+        
+        float influence = mouseInfluence * exp(-mouseDist * mouseDist / (mouseInteractionRadius * mouseInteractionRadius));
+        
+        float mouseWave = sin(pi * (iTime * 2.0 - mouseDist * 3.0)) * influence;
+        rippleUv += normalize(uv - mouseUv) * mouseWave * rippleIntensity * 0.3;
+    }
+
+    vec2 a = sin(gridSize * 0.5 * pi * rippleUv - pi / 2.0);
+    vec2 b = abs(a);
+
+    float aaWidth = 0.5;
+    vec2 smoothB = vec2(
+        smoothstep(0.0, aaWidth, b.x),
+        smoothstep(0.0, aaWidth, b.y)
+    );
+
+    vec3 color = vec3(0.0);
+    color += exp(-gridThickness * smoothB.x * (0.8 + 0.5 * sin(pi * iTime)));
+    color += exp(-gridThickness * smoothB.y);
+    color += 0.5 * exp(-(gridThickness / 4.0) * sin(smoothB.x));
+    color += 0.5 * exp(-(gridThickness / 3.0) * smoothB.y);
+
+    if (glowIntensity > 0.0) {
+        color += glowIntensity * exp(-gridThickness * 0.5 * smoothB.x);
+        color += glowIntensity * exp(-gridThickness * 0.5 * smoothB.y);
+    }
+
+    float ddd = exp(-2.0 * clamp(pow(dist, fadeDistance), 0.0, 1.0));
+    
+    vec2 vignetteCoords = vUv - 0.5;
+    float vignetteDistance = length(vignetteCoords);
+    float vignette = 1.0 - pow(vignetteDistance * 2.0, vignetteStrength);
+    vignette = clamp(vignette, 0.0, 1.0);
+    
+    vec3 t;
+    if (enableRainbow) {
+        t = vec3(
+            uv.x * 0.5 + 0.5 * sin(iTime),
+            uv.y * 0.5 + 0.5 * cos(iTime),
+            pow(cos(iTime), 4.0)
+        ) + 0.5;
+    } else {
+        t = gridColor;
+    }
+
+    float finalFade = ddd * vignette;
+    float alpha = length(color) * finalFade * opacity;
+    gl_FragColor = vec4(color * t * finalFade * opacity, alpha);
+}`;
+
+  const uniforms = {
+    iTime: { value: 0 },
+    iResolution: { value: [1, 1] },
+    enableRainbow: { value: false },
+    gridColor: { value: hexToRgb('#52ff90') }, // Accent green
+    rippleIntensity: { value: 0.05 },
+    gridSize: { value: 10.0 },
+    gridThickness: { value: 15.0 },
+    fadeDistance: { value: 1.5 },
+    vignetteStrength: { value: 2.0 },
+    glowIntensity: { value: 0.1 },
+    opacity: { value: 1.0 },
+    gridRotation: { value: 0 },
+    mouseInteraction: { value: true },
+    mousePosition: { value: [0.5, 0.5] },
+    mouseInfluence: { value: 0 },
+    mouseInteractionRadius: { value: 1.2 }
+  };
+
+  const geometry = new Triangle(gl);
+  const program = new Program(gl, { vertex: vert, fragment: frag, uniforms });
+  const mesh = new Mesh(gl, { geometry, program });
+
+  let mousePos = { x: 0.5, y: 0.5 };
+  let targetMouse = { x: 0.5, y: 0.5 };
+  let mouseInfluence = 0;
+
+  const resize = () => {
+    const banner = document.getElementById('heroBanner');
+    if (!banner) return;
+    const { clientWidth: w, clientHeight: h } = banner;
+    renderer.setSize(w, h);
+    uniforms.iResolution.value = [w, h];
+  };
+
+  const handleMouseMove = e => {
+    const banner = document.getElementById('heroBanner');
+    if (!banner) return;
+    const rect = banner.getBoundingClientRect();
+    const x = (e.clientX - rect.left) / rect.width;
+    const y = 1.0 - (e.clientY - rect.top) / rect.height;
+    targetMouse = { x, y };
+  };
+
+  const handleMouseEnter = () => { mouseInfluence = 1.0; };
+  const handleMouseLeave = () => { mouseInfluence = 0.0; };
+
+  window.addEventListener('resize', resize);
+  document.getElementById('heroBanner')?.addEventListener('mousemove', handleMouseMove);
+  document.getElementById('heroBanner')?.addEventListener('mouseenter', handleMouseEnter);
+  document.getElementById('heroBanner')?.addEventListener('mouseleave', handleMouseLeave);
+  
+  resize();
+
+  const render = t => {
+    uniforms.iTime.value = t * 0.001;
+
+    const lerpFactor = 0.1;
+    mousePos.x += (targetMouse.x - mousePos.x) * lerpFactor;
+    mousePos.y += (targetMouse.y - mousePos.y) * lerpFactor;
+
+    const currentInfluence = uniforms.mouseInfluence.value;
+    uniforms.mouseInfluence.value += (mouseInfluence - currentInfluence) * 0.05;
+
+    uniforms.mousePosition.value = [mousePos.x, mousePos.y];
+
+    renderer.render({ scene: mesh });
+    requestAnimationFrame(render);
+  };
+
+  requestAnimationFrame(render);
+})();
   </script>
 </body>
 </html>
