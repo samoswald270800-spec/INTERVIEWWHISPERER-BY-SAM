@@ -50,21 +50,21 @@
       left: 4px;
       height: calc(100% - 8px);
       width: calc(50% - 6px);
-      background: linear-gradient(135deg, #a855f7, #d8b4fe);
+      background: linear-gradient(135deg, #52ff90, #2fa962);
       border-radius: 30px;
       transition: background 0.6s ease, transform 0.3s cubic-bezier(0.2, 0.7, 0.3, 1),
         box-shadow 0.6s ease;
       z-index: 1;
       box-shadow:
-        0 0 10px rgba(168, 85, 247, 0.7),
-        0 0 20px rgba(168, 85, 247, 0.4);
+        0 0 10px rgba(82, 255, 144, 0.7),
+        0 0 20px rgba(82, 255, 144, 0.4);
     }
 
     body.god-mode .mode-pill {
-      background: linear-gradient(135deg, #ec4899, #a855f7);
+      background: linear-gradient(135deg, #ff3333, #cc0000);
       box-shadow:
-        0 0 10px rgba(236, 72, 153, 0.7),
-        0 0 20px rgba(236, 72, 153, 0.4);
+        0 0 10px rgba(255, 51, 51, 0.7),
+        0 0 20px rgba(255, 51, 51, 0.4);
     }
 
     #modeStatus {
@@ -81,7 +81,7 @@
     }
 
     body.god-mode #modeStatus {
-      color: #ec4899;
+      color: #ff6b6b;
     }
 
     :root {
@@ -93,13 +93,13 @@
       --a: #6be28c;
       --muted: #9aa;
       --badge: #222;
-      --accent: #a855f7;
-      --accent-glow: rgba(168, 85, 247, 0.4);
+      --accent: #52ff90;
+      --accent-glow: rgba(82, 255, 144, 0.4);
     }
 
     body.god-mode {
-      --accent: #ec4899;
-      --accent-glow: rgba(236, 72, 153, 0.4);
+      --accent: #ff3333;
+      --accent-glow: rgba(255, 51, 51, 0.4);
     }
 
     button {
@@ -124,7 +124,7 @@
       color: var(--text);
       font-family: system-ui, Segoe UI, Arial;
       transition: background 0.6s ease;
-      padding-top: 110px;
+      padding-top: 140px;
     }
 
     /* ===== Floating Glassmorphic Top Bar ===== */
@@ -225,13 +225,13 @@
 
     .mode-status-chip {
       color: var(--accent);
-      border-color: rgba(168, 85, 247, 0.25);
-      background: rgba(168, 85, 247, 0.12);
+      border-color: rgba(82, 255, 144, 0.25);
+      background: rgba(82, 255, 144, 0.12);
     }
     body.god-mode .mode-status-chip {
-      color: #ec4899;
-      border-color: rgba(236, 72, 153, 0.25);
-      background: rgba(236, 72, 153, 0.12);
+      color: #ff6b6b;
+      border-color: rgba(255, 51, 51, 0.25);
+      background: rgba(255, 51, 51, 0.12);
     }
 
     /* Icon logout button (power icon, right corner) */
@@ -320,14 +320,14 @@
       transition: background 0.6s ease, color 0.6s ease, border-color 0.6s ease;
     }
     .on {
-      background: rgba(49, 27, 63, 0.8);
-      color: #d8b4fe;
-      border-color: rgba(168, 85, 247, 0.35);
+      background: rgba(20, 60, 34, 0.8);
+      color: #a9ffbf;
+      border-color: rgba(82, 255, 144, 0.35);
     }
     body.god-mode .pill.on {
-      background: rgba(63, 27, 49, 0.8);
-      color: #ffc2dd;
-      border-color: rgba(236, 72, 153, 0.35);
+      background: rgba(60, 20, 20, 0.8);
+      color: #ffb3b3;
+      border-color: rgba(255, 51, 51, 0.35);
     }
 
     #jdBox {
@@ -421,6 +421,56 @@
     .btn-letter { display: inline-block; }
 
     #analyzeBtn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+    /* Hero Banner - Typing Animation */
+    .hero-banner {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      z-index: 1000;
+      padding: 20px 24px;
+      text-align: center;
+      background: linear-gradient(135deg, rgba(82, 255, 144, 0.08), rgba(255, 51, 51, 0.08));
+      backdrop-filter: blur(20px);
+      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+    }
+
+    .hero-text {
+      font-size: 24px;
+      font-weight: 600;
+      background: linear-gradient(135deg, #52ff90 0%, #ff3333 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      letter-spacing: 0.5px;
+      min-height: 32px;
+      display: inline-block;
+    }
+
+    .hero-cursor {
+      background: linear-gradient(135deg, #52ff90 0%, #ff3333 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      font-weight: 400;
+      animation: blink 1s step-end infinite;
+    }
+
+    @keyframes blink {
+      0%, 50% { opacity: 1; }
+      51%, 100% { opacity: 0; }
+    }
+
+    @media (max-width: 768px) {
+      .hero-text {
+        font-size: 18px;
+      }
+      body {
+        padding-top: 130px;
+      }
+    }
   </style>
 </head>
 <body>
@@ -1357,5 +1407,26 @@ End every answer like this:
       window.location.href = "/login";
     }
   </script>
-</body>
-</html>
+
+  <script>
+    (() => {
+      const heroTyping = document.getElementById('heroTyping');
+      if (!heroTyping) return;
+      
+      const messages = [
+        "Hi, I am your interview whisperer",
+        "I know your resume is fiction. I'll make your answers match."
+      ];
+      
+      let messageIndex = 0;
+      let charIndex = 0;
+      let isDeleting = false;
+
+      function typeText() {
+        const currentMessage = messages[messageIndex];
+        
+        if (!isDeleting && charIndex <= currentMessage.length) {
+          heroTyping.textContent = currentMessage.slice(0, charIndex);
+          charIndex++;
+          
+          if
