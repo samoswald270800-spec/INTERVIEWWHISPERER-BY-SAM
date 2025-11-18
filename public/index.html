@@ -5,7 +5,7 @@
   <title>Interview Whisperer — Realtime Q/A</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Doto:wght@100..900&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
   <style>
     /* ====== GLASSMORPHIC MODE SWITCH (Smart Detail ↔ GodMode) ====== */
     .mode-switch {
@@ -433,13 +433,9 @@
       display: flex;
       justify-content: center;
       padding: 22px 28px;
-      background: rgba(255,255,255,0.07);
-      backdrop-filter: blur(20px) saturate(160%);
-      -webkit-backdrop-filter: blur(20px) saturate(160%);
+      background: #000000;
       border-bottom: 1px solid rgba(255,255,255,0.18);
-      box-shadow:
-        0 8px 28px rgba(0,0,0,0.55),
-        inset 0 1px 0 rgba(255,255,255,0.22);
+      box-shadow: 0 8px 28px rgba(0,0,0,0.55);
     }
     .hero-banner::after {
       content:"";
@@ -447,26 +443,29 @@
       inset:0;
       pointer-events:none;
       background:
-        radial-gradient(circle at 25% 25%, rgba(255,255,255,0.20), transparent 60%),
-        radial-gradient(circle at 75% 70%, rgba(255,255,255,0.12), transparent 65%);
+        radial-gradient(circle at 25% 25%, rgba(255,255,255,0.08), transparent 60%),
+        radial-gradient(circle at 75% 70%, rgba(255,255,255,0.05), transparent 65%);
       mix-blend-mode: overlay;
-      opacity:.45;
+      opacity:.25;
     }
     .hero-text {
       position: relative;
       padding: 12px 24px;
       border-radius: 30px;
-      background: rgba(255,255,255,0.10);
-      border: 1px solid rgba(255,255,255,0.22);
-      backdrop-filter: blur(14px) saturate(150%);
-      -webkit-backdrop-filter: blur(14px) saturate(150%);
+      background: rgba(255,255,255,0.05);
+      border: 1px solid rgba(255,255,255,0.15);
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
       box-shadow:
         0 4px 20px rgba(0,0,0,0.45),
-        inset 0 1px 0 rgba(255,255,255,0.30),
-        inset 0 -1px 0 rgba(0,0,0,0.35);
-      font-size: 24px;
-      font-weight: 600;
-      letter-spacing: .6px;
+        inset 0 1px 0 rgba(255,255,255,0.15);
+      font-family: "Doto", sans-serif;
+      font-optical-sizing: auto;
+      font-weight: 700;
+      font-style: normal;
+      font-variation-settings: "ROND" 0;
+      font-size: 28px;
+      letter-spacing: 1.2px;
       color: #fff;
       display: inline-flex;
       align-items: center;
@@ -474,6 +473,7 @@
       min-height: 34px;
       overflow:hidden;
       line-height: 1.15;
+      text-transform: uppercase;
     }
     .hero-cursor {
       font-weight: 500;
@@ -1438,10 +1438,9 @@ End every answer like this:
       const heroTyping = document.getElementById('heroTyping');
       if (!heroTyping) return;
 
-      const messages = [
-        "Hi, I am your interview whisperer",
-        "I know your resume is fiction. I'll make your answers match."
-      ];
+    const messages = [
+  "INTERVIEW WHISPERER"
+];
 
       let messageIndex = 0;
       let charIndex = 0;
