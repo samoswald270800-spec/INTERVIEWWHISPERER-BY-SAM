@@ -396,12 +396,14 @@
 </head>
 <body>
   <div id="top" class="top-floating-bar">
-    <div class="top-group top-controls">
+    <div class="top-group top-row-main">
+      <!-- controls -->
       <button type="button" id="startBtn" class="glass-btn">Start Tab Capture</button>
       <button type="button" id="stopBtn" class="glass-btn" disabled>Stop</button>
       <button type="button" id="muteBtn" class="glass-btn" disabled>Mute</button>
       <button type="button" id="clearBtn" class="glass-btn">Clear Answers</button>
 
+      <!-- analyze -->
       <span class="btn-wrapper">
         <button type="button" id="analyzeBtn" class="btn glass-btn" aria-label="Analyze Screen">
           <svg class="btn-svg" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
@@ -411,79 +413,34 @@
         </button>
         <span class="analyze-tooltip">Analyze the active screen</span>
       </span>
-    </div>
 
-    <div class="top-group top-modes">
+      <!-- modes -->
       <div class="mode-switch" id="modeSwitch">
         <div class="mode-pill" id="modePill"></div>
         <button type="button" class="mode-btn active" data-mode="smart">Smart Detail</button>
         <button type="button" class="mode-btn" data-mode="god">GodMode</button>
       </div>
       <div id="modeStatus" class="glass-chip mode-status-chip"></div>
+
+      <!-- analysis output -->
+      <div id="analysisOutput" class="glass-chip" style="font-size:12px; color:#c9c9c9; max-width:480px;"></div>
+
+      <!-- logout icon -->
+      <button id="logoutBtn" class="logout-btn" onclick="logout()" aria-label="Logout">
+        <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none"
+             stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
+          <polyline points="16 17 21 12 16 7"></polyline>
+          <line x1="21" y1="12" x2="9" y2="12"></line>
+        </svg>
+      </button>
     </div>
 
-    <div class="top-group top-status">
+    <div class="top-group top-row-status">
       <span class="pill glass-chip" id="pListening">listening</span>
       <span class="pill glass-chip" id="pProcessing">processing</span>
       <div id="status" class="glass-chip status-chip">idle</div>
-      <div id="analysisOutput" class="glass-chip" style="font-size:12px; color:#c9c9c9; max-width:480px;"></div>
-      <button id="logoutBtn" class="logout-btn" onclick="logout()">Logout</button>
     </div>
-
-    <style>
-      .btn-wrapper { position:relative; display:inline-flex; }
-      #analyzeBtn.btn {
-        position:relative;
-        display:inline-flex;
-        align-items:center;
-        gap:8px;
-        border:1px solid rgba(255,255,255,0.16);
-        background: rgba(255, 255, 255, 0.08);
-        color:#fff;
-        padding:8px 14px;
-        border-radius:12px;
-        cursor:pointer;
-        overflow:hidden;
-        font-size:13px;
-        letter-spacing:.4px;
-        transition:background .2s ease, border .2s ease, transform .2s ease, box-shadow .2s ease;
-        box-shadow:
-          0 4px 14px rgba(0,0,0,0.26),
-          inset 0 1px 0 rgba(255,255,255,0.22);
-        backdrop-filter: blur(12px);
-      }
-      #analyzeBtn .btn-svg { width:22px; height:22px; stroke:var(--accent); fill:none; stroke-width:1.4; flex-shrink:0; transition:stroke .6s ease; }
-      body.god-mode #analyzeBtn .btn-svg { stroke:var(--accent); }
-      #analyzeBtn:hover { animation:none !important; transform: translateY(-2px); background: rgba(255,255,255,0.12); box-shadow:0 0 12px var(--accent-glow), 0 0 22px var(--accent-glow), inset 0 0 8px var(--accent-glow); }
-      #analyzeBtn .txt-wrapper { position:relative; display:grid; }
-      #analyzeBtn .txt-1,
-      #analyzeBtn .txt-2 { display:inline-flex; gap:1px; transition:opacity .35s ease, transform .35s ease; }
-      #analyzeBtn .txt-2 { position:absolute; inset:0; opacity:0; transform:translateY(6px); }
-      #analyzeBtn.loading .txt-1 { opacity:0; transform:translateY(-6px); }
-      #analyzeBtn.loading .txt-2 { opacity:1; transform:translateY(0); }
-      #analyzeBtn.loading { pointer-events:none; opacity:.85; }
-      #analyzeBtn.loading .txt-2 .btn-letter { animation:analyzeWave 1.4s ease-in-out infinite; display:inline-block; }
-      #analyzeBtn.loading .txt-2 .btn-letter:nth-child(1){animation-delay:0s}
-      #analyzeBtn.loading .txt-2 .btn-letter:nth-child(2){animation-delay:.07s}
-      #analyzeBtn.loading .txt-2 .btn-letter:nth-child(3){animation-delay:.14s}
-      #analyzeBtn.loading .txt-2 .btn-letter:nth-child(4){animation-delay:.21s}
-      #analyzeBtn.loading .txt-2 .btn-letter:nth-child(5){animation-delay:.28s}
-      #analyzeBtn.loading .txt-2 .btn-letter:nth-child(6){animation-delay:.35s}
-      #analyzeBtn.loading .txt-2 .btn-letter:nth-child(7){animation-delay:.42s}
-      #analyzeBtn.loading .txt-2 .btn-letter:nth-child(8){animation-delay:.49s}
-      #analyzeBtn.loading .txt-2 .btn-letter:nth-child(9){animation-delay:.56s}
-      #analyzeBtn.loading .txt-2 .btn-letter:nth-child(10){animation-delay:.63s}
-      @keyframes analyzeWave { 0%,100% { transform:translateY(0); } 50% { transform:translateY(-3px); } }
-      .analyze-tooltip {
-        position:absolute; top:100%; left:50%; transform:translateX(-50%);
-        background:#000; color:#fff; font-size:11px; padding:4px 8px; border-radius:4px;
-        white-space:nowrap; box-shadow:0 2px 6px rgba(0,0,0,0.4); opacity:0; pointer-events:none;
-        transition:opacity .15s ease; margin-top:6px; z-index:30;
-      }
-      .btn-wrapper:hover .analyze-tooltip,
-      #analyzeBtn:hover + .analyze-tooltip { opacity:1; }
-      #analyzeBtn:focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
-    </style>
   </div>
 
   <div id="jdBox">
