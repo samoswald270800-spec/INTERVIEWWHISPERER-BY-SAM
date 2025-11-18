@@ -425,51 +425,33 @@
     /* Hero Banner - Typing Animation */
     .hero-banner {
       position: fixed;
-      top: 0;
-      left: 0;
-      right: 0;
+      top: 0; left: 0; right: 0;
       z-index: 1000;
       padding: 20px 24px;
       text-align: center;
-      background: linear-gradient(135deg, rgba(82, 255, 144, 0.08), rgba(255, 51, 51, 0.08));
-      backdrop-filter: blur(20px);
-      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
-      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+      background: #000; /* solid black */
+      border-bottom: 1px solid #111;
     }
-
     .hero-text {
       font-size: 24px;
       font-weight: 600;
-      background: linear-gradient(135deg, #52ff90 0%, #ff3333 100%);
-      -webkit-background-clip: text;
-      -webkit-text-fill-color: transparent;
-      background-clip: text;
-      letter-spacing: 0.5px;
+      color: #fff;
+      letter-spacing: .5px;
       min-height: 32px;
       display: inline-block;
     }
-
     .hero-cursor {
-      background: linear-gradient(135deg, #52ff90 0%, #ff3333 100%);
-      -webkit-background-clip: text;
-      -webkit-text-fill-color: transparent;
-      background-clip: text;
+      color: #fff;
       font-weight: 400;
       animation: blink 1s step-end infinite;
     }
-
     @keyframes blink {
-      0%, 50% { opacity: 1; }
-      51%, 100% { opacity: 0; }
+      0%,50% { opacity:1; }
+      51%,100% { opacity:0; }
     }
-
     @media (max-width: 768px) {
-      .hero-text {
-        font-size: 18px;
-      }
-      body {
-        padding-top: 130px;
-      }
+      .hero-text { font-size: 18px; }
+      body { padding-top: 130px; }
     }
   </style>
 </head>
@@ -1412,21 +1394,42 @@ End every answer like this:
     (() => {
       const heroTyping = document.getElementById('heroTyping');
       if (!heroTyping) return;
-      
+
       const messages = [
         "Hi, I am your interview whisperer",
         "I know your resume is fiction. I'll make your answers match."
       ];
-      
+
       let messageIndex = 0;
       let charIndex = 0;
       let isDeleting = false;
 
-      function typeText() {
-        const currentMessage = messages[messageIndex];
-        
-        if (!isDeleting && charIndex <= currentMessage.length) {
-          heroTyping.textContent = currentMessage.slice(0, charIndex);
+      function typeLoop() {
+        const current = messages[messageIndex];
+
+        if (!isDeleting && charIndex <= current.length) {
+          heroTyping.textContent = current.slice(0, charIndex);
           charIndex++;
-          
-          if
+          // When finished typing full message, pause then start deleting
+          if (charIndex === current.length + 1) {
+            setTimeout(() => { isDeleting = true; }, 1600);
+          }
+        } else if (isDeleting && charIndex >= 0) {
+          heroTyping.textContent = current.slice(0, charIndex);
+          charIndex--;
+          if (charIndex < 0) {
+            isDeleting = false;
+            messageIndex = (messageIndex + 1) % messages.length;
+            charIndex = 0;
+          }
+        }
+
+        const delay = isDeleting ? 45 : 70;
+        setTimeout(typeLoop, delay);
+      }
+
+      setTimeout(typeLoop, 400);
+    })();
+  </script>
+</body>
+</html>
