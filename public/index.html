@@ -1,3 +1,4 @@
+
 <!doctype html>
 <html>
 <head>
@@ -392,34 +393,16 @@
     .btn-letter { display: inline-block; }
 
     #analyzeBtn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
-
-    /* Threads slot inside the top bar (before the mode pill) */
-    .threads-slot {
-      width: 220px;
-      height: 48px;
-      border-radius: 12px;
-      overflow: hidden;
-      position: relative;
-      background: rgba(255, 255, 255, 0.04);
-      border: 1px solid rgba(255, 255, 255, 0.12);
-      box-shadow:
-        0 4px 14px rgba(0, 0, 0, 0.22),
-        inset 0 1px 0 rgba(255, 255, 255, 0.14);
-      pointer-events: none; /* don't block top-bar interactions */
-      flex: 0 0 auto;
-    }
   </style>
 </head>
 <body>
   <div id="top" class="top-floating-bar">
-    <div class="top-group top-row-main">
-      <!-- controls -->
+    <div class="top-group top-controls">
       <button type="button" id="startBtn" class="glass-btn">Start Tab Capture</button>
       <button type="button" id="stopBtn" class="glass-btn" disabled>Stop</button>
       <button type="button" id="muteBtn" class="glass-btn" disabled>Mute</button>
       <button type="button" id="clearBtn" class="glass-btn">Clear Answers</button>
 
-      <!-- analyze -->
       <span class="btn-wrapper">
         <button type="button" id="analyzeBtn" class="btn glass-btn" aria-label="Analyze Screen">
           <svg class="btn-svg" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
@@ -429,37 +412,79 @@
         </button>
         <span class="analyze-tooltip">Analyze the active screen</span>
       </span>
+    </div>
 
-      <!-- Threads animation slot (added) -->
-      <div id="threadsSlot" class="threads-slot" aria-hidden="true"></div>
-
-      <!-- modes -->
+    <div class="top-group top-modes">
       <div class="mode-switch" id="modeSwitch">
         <div class="mode-pill" id="modePill"></div>
         <button type="button" class="mode-btn active" data-mode="smart">Smart Detail</button>
         <button type="button" class="mode-btn" data-mode="god">GodMode</button>
       </div>
       <div id="modeStatus" class="glass-chip mode-status-chip"></div>
-
-      <!-- analysis output -->
-      <div id="analysisOutput" class="glass-chip" style="font-size:12px; color:#c9c9c9; max-width:480px;"></div>
-
-      <!-- logout icon -->
-      <button id="logoutBtn" class="logout-btn" onclick="logout()" aria-label="Logout">
-        <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none"
-             stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
-          <polyline points="16 17 21 12 16 7"></polyline>
-          <line x1="21" y1="12" x2="9" y2="12"></line>
-        </svg>
-      </button>
     </div>
 
-    <div class="top-group top-row-status">
+    <div class="top-group top-status">
       <span class="pill glass-chip" id="pListening">listening</span>
       <span class="pill glass-chip" id="pProcessing">processing</span>
       <div id="status" class="glass-chip status-chip">idle</div>
+      <div id="analysisOutput" class="glass-chip" style="font-size:12px; color:#c9c9c9; max-width:480px;"></div>
+      <button id="logoutBtn" class="logout-btn" onclick="logout()">Logout</button>
     </div>
+
+    <style>
+      .btn-wrapper { position:relative; display:inline-flex; }
+      #analyzeBtn.btn {
+        position:relative;
+        display:inline-flex;
+        align-items:center;
+        gap:8px;
+        border:1px solid rgba(255,255,255,0.16);
+        background: rgba(255, 255, 255, 0.08);
+        color:#fff;
+        padding:8px 14px;
+        border-radius:12px;
+        cursor:pointer;
+        overflow:hidden;
+        font-size:13px;
+        letter-spacing:.4px;
+        transition:background .2s ease, border .2s ease, transform .2s ease, box-shadow .2s ease;
+        box-shadow:
+          0 4px 14px rgba(0,0,0,0.26),
+          inset 0 1px 0 rgba(255,255,255,0.22);
+        backdrop-filter: blur(12px);
+      }
+      #analyzeBtn .btn-svg { width:22px; height:22px; stroke:var(--accent); fill:none; stroke-width:1.4; flex-shrink:0; transition:stroke .6s ease; }
+      body.god-mode #analyzeBtn .btn-svg { stroke:var(--accent); }
+      #analyzeBtn:hover { animation:none !important; transform: translateY(-2px); background: rgba(255,255,255,0.12); box-shadow:0 0 12px var(--accent-glow), 0 0 22px var(--accent-glow), inset 0 0 8px var(--accent-glow); }
+      #analyzeBtn .txt-wrapper { position:relative; display:grid; }
+      #analyzeBtn .txt-1,
+      #analyzeBtn .txt-2 { display:inline-flex; gap:1px; transition:opacity .35s ease, transform .35s ease; }
+      #analyzeBtn .txt-2 { position:absolute; inset:0; opacity:0; transform:translateY(6px); }
+      #analyzeBtn.loading .txt-1 { opacity:0; transform:translateY(-6px); }
+      #analyzeBtn.loading .txt-2 { opacity:1; transform:translateY(0); }
+      #analyzeBtn.loading { pointer-events:none; opacity:.85; }
+      #analyzeBtn.loading .txt-2 .btn-letter { animation:analyzeWave 1.4s ease-in-out infinite; display:inline-block; }
+      #analyzeBtn.loading .txt-2 .btn-letter:nth-child(1){animation-delay:0s}
+      #analyzeBtn.loading .txt-2 .btn-letter:nth-child(2){animation-delay:.07s}
+      #analyzeBtn.loading .txt-2 .btn-letter:nth-child(3){animation-delay:.14s}
+      #analyzeBtn.loading .txt-2 .btn-letter:nth-child(4){animation-delay:.21s}
+      #analyzeBtn.loading .txt-2 .btn-letter:nth-child(5){animation-delay:.28s}
+      #analyzeBtn.loading .txt-2 .btn-letter:nth-child(6){animation-delay:.35s}
+      #analyzeBtn.loading .txt-2 .btn-letter:nth-child(7){animation-delay:.42s}
+      #analyzeBtn.loading .txt-2 .btn-letter:nth-child(8){animation-delay:.49s}
+      #analyzeBtn.loading .txt-2 .btn-letter:nth-child(9){animation-delay:.56s}
+      #analyzeBtn.loading .txt-2 .btn-letter:nth-child(10){animation-delay:.63s}
+      @keyframes analyzeWave { 0%,100% { transform:translateY(0); } 50% { transform:translateY(-3px); } }
+      .analyze-tooltip {
+        position:absolute; top:100%; left:50%; transform:translateX(-50%);
+        background:#000; color:#fff; font-size:11px; padding:4px 8px; border-radius:4px;
+        white-space:nowrap; box-shadow:0 2px 6px rgba(0,0,0,0.4); opacity:0; pointer-events:none;
+        transition:opacity .15s ease; margin-top:6px; z-index:30;
+      }
+      .btn-wrapper:hover .analyze-tooltip,
+      #analyzeBtn:hover + .analyze-tooltip { opacity:1; }
+      #analyzeBtn:focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
+    </style>
   </div>
 
   <div id="jdBox">
@@ -940,7 +965,10 @@ End every answer like this:
               vadActive = true;
               pillOn(pListening, true);
               pillOn(pProcessing, false);
-              resetTurn(); // was: reset
+              resetTurn();
+              ensureCard();
+              qa.qEl.textContent = "Q: ";
+              qa.aEl.textContent = "A: ";
               setStatus("listening…");
               return;
             case "response.input_audio_transcription.delta": {
@@ -1001,7 +1029,6 @@ End every answer like this:
             case "response.completed":
               pillOn(pProcessing, false);
               qa = null;
-              gotAnswerThisTurn = false; // allow next turn
               return;
             default: return;
           }
@@ -1283,208 +1310,6 @@ End every answer like this:
       await fetch("/api/logout", { method: "POST" });
       window.location.href = "/login";
     }
-  </script>
-
-  <!-- OGL + Threads init (non-React) -->
-  <script src="https://cdn.jsdelivr.net/npm/ogl@latest/dist/ogl.umd.js"></script>
-  <script>
-    (function () {
-      const slot = document.getElementById('threadsSlot');
-      if (!slot || !window.ogl) return; // revert to original
-
-      const { Renderer, Program, Mesh, Triangle, Vec3, Vec2, Color } = ogl; // revert to original
-
-      const vertexShader = `
-        attribute vec2 position;
-        attribute vec2 uv;
-        varying vec2 vUv;
-        void main() {
-          vUv = uv;
-          gl_Position = vec4(position, 0.0, 1.0);
-        }
-      `;
-
-      const fragmentShader = `
-        precision highp float;
-
-        uniform float iTime;
-        uniform vec3 iResolution;
-        uniform vec3 uColor;
-        uniform float uAmplitude;
-        uniform float uDistance;
-        uniform vec2 uMouse;
-
-        #define PI 3.1415926538
-
-        const int u_line_count = 40;
-        const float u_line_width = 7.0;
-        const float u_line_blur = 10.0;
-
-        float Perlin2D(vec2 P) {
-            vec2 Pi = floor(P);
-            vec4 Pf_Pfmin1 = P.xyxy - vec4(Pi, Pi + 1.0);
-            vec4 Pt = vec4(Pi.xy, Pi.xy + 1.0);
-            Pt = Pt - floor(Pt * (1.0 / 71.0)) * 71.0;
-            Pt += vec2(26.0, 161.0).xyxy;
-            Pt *= Pt;
-            Pt = Pt.xzxz * Pt.yyww;
-            vec4 hash_x = fract(Pt * (1.0 / 951.135664));
-            vec4 hash_y = fract(Pt * (1.0 / 642.949883));
-            vec4 grad_x = hash_x - 0.49999;
-            vec4 grad_y = hash_y - 0.49999;
-            vec4 grad_results = inversesqrt(grad_x * grad_x + grad_y * grad_y)
-                * (grad_x * Pf_Pfmin1.xzxz + grad_y * Pf_Pfmin1.yyww);
-            grad_results *= 1.4142135623730950;
-            vec2 blend = Pf_Pfmin1.xy * Pf_Pfmin1.xy * Pf_Pfmin1.xy
-                       * (Pf_Pfmin1.xy * (Pf_Pfmin1.xy * 6.0 - 15.0) + 10.0);
-            vec4 blend2 = vec4(blend, vec2(1.0 - blend));
-            return dot(grad_results, blend2.zxzx * blend2.wwyy);
-        }
-
-        float pixel(float count, vec2 resolution) {
-            return (1.0 / max(resolution.x, resolution.y)) * count;
-        }
-
-        float lineFn(vec2 st, float width, float perc, float offset, vec2 mouse, float time, float amplitude, float distance) {
-            float split_offset = (perc * 0.4);
-            float split_point = 0.1 + split_offset;
-
-            float amplitude_normal = smoothstep(split_point, 0.7, st.x);
-            float amplitude_strength = 0.5;
-            float finalAmplitude = amplitude_normal * amplitude_strength
-                                   * amplitude * (1.0 + (mouse.y - 0.5) * 0.2);
-
-            float time_scaled = time / 10.0 + (mouse.x - 0.5) * 1.0;
-            float blur = smoothstep(split_point, split_point + 0.05, st.x) * perc;
-
-            float xnoise = mix(
-                Perlin2D(vec2(time_scaled, st.x + perc) * 2.5),
-                Perlin2D(vec2(time_scaled, st.x + time_scaled) * 3.5) / 1.5,
-                st.x * 0.3
-            );
-
-            float y = 0.5 + (perc - 0.5) * distance + xnoise / 2.0 * finalAmplitude;
-
-            float line_start = smoothstep(
-                y + (width / 2.0) + (u_line_blur * pixel(1.0, iResolution.xy) * blur),
-                y,
-                st.y
-            );
-
-            float line_end = smoothstep(
-                y,
-                y - (width / 2.0) - (u_line_blur * pixel(1.0, iResolution.xy) * blur),
-                st.y
-            );
-
-            return clamp(
-                (line_start - line_end) * (1.0 - smoothstep(0.0, 1.0, pow(perc, 0.3))),
-                0.0,
-                1.0
-            );
-        }
-
-        void mainImage(out vec4 fragColor, in vec2 fragCoord) {
-            vec2 uv = fragCoord / iResolution.xy;
-
-            float line_strength = 1.0;
-            for (int i = 0; i < u_line_count; i++) {
-                float p = float(i) / float(u_line_count);
-                line_strength *= (1.0 - lineFn(
-                    uv,
-                    u_line_width * pixel(1.0, iResolution.xy) * (1.0 - p),
-                    p,
-                    (PI * 1.0) * p,
-                    uMouse,
-                    iTime,
-                    uAmplitude,
-                    uDistance
-                ));
-            }
-
-            float colorVal = 1.0 - line_strength;
-            fragColor = vec4(uColor * colorVal, colorVal);
-        }
-
-        void main() {
-            mainImage(gl_FragColor, gl_FragCoord.xy);
-        }
-      `;
-
-      function initThreads(container, { color = [1, 1, 1], amplitude = 1, distance = 0.2, enableMouseInteraction = true } = {}) {
-        const renderer = new Renderer({ alpha: true, antialias: true });
-        const gl = renderer.gl;
-        gl.clearColor(0, 0, 0, 0);
-        gl.enable(gl.BLEND);
-        gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
-        container.appendChild(gl.canvas);
-
-        const geometry = new Triangle(gl);
-        const program = new Program(gl, {
-          vertex: vertexShader,
-          fragment: fragmentShader,
-          uniforms: {
-            iTime: { value: 0 },
-            iResolution: { value: new Vec3(1, 1, 1) },
-            uColor: { value: new Color(color[0], color[1], color[2]) },
-            uAmplitude: { value: amplitude },
-            uDistance: { value: distance },
-            uMouse: { value: new Vec2(0.5, 0.5) }
-          }
-        });
-
-        const mesh = new Mesh(gl, { geometry, program });
-
-        function resize() {
-          const { clientWidth, clientHeight } = container;
-          renderer.setSize(clientWidth, clientHeight, 1);
-          program.uniforms.iResolution.value.set(clientWidth, clientHeight, clientWidth / Math.max(1.0, clientHeight));
-        }
-        window.addEventListener('resize', resize, { passive: true });
-        resize();
-
-        let currentMouse = new Vec2(0.5, 0.5);
-        let targetMouse = new Vec2(0.5, 0.5);
-
-        function onDocMouseMove(e) {
-          const rect = container.getBoundingClientRect();
-          const x = (e.clientX - rect.left) / rect.width;
-          const y = 1.0 - (e.clientY - rect.top) / rect.height;
-          targetMouse.set(Math.min(1, Math.max(0, x)), Math.min(1, Math.max(0, y)));
-        }
-        if (enableMouseInteraction) {
-          document.addEventListener('mousemove', onDocMouseMove, { passive: true });
-        }
-
-        let raf = 0;
-        function loop(t) {
-          if (enableMouseInteraction) {
-            const s = 0.08;
-            currentMouse.x += s * (targetMouse.x - currentMouse.x);
-            currentMouse.y += s * (targetMouse.y - currentMouse.y);
-            program.uniforms.uMouse.value.set(currentMouse.x, currentMouse.y);
-          } else {
-            program.uniforms.uMouse.value.set(0.5, 0.5);
-          }
-
-          program.uniforms.iTime.value = t * 0.001;
-          renderer.render({ scene: mesh });
-          raf = requestAnimationFrame(loop);
-        }
-        raf = requestAnimationFrame(loop);
-
-        return () => {
-          cancelAnimationFrame(raf);
-          window.removeEventListener('resize', resize);
-          if (enableMouseInteraction) document.removeEventListener('mousemove', onDocMouseMove);
-          if (container.contains(gl.canvas)) container.removeChild(gl.canvas);
-          gl.getExtension('WEBGL_lose_context')?.loseContext();
-        };
-      }
-
-      // Init in the top bar slot
-      initThreads(slot, { color: [0.32, 1.0, 0.56], amplitude: 1.0, distance: 0.4, enableMouseInteraction: true });
-    })();
   </script>
 </body>
 </html>
