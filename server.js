@@ -75,6 +75,7 @@ app.use(
     secret: process.env.SESSION_SECRET || "dev-secret",
     resave: false,
     saveUninitialized: false,
+    proxy: true, // Required for Render/Heroku to trust the reverse proxy
     cookie: {
       maxAge: 6 * 60 * 60 * 1000, // 6 hours
       httpOnly: true,
