@@ -143,48 +143,74 @@ async function checkAnalyzeRateLimit(userId) {
   return { allowed: true };
 }
 
-// Try temp-user credentials first; if not found, fall through to your existing /api/login.
-app.post("/api/login", async (req, res, next) => {
+// Unified Login Handler (Admin + Temp User)
+app.post("/api/login", async (req, res) => {
   try {
     const { username, password } = req.body || {};
-    if (!username || !password) return next();
+    if (!username || !password) {
+      return res.status(400).json({ error: "Username and password are required" });
+    }
 
+    // 1. Check Admin Credentials
+    const ADMIN_USER = process.env.ADMIN_USER || "";
+    const ADMIN_PASS = process.env.ADMIN_PASS || "";
+
+    if (username === ADMIN_USER && password === ADMIN_PASS) {
+      req.session.userId = username;
+      req.session.role = "admin";
+      req.session.ip = req.headers["x-forwarded-for"] || req.ip;
+      req.session.userAgent = req.headers["user-agent"] || "";
+      req.session.deviceFingerprint = getDeviceFingerprint(req);
+      req.session.loginAt = Date.now();
+
+      // Force save for admin
+      return req.session.save((err) => {
+        if (err) {
+          console.error("Admin session save error:", err);
+          return res.status(500).json({ error: "Session error" });
+        }
+        return res.json({ ok: true, role: "admin" });
+      });
+    }
+
+    // 2. Check Temp User Credentials (Redis)
     const key = `${TEMP_USER_PREFIX}${username}`;
     const raw = await redisClient.get(key);
-    if (!raw) return next(); // not a temp user → let your existing /api/login handle admin
+
+    if (!raw) {
+      return res.status(401).json({ error: "Invalid credentials" });
+    }
 
     let data;
     try {
       data = JSON.parse(raw);
     } catch {
-      return next(); // malformed → ignore, let admin path try
+      return res.status(401).json({ error: "Account data error" });
     }
 
-    if (data?.password !== password) {
-      // wrong temp password → let admin path try
-      return next();
+    if (data.password !== password) {
+      return res.status(401).json({ error: "Invalid credentials" });
     }
 
-    // Check for multiple sessions (NOT for admin)
+    // 3. Temp User Session Logic
+    // Check for existing sessions
     const activeSessions = await getActiveSessions(username);
     if (activeSessions.length > 0) {
       const currentIp = (req.headers["x-forwarded-for"] || req.ip || "").split(',')[0].trim();
       let activeOnOtherDevice = false;
 
+      // Check if active on a DIFFERENT IP
       for (const sid of activeSessions) {
-        const raw = await redisClient.get(`sess:${sid}`);
-        if (raw) {
+        const sRaw = await redisClient.get(`sess:${sid}`);
+        if (sRaw) {
           try {
-            const s = JSON.parse(raw);
+            const s = JSON.parse(sRaw);
             const sIp = (s.ip || "").split(',')[0].trim();
-            // If IP exists and is different, block it
             if (sIp && sIp !== currentIp) {
               activeOnOtherDevice = true;
               break;
             }
-          } catch (e) {
-            // ignore malformed session data
-          }
+          } catch (e) { /* ignore */ }
         }
       }
 
@@ -194,7 +220,7 @@ app.post("/api/login", async (req, res, next) => {
         });
       }
 
-      // Same IP (or stale data) -> Allow login & cleanup old sessions
+      // Same IP -> Kick out old sessions (fix for closed tab)
       console.log(`[Login] Re-login from same IP. Cleaning up ${activeSessions.length} old sessions for ${username}`);
       for (const oldSessionId of activeSessions) {
         await redisClient.del(`sess:${oldSessionId}`);
@@ -202,60 +228,31 @@ app.post("/api/login", async (req, res, next) => {
       await redisClient.del(`active_sessions:${username}`);
     }
 
-    // Success: set session & annotate
+    // 4. Success: Create New Session
     req.session.userId = username;
     req.session.role = "user";
-    req.session.permissions = data.permissions || { canExpand: true, canAnalyze: true }; // Default to true if missing
+    req.session.permissions = data.permissions || { canExpand: true, canAnalyze: true };
     req.session.ip = req.headers["x-forwarded-for"] || req.ip;
     req.session.userAgent = req.headers["user-agent"] || "";
     req.session.deviceFingerprint = getDeviceFingerprint(req);
     req.session.loginAt = Date.now();
 
-    // Track active session
+    // Track this new session
     await addActiveSession(username, req.sessionID);
 
-    // Force save to ensure session exists in Redis before client redirects
-    req.session.save((err) => {
+    // Force save
+    return req.session.save((err) => {
       if (err) {
-        console.error("Session save error:", err);
+        console.error("User session save error:", err);
         return res.status(500).json({ error: "Login failed (session error)" });
       }
       return res.json({ ok: true, role: "user", permissions: req.session.permissions });
     });
+
   } catch (e) {
-    console.error("[Login] Temp user login error (falling through to admin):", e);
-    // On any unexpected error we fall through to admin path to avoid blocking it
-    return next();
+    console.error("Login handler error:", e);
+    return res.status(500).json({ error: "Internal server error" });
   }
-});
-
-
-/* ---------- Minimal login/logout endpoints ---------- */
-// Render: set ADMIN_USER and ADMIN_PASS in Environment
-/* ---------- Minimal login/logout endpoints ---------- */
-// Render: set ADMIN_USER and ADMIN_PASS in Environment
-app.post("/api/login", (req, res) => {
-  const { username, password } = req.body || {};
-  const ADMIN_USER = process.env.ADMIN_USER || "";
-  const ADMIN_PASS = process.env.ADMIN_PASS || "";
-
-  if (username === ADMIN_USER && password === ADMIN_PASS) {
-    req.session.userId = username;
-    req.session.role = "admin";   // ✅ keep admin role set
-    req.session.ip = req.headers["x-forwarded-for"] || req.ip;
-    req.session.userAgent = req.headers["user-agent"] || "";
-    req.session.deviceFingerprint = getDeviceFingerprint(req);
-    req.session.loginAt = Date.now();
-
-    // NO session tracking for admin
-    req.session.save((err) => {
-      if (err) return res.status(500).json({ error: "Session error" });
-      return res.json({ ok: true, role: "admin" });
-    });
-    return; // Stop execution to prevent 401 response below
-  }
-
-  return res.status(401).json({ error: "Invalid username or password" });
 });
 
 app.post("/api/logout", requireAuth, async (req, res) => {
