@@ -166,11 +166,16 @@ app.post("/api/login", async (req, res, next) => {
     }
 
     // Check for multiple sessions (NOT for admin)
+    // FIX: Instead of blocking, we invalidate (kick out) any old sessions so the user isn't locked out.
     const activeSessions = await getActiveSessions(username);
     if (activeSessions.length > 0) {
-      return res.status(403).json({
-        error: "Multiple sessions not allowed. You are already in a running session. Please close other windows."
-      });
+      console.log(`[Login] Kicking out ${activeSessions.length} old sessions for ${username}`);
+      for (const oldSessionId of activeSessions) {
+        // Delete the old session from Redis
+        await redisClient.del(`sess:${oldSessionId}`);
+      }
+      // Clear the active sessions list for this user
+      await redisClient.del(`active_sessions:${username}`);
     }
 
     // Success: set session & annotate
