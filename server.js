@@ -231,25 +231,32 @@ app.post("/api/login", async (req, res) => {
     }
 
     // 4. Success: Create New Session
-    req.session.userId = username;
-    req.session.role = "user";
-    req.session.permissions = data.permissions || { canExpand: true, canAnalyze: true };
-    req.session.ip = req.headers["x-forwarded-for"] || req.ip;
-    req.session.userAgent = req.headers["user-agent"] || "";
-    req.session.deviceFingerprint = getDeviceFingerprint(req);
-    req.session.loginAt = Date.now();
-
-    // Track this new session
-    await addActiveSession(username, req.sessionID);
-
-    // Force save
-    return req.session.save((err) => {
+    req.session.regenerate(async (err) => {
       if (err) {
-        console.error("User session save error:", err);
+        console.error("Session regenerate error:", err);
         return res.status(500).json({ error: "Login failed (session error)" });
       }
-      console.log(`[Login] Success for ${username}. SessionID: ${req.sessionID} saved.`);
-      return res.json({ ok: true, role: "user", permissions: req.session.permissions });
+
+      req.session.userId = username;
+      req.session.role = "user";
+      req.session.permissions = data.permissions || { canExpand: true, canAnalyze: true };
+      req.session.ip = req.headers["x-forwarded-for"] || req.ip;
+      req.session.userAgent = req.headers["user-agent"] || "";
+      req.session.deviceFingerprint = getDeviceFingerprint(req);
+      req.session.loginAt = Date.now();
+
+      // Track this new session
+      await addActiveSession(username, req.sessionID);
+
+      // Force save
+      return req.session.save((err) => {
+        if (err) {
+          console.error("User session save error:", err);
+          return res.status(500).json({ error: "Login failed (session error)" });
+        }
+        console.log(`[Login] Success for ${username}. SessionID: ${req.sessionID} saved.`);
+        return res.json({ ok: true, role: "user", permissions: req.session.permissions });
+      });
     });
 
   } catch (e) {
