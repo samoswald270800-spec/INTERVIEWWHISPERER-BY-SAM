@@ -5,6 +5,7 @@ import JobDescription from './components/JobDescription';
 import QAList from './components/QAList';
 import SettingsPopover from './components/SettingsPopover';
 import { useAudioCapture } from './hooks/useAudioCapture';
+import './App.css';
 
 export default function App() {
     const [status, setStatus] = useState("SYSTEM READY");
