@@ -20,6 +20,7 @@ export default function SettingsPopover({ isOpen, speed, setSpeed }) {
                         value={55 - speed} // Invert for UI logic (Left=Slow, Right=Fast in code, but UI label says opposite)
                         step="5"
                         onChange={(e) => setSpeed(55 - parseInt(e.target.value))}
+                        onPointerDown={(e) => e.stopPropagation()}
                     />
                     <span style={{ fontSize: '10px', color: 'var(--text-muted)' }}>Fast</span>
                 </div>

@@ -15,7 +15,7 @@ export default function App() {
     const [canExpand, setCanExpand] = useState(false);
     const [isExpanding, setIsExpanding] = useState(false);
     const [jd, setJd] = useState("");
-    const [speed, setSpeed] = useState(15); // Text speed delay (ms)
+    const [speed, setSpeed] = useState(5); // Default to Fastest (5ms)
 
     // WebRTC Refs
     const pcRef = useRef(null);
@@ -209,13 +209,11 @@ export default function App() {
         // 3. Request Response
         dcRef.current.send(JSON.stringify({ type: "response.create", response: { modalities: ["text"] } }));
 
-        // Clear last answer to make room for expansion (optional, or append)
-        // For now, let's append or replace. The user wants "Expand", so maybe we just let it stream in.
-        // The reference code clears it: qa.aEl.textContent = "A: ";
+        // Clear last answer to make room for expansion
         setQaList(prev => {
             const newList = [...prev];
             if (newList.length > 0) {
-                newList[newList.length - 1].answer = ""; // Clear for new expanded answer
+                newList[newList.length - 1].answer = "";
             }
             return newList;
         });
@@ -245,13 +243,14 @@ export default function App() {
     };
 
     const handleAnalyzeScreen = async () => {
-        if (!streamRef.current) {
-            alert("Please start the session first.");
-            return;
-        }
-
+        // Explicitly ask for a screen to capture for analysis
         try {
-            const track = streamRef.current.getVideoTracks()[0];
+            const screenStream = await navigator.mediaDevices.getDisplayMedia({
+                video: true,
+                audio: false // We only need the screenshot
+            });
+
+            const track = screenStream.getVideoTracks()[0];
             const imageCapture = new ImageCapture(track);
             const bitmap = await imageCapture.grabFrame();
 
@@ -261,6 +260,9 @@ export default function App() {
             const ctx = canvas.getContext("2d");
             ctx.drawImage(bitmap, 0, 0);
             const base64 = canvas.toDataURL("image/jpeg", 0.8);
+
+            // Stop the stream immediately after grabbing the frame
+            track.stop();
 
             setStatus("ANALYZING...");
 
@@ -273,15 +275,17 @@ export default function App() {
             const data = await res.json();
             if (data.analysis) {
                 // Send analysis as context to model
-                const event = {
-                    type: "conversation.item.create",
-                    item: {
-                        type: "message",
-                        role: "system",
-                        content: [{ type: "input_text", text: `[SCREEN CONTEXT]: ${data.analysis}` }]
-                    }
-                };
-                dcRef.current.send(JSON.stringify(event));
+                if (dcRef.current) {
+                    const event = {
+                        type: "conversation.item.create",
+                        item: {
+                            type: "message",
+                            role: "system",
+                            content: [{ type: "input_text", text: `[SCREEN CONTEXT]: ${data.analysis}` }]
+                        }
+                    };
+                    dcRef.current.send(JSON.stringify(event));
+                }
                 setStatus("SCREEN ANALYZED");
                 setTimeout(() => setStatus("LISTENING..."), 2000);
             }

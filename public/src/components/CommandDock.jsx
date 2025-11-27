@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { motion } from 'framer-motion';
+import { motion, useDragControls } from 'framer-motion';
 import SettingsPopover from './SettingsPopover';
 import './CommandDock.css';
 
@@ -18,21 +18,29 @@ export default function CommandDock({
     setSpeed
 }) {
     const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+    const dragControls = useDragControls();
 
     return (
         <motion.div
             className="dock-wrapper"
             drag
+            dragListener={false}
+            dragControls={dragControls}
             dragMomentum={false}
             initial={{ y: 100, opacity: 0, x: "-50%" }}
             animate={{ y: 0, opacity: 1, x: "-50%" }}
-            style={{ x: "-50%" }} // Keep centered initially
+            style={{ x: "-50%" }}
         >
             <SettingsPopover isOpen={isSettingsOpen} speed={speed} setSpeed={setSpeed} />
 
             <div className="dock">
                 {/* Drag Handle */}
-                <div className="drag-handle" title="Drag to move">
+                <div
+                    className="drag-handle"
+                    title="Drag to move"
+                    onPointerDown={(e) => dragControls.start(e)}
+                    style={{ touchAction: 'none' }}
+                >
                     <svg className="icon" viewBox="0 0 24 24" style={{ width: 14, height: 14 }}>
                         <circle cx="9" cy="12" r="1"></circle>
                         <circle cx="9" cy="5" r="1"></circle>

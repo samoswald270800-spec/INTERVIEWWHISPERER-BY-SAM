@@ -10,8 +10,10 @@ export default function JobDescription({ jd, setJd, onSave }) {
         const success = await onSave(jd);
         if (success) {
             setIsSaved(true);
-            setTimeout(() => setIsSaved(false), 2000);
-            setIsOpen(false);
+            setTimeout(() => {
+                setIsSaved(false);
+                setIsOpen(false);
+            }, 1500);
         }
     };
 
