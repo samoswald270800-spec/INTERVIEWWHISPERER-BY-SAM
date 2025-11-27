@@ -6,7 +6,6 @@ import QAList from './components/QAList';
 import { useAudioCapture } from './hooks/useAudioCapture';
 
 export default function App() {
-    // UI State
     const [status, setStatus] = useState("SYSTEM READY");
     const [isListening, setIsListening] = useState(false);
     const [isProcessing, setIsProcessing] = useState(false);
@@ -15,9 +14,8 @@ export default function App() {
     const [canExpand, setCanExpand] = useState(false);
     const [isExpanding, setIsExpanding] = useState(false);
     const [jd, setJd] = useState("");
-    const [speed, setSpeed] = useState(0); // 0 = INSTANT (blazing fast)
+    const [speed, setSpeed] = useState(0); // 0 = INSTANT
 
-    // WebRTC Refs
     const pcRef = useRef(null);
     const dcRef = useRef(null);
     const streamRef = useRef(null);
@@ -25,15 +23,12 @@ export default function App() {
     const typeQueueRef = useRef([]);
     const isTypingRef = useRef(false);
 
-    // Audio Hook
     const { startCapture, stopCapture, toggleMute, isMuted } = useAudioCapture();
 
-    // --- Typewriter Logic (Instant if speed = 0) ---
     const processTypeQueue = useCallback(() => {
         if (!isTypingRef.current && typeQueueRef.current.length > 0) {
             isTypingRef.current = true;
 
-            // If speed is 0, dump entire queue at once (instant)
             if (speed === 0) {
                 const text = typeQueueRef.current.join('');
                 typeQueueRef.current = [];
@@ -48,7 +43,6 @@ export default function App() {
 
                 isTypingRef.current = false;
             } else {
-                // Normal typing with delay
                 const char = typeQueueRef.current.shift();
 
                 setQaList(prev => {
@@ -67,19 +61,16 @@ export default function App() {
         }
     }, [speed]);
 
-    // Trigger typing loop
     useEffect(() => {
         if (typeQueueRef.current.length > 0 && !isTypingRef.current) {
             processTypeQueue();
         }
     }, [speed, processTypeQueue]);
 
-    // --- Realtime Session Logic ---
     const startRealtime = async () => {
         setStatus("CONNECTING...");
 
         try {
-            // 1. Get Ephemeral Token
             const tokenRes = await fetch("/session", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
@@ -92,19 +83,15 @@ export default function App() {
                 return;
             }
 
-            // 2. Start Audio Capture
             const stream = await startCapture();
             streamRef.current = stream;
 
-            // 3. Setup WebRTC
             const pc = new RTCPeerConnection();
             pcRef.current = pc;
 
-            // Add Audio Track
             const audioTrack = stream.getAudioTracks()[0];
             pc.addTrack(audioTrack, stream);
 
-            // Setup Data Channel
             const dc = pc.createDataChannel("oai-events");
             dcRef.current = dc;
 
@@ -112,7 +99,6 @@ export default function App() {
                 setIsSessionActive(true);
                 setStatus("LISTENING...");
 
-                // Send Initial Config
                 const instructions = buildInstructions("smart");
                 const event = {
                     type: "session.update",
@@ -128,7 +114,6 @@ export default function App() {
 
             dc.onmessage = (e) => handleServerEvent(JSON.parse(e.data));
 
-            // 4. Connect
             const offer = await pc.createOffer();
             await pc.setLocalDescription(offer);
 
@@ -170,12 +155,14 @@ export default function App() {
                 lastQuestionRef.current = qText;
                 setCanExpand(true);
 
-                // Add new Q&A card
+                // CRITICAL FIX: Clear any leftover text from previous answer
+                typeQueueRef.current = [];
+                isTypingRef.current = false;
+
                 setQaList(prev => [...prev, { question: qText, answer: "" }]);
             }
         }
         else if (type === "response.text.delta") {
-            // Add to type queue
             for (let char of event.delta) {
                 typeQueueRef.current.push(char);
             }
@@ -195,24 +182,20 @@ export default function App() {
             setIsProcessing(false);
             setIsExpanding(false);
 
-            // Reset instructions to smart mode if we just finished expanding
             if (isExpanding) {
                 sendSessionUpdate("smart");
             }
         }
     };
 
-    // --- Expand Logic ---
     const expandLastAnswer = () => {
         if (!dcRef.current || !lastQuestionRef.current || isExpanding) return;
 
         setIsExpanding(true);
 
-        // 1. Update Instructions for Expansion
         const expandInstructions = buildInstructions("expand");
         sendSessionUpdate("expand", expandInstructions);
 
-        // 2. Send Fake User Message to Trigger Response
         const event = {
             type: "conversation.item.create",
             item: {
@@ -223,10 +206,8 @@ export default function App() {
         };
         dcRef.current.send(JSON.stringify(event));
 
-        // 3. Request Response
         dcRef.current.send(JSON.stringify({ type: "response.create", response: { modalities: ["text"] } }));
 
-        // Clear last answer to make room for expansion
         setQaList(prev => {
             const newList = [...prev];
             if (newList.length > 0) {
@@ -236,7 +217,6 @@ export default function App() {
         });
     };
 
-    // --- Helpers ---
     const buildInstructions = (mode) => {
         const GLOBAL = `🔥 GLOBAL RULES\nYou are answering as the candidate in a live job interview.\nSpeak in first person ("I", "my project").\nSound human, conversational, not robotic.\nAnchor answers to: 1. Job Description, 2. Resume.\nUse STAR method implicitly.`.trim();
 
@@ -288,6 +268,11 @@ export default function App() {
             });
 
             const data = await res.json();
+            if (data.error) {
+                alert(data.error);
+                setStatus("LISTENING...");
+                return;
+            }
             if (data.analysis) {
                 if (dcRef.current) {
                     const event = {
