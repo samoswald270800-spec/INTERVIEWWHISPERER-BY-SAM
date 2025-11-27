@@ -1,5 +1,49 @@
+# Node modules
 node_modules/
-.env
-.DS_Store
-npm-debug.log
+public/node_modules/
+admin/node_modules/
 
+# Build outputs
+public/build/
+admin/dist/
+dist/
+build/
+
+# Environment variables
+.env
+.env.local
+.env.production
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# OS files
+.DS_Store
+Thumbs.db
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+
+# IDE files
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# Test coverage
+coverage/
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+
+# Lock files (optional - include if you want deterministic builds)
+# package-lock.json
+# yarn.lock

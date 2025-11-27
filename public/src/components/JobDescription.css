@@ -1,0 +1,104 @@
+.job-description {
+    margin-bottom: 1.5rem;
+    padding: 1.5rem;
+    border-radius: 16px;
+    transition: all var(--transition-base);
+}
+
+.jd-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1rem;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+}
+
+.jd-header strong {
+    font-size: 1rem;
+    font-weight: 600;
+    color: var(--text-primary);
+}
+
+.jd-hint {
+    font-size: 0.8125rem;
+    color: var(--text-tertiary);
+}
+
+.jd-textarea {
+    width: 100%;
+    min-height: 150px;
+    padding: 1rem;
+    font-family: inherit;
+    font-size: 0.9375rem;
+    line-height: 1.6;
+    color: var(--text-primary);
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: 12px;
+    resize: vertical;
+    transition: all var(--transition-base);
+}
+
+.jd-textarea:focus {
+    outline: none;
+    border-color: var(--accent-primary);
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+}
+
+.jd-textarea::placeholder {
+    color: var(--text-tertiary);
+}
+
+.jd-footer {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    margin-top: 1rem;
+    flex-wrap: wrap;
+}
+
+.save-btn {
+    padding: 0.625rem 1.25rem;
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: white;
+    background: var(--accent-primary);
+    border: none;
+    border-radius: 12px;
+    cursor: pointer;
+    transition: all var(--transition-base);
+    box-shadow: 0 4px 14px rgba(59, 130, 246, 0.3);
+}
+
+.save-btn:hover {
+    background: var(--accent-primary-hover);
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(59, 130, 246, 0.4);
+}
+
+.jd-tip {
+    font-size: 0.8125rem;
+    color: var(--text-tertiary);
+    line-height: 1.4;
+}
+
+@media (max-width: 768px) {
+    .job-description {
+        padding: 1.25rem;
+    }
+
+    .jd-header {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+
+    .jd-footer {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+
+    .save-btn {
+        width: 100%;
+    }
+}

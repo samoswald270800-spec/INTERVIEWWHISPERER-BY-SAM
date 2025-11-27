@@ -199,7 +199,7 @@ async function deleteTempUser(username) {
 
 // API endpoints
 app.post("/admin/api/users", requireAdmin, async (req, res) => {
-    const { username, password, hours = 24 } = req.body || {};
+  const { username, password, hours = 24 } = req.body || {};
 
   // basic validation to avoid writing unusable temp accounts
   if (!username || !password) {
@@ -321,9 +321,6 @@ app.post("/admin/api/sessions/:sessionId/logout", requireAdmin, async (req, res)
 
 /* ---------- Static & Admin SPA (order matters) ---------- */
 
-// Public assets (still behind your requireAuth middleware earlier)
-app.use(express.static(path.join(__dirname, "public")));
-
 // React Admin build (protected)
 app.use(
   "/admin",
@@ -336,10 +333,17 @@ app.get("/admin/*", requireAdmin, (req, res) => {
   res.sendFile(path.join(__dirname, "admin", "dist", "index.html"));
 });
 
+// Public React app (built from public/src → public/build)
+app.use(express.static(path.join(__dirname, "public", "build")));
 
-// Explicit route for "/"
-app.get("/", (req, res) => {
-  res.sendFile(path.join(__dirname, "public", "index.html"));
+// SPA fallback for main app (must come after API routes)
+app.get("*", (req, res) => {
+  // Skip API routes
+  if (req.path.startsWith('/api') || req.path.startsWith('/session') ||
+    req.path.startsWith('/set-jd') || req.path.startsWith('/analyze-screen')) {
+    return res.status(404).json({ error: 'Not found' });
+  }
+  res.sendFile(path.join(__dirname, "public", "build", "index.html"));
 });
 
 /* Load resume (optional but recommended) */
@@ -504,7 +508,7 @@ End every answer like this:
 `.trim();
 
     const modeText = (mode === "god") ? GOD_MODE : SMART_MODE;
-  const screenAnalysisContext = req.session?.screenAnalysisContext || "";
+    const screenAnalysisContext = req.session?.screenAnalysisContext || "";
 
     // Build full instructions: GLOBAL + mode-specific + tailoring content (JD/resume/assignment)
     const fullInstructions = `
@@ -557,11 +561,11 @@ ${screenAnalysisContext ? `${screenAnalysisContext}` : ""}
         },
 
         // Realtime transcription - English only
-        input_audio_transcription: { 
+        input_audio_transcription: {
           model: "gpt-4o-transcribe",
           language: "en"
         },
-      
+
         // Dynamic instructions include GLOBAL rules + mode-specific behavior + JD/resume/assignment
         instructions: fullInstructions,
       }),
@@ -624,7 +628,7 @@ app.post("/analyze-screen", requireAuth, async (req, res) => {
         .filter(Boolean)
         .join("\n\n");
     }
-// Pull the most recent transcript (if any) from Redis so we send the full conversation
+    // Pull the most recent transcript (if any) from Redis so we send the full conversation
     let redisTranscript = "";
     if (req.sessionID) {
       try {
@@ -752,7 +756,7 @@ Return ONLY the JSON. No explanations or text outside the JSON.
     }
 
     const analysis = String(parsed.analysis || "").trim();
-   const keyPoints = String(parsed.key_points || "").trim();
+    const keyPoints = String(parsed.key_points || "").trim();
     const answerGuidance = String(parsed.answer_guidance || "").trim();
 
     const screenAnalysisContext =
@@ -760,7 +764,7 @@ Return ONLY the JSON. No explanations or text outside the JSON.
         ? `<SCREEN_ANALYSIS>\n${analysis}\n\n${answerGuidance}\n</SCREEN_ANALYSIS>`
         : "";
 
-   if (req.session && screenAnalysisContext) {
+    if (req.session && screenAnalysisContext) {
       req.session.screenAnalysisContext = screenAnalysisContext;
       try {
         await new Promise((resolve, reject) =>

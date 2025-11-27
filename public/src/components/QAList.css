@@ -1,0 +1,113 @@
+.qa-list-container {
+    margin-top: 1.5rem;
+}
+
+.qa-hint {
+    padding: 0.875rem 1.25rem;
+    font-size: 0.875rem;
+    color: var(--text-secondary);
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: 12px;
+    margin-bottom: 1.5rem;
+    line-height: 1.6;
+}
+
+.q-label {
+    color: var(--accent-primary);
+    font-weight: 600;
+}
+
+.a-label {
+    color: var(--accent-secondary);
+    font-weight: 600;
+}
+
+.qa-list {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+}
+
+.qa-empty {
+    padding: 3rem 2rem;
+    text-align: center;
+    font-size: 0.9375rem;
+    color: var(--text-tertiary);
+    background: var(--bg-secondary);
+    border: 1px dashed var(--border-color);
+    border-radius: 16px;
+}
+
+.qa-card {
+    padding: 1.5rem;
+    border-radius: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 1.25rem;
+    transition: all var(--transition-base);
+}
+
+.qa-card:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-lg);
+}
+
+.question,
+.answer {
+    display: flex;
+    flex-direction: column;
+    gap: 0.625rem;
+}
+
+.qa-label {
+    font-size: 0.75rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    opacity: 0.7;
+}
+
+.question .qa-label {
+    color: var(--accent-primary);
+}
+
+.answer .qa-label {
+    color: var(--accent-secondary);
+}
+
+[data-mode="god"] .answer .qa-label {
+    color: var(--accent-warning);
+}
+
+.qa-content {
+    font-size: 0.9375rem;
+    line-height: 1.7;
+    color: var(--text-primary);
+    white-space: pre-wrap;
+    word-wrap: break-word;
+}
+
+.question .qa-content {
+    padding-left: 1rem;
+    border-left: 3px solid var(--accent-primary);
+}
+
+.answer .qa-content {
+    padding-left: 1rem;
+    border-left: 3px solid var(--accent-secondary);
+}
+
+[data-mode="god"] .answer .qa-content {
+    border-left-color: var(--accent-warning);
+}
+
+@media (max-width: 768px) {
+    .qa-card {
+        padding: 1.25rem;
+    }
+
+    .qa-content {
+        font-size: 0.875rem;
+    }
+}
