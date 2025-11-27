@@ -214,7 +214,14 @@ app.post("/api/login", async (req, res, next) => {
     // Track active session
     await addActiveSession(username, req.sessionID);
 
-    return res.json({ ok: true, role: "user", permissions: req.session.permissions });
+    // Force save to ensure session exists in Redis before client redirects
+    req.session.save((err) => {
+      if (err) {
+        console.error("Session save error:", err);
+        return res.status(500).json({ error: "Login failed (session error)" });
+      }
+      return res.json({ ok: true, role: "user", permissions: req.session.permissions });
+    });
   } catch (e) {
     // On any unexpected error we fall through to admin path to avoid blocking it
     return next();
@@ -240,7 +247,10 @@ app.post("/api/login", (req, res) => {
     req.session.loginAt = Date.now();
 
     // NO session tracking for admin
-    return res.json({ ok: true, role: "admin" });
+    req.session.save((err) => {
+      if (err) return res.status(500).json({ error: "Session error" });
+      return res.json({ ok: true, role: "admin" });
+    });
   }
 
   return res.status(401).json({ error: "Invalid username or password" });
