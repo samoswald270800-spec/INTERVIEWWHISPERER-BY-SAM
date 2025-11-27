@@ -268,10 +268,18 @@ app.use((req, _res, next) => {
   }
   next();
 });
-
 // ---[ADD] Endpoint for frontend to check permissions ---
 app.get("/api/me", (req, res) => {
   if (!req.session?.userId) return res.status(401).json({ error: "Not logged in" });
+
+  // Admin always has full permissions
+  if (req.session.role === "admin") {
+    return res.json({
+      userId: req.session.userId,
+      role: "admin",
+      permissions: { canExpand: true, canAnalyze: true }
+    });
+  }
 
   return res.json({
     userId: req.session.userId,
