@@ -15,7 +15,7 @@ export default function App() {
     const [canExpand, setCanExpand] = useState(false);
     const [isExpanding, setIsExpanding] = useState(false);
     const [jd, setJd] = useState("");
-    const [speed, setSpeed] = useState(5); // Default to Fastest (5ms)
+    const [speed, setSpeed] = useState(0); // 0 = INSTANT (blazing fast)
 
     // WebRTC Refs
     const pcRef = useRef(null);
@@ -28,29 +28,46 @@ export default function App() {
     // Audio Hook
     const { startCapture, stopCapture, toggleMute, isMuted } = useAudioCapture();
 
-    // --- Typewriter Logic ---
+    // --- Typewriter Logic (Instant if speed = 0) ---
     const processTypeQueue = useCallback(() => {
         if (!isTypingRef.current && typeQueueRef.current.length > 0) {
             isTypingRef.current = true;
-            const char = typeQueueRef.current.shift();
 
-            setQaList(prev => {
-                const newList = [...prev];
-                if (newList.length > 0) {
-                    const lastItem = newList[newList.length - 1];
-                    lastItem.answer += char;
-                }
-                return newList;
-            });
+            // If speed is 0, dump entire queue at once (instant)
+            if (speed === 0) {
+                const text = typeQueueRef.current.join('');
+                typeQueueRef.current = [];
 
-            setTimeout(() => {
+                setQaList(prev => {
+                    const newList = [...prev];
+                    if (newList.length > 0) {
+                        newList[newList.length - 1].answer += text;
+                    }
+                    return newList;
+                });
+
                 isTypingRef.current = false;
-                processTypeQueue();
-            }, speed);
+            } else {
+                // Normal typing with delay
+                const char = typeQueueRef.current.shift();
+
+                setQaList(prev => {
+                    const newList = [...prev];
+                    if (newList.length > 0) {
+                        newList[newList.length - 1].answer += char;
+                    }
+                    return newList;
+                });
+
+                setTimeout(() => {
+                    isTypingRef.current = false;
+                    processTypeQueue();
+                }, speed);
+            }
         }
     }, [speed]);
 
-    // Trigger typing loop when queue changes or speed changes
+    // Trigger typing loop
     useEffect(() => {
         if (typeQueueRef.current.length > 0 && !isTypingRef.current) {
             processTypeQueue();
@@ -66,7 +83,7 @@ export default function App() {
             const tokenRes = await fetch("/session", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ mode: "smart" }) // Default to smart
+                body: JSON.stringify({ mode: "smart" })
             });
             const data = await tokenRes.json();
 
@@ -243,11 +260,10 @@ export default function App() {
     };
 
     const handleAnalyzeScreen = async () => {
-        // Explicitly ask for a screen to capture for analysis
         try {
             const screenStream = await navigator.mediaDevices.getDisplayMedia({
                 video: true,
-                audio: false // We only need the screenshot
+                audio: false
             });
 
             const track = screenStream.getVideoTracks()[0];
@@ -261,7 +277,6 @@ export default function App() {
             ctx.drawImage(bitmap, 0, 0);
             const base64 = canvas.toDataURL("image/jpeg", 0.8);
 
-            // Stop the stream immediately after grabbing the frame
             track.stop();
 
             setStatus("ANALYZING...");
@@ -274,7 +289,6 @@ export default function App() {
 
             const data = await res.json();
             if (data.analysis) {
-                // Send analysis as context to model
                 if (dcRef.current) {
                     const event = {
                         type: "conversation.item.create",
@@ -297,7 +311,6 @@ export default function App() {
 
     const handleSaveJd = async (newJd) => {
         setJd(newJd);
-        // Update session if active
         if (isSessionActive) {
             sendSessionUpdate("smart");
         }
@@ -308,6 +321,16 @@ export default function App() {
         setQaList([]);
         lastQuestionRef.current = "";
         setCanExpand(false);
+    };
+
+    const handleLogout = async () => {
+        try {
+            await fetch('/api/logout', { method: 'POST' });
+            window.location.href = '/login';
+        } catch (e) {
+            console.error('Logout failed:', e);
+            window.location.href = '/login';
+        }
     };
 
     return (
@@ -323,7 +346,7 @@ export default function App() {
                 isProcessing={isProcessing}
             />
 
-            <button className="power-btn" onClick={() => window.location.reload()} title="Sign Out">
+            <button className="power-btn" onClick={handleLogout} title="Sign Out">
                 <svg className="icon" viewBox="0 0 24 24">
                     <path d="M18.36 6.64a9 9 0 1 1-12.73 0"></path>
                     <line x1="12" y1="2" x2="12" y2="12"></line>

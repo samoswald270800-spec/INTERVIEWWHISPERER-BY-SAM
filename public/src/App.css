@@ -1,31 +1,39 @@
-/* Power Button (Corner) */
+/* Power Button (Premium Design) */
 .power-btn {
     position: fixed;
     top: 32px;
     right: 40px;
     z-index: 100;
-    width: 40px;
-    height: 40px;
+    width: 44px;
+    height: 44px;
     border-radius: 50%;
-    background: transparent;
-    border: 1px solid rgba(255, 255, 255, 0.1);
+    background: rgba(10, 10, 10, 0.8);
+    backdrop-filter: blur(16px);
+    border: 1px solid rgba(255, 255, 255, 0.08);
     display: flex;
     align-items: center;
     justify-content: center;
     color: var(--text-muted);
     cursor: pointer;
-    transition: all 0.3s;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
 }
 
 .power-btn:hover {
-    background: rgba(225, 29, 72, 0.1);
+    background: rgba(225, 29, 72, 0.15);
     border-color: var(--lux-rose);
     color: var(--lux-rose);
+    transform: scale(1.05);
+    box-shadow: 0 6px 20px rgba(225, 29, 72, 0.3);
+}
+
+.power-btn:active {
+    transform: scale(0.95);
 }
 
 /* Main Stream (Cinematic Scroll) */
 .stage {
-    position: absolute;
+    position: fixed;
     top: 0;
     left: 0;
     width: 100%;
@@ -34,4 +42,5 @@
     display: flex;
     flex-direction: column;
     align-items: center;
+    overflow: hidden;
 }

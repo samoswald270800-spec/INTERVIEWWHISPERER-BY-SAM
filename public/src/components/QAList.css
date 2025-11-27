@@ -1,16 +1,31 @@
 .stream {
     width: 100%;
     max-width: 1400px;
-    flex: 1;
-    min-height: 0;
+    height: 100vh;
     overflow-y: auto;
+    overflow-x: hidden;
     padding: 120px 40px 180px 40px;
     scroll-behavior: smooth;
     display: flex;
     flex-direction: column;
     gap: 48px;
-    mask-image: linear-gradient(to bottom, black 85%, transparent 100%);
-    -webkit-mask-image: linear-gradient(to bottom, black 85%, transparent 100%);
+}
+
+.stream::-webkit-scrollbar {
+    width: 6px;
+}
+
+.stream::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.stream::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 3px;
+}
+
+.stream::-webkit-scrollbar-thumb:hover {
+    background: rgba(255, 255, 255, 0.2);
 }
 
 .empty-hero {

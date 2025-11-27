@@ -2,24 +2,31 @@ import React from 'react';
 import './SettingsPopover.css';
 
 export default function SettingsPopover({ isOpen, speed, setSpeed }) {
+    const getSpeedLabel = () => {
+        if (speed === 0) return "Instant";
+        if (speed < 10) return "Blazing";
+        if (speed < 25) return "Normal";
+        return "Relaxed";
+    };
+
     return (
         <div className={`settings-popover ${isOpen ? 'open' : ''}`}>
             <div className="setting-group">
                 <div className="setting-label">
                     Text Speed
                     <span style={{ color: 'var(--text-white)' }}>
-                        {speed < 10 ? "Instant" : speed < 25 ? "Normal" : "Relaxed"}
+                        {getSpeedLabel()}
                     </span>
                 </div>
                 <div className="range-wrap">
                     <span style={{ fontSize: '10px', color: 'var(--text-muted)' }}>Slow</span>
                     <input
                         type="range"
-                        min="5"
+                        min="0"
                         max="50"
-                        value={55 - speed} // Invert for UI logic (Left=Slow, Right=Fast in code, but UI label says opposite)
+                        value={50 - speed}
                         step="5"
-                        onChange={(e) => setSpeed(55 - parseInt(e.target.value))}
+                        onChange={(e) => setSpeed(50 - parseInt(e.target.value))}
                         onPointerDown={(e) => e.stopPropagation()}
                     />
                     <span style={{ fontSize: '10px', color: 'var(--text-muted)' }}>Fast</span>
