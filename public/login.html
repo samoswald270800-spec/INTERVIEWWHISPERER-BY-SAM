@@ -40,6 +40,7 @@
       font-family: var(--font-body);
       min-height: 100vh;
       display: flex;
+      flex-direction: column;
       align-items: center;
       justify-content: center;
       overflow: hidden;
@@ -89,89 +90,20 @@
       background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)' opacity='1'/%3E%3C/svg%3E");
     }
 
-    .login-container {
-      width: 100%;
-      max-width: 900px;
-      display: flex;
-      gap: 60px;
-      align-items: center;
-      padding: 40px;
-      z-index: 1;
+    .logo-container {
+      margin-bottom: 40px;
+      cursor: pointer;
+      transition: transform 0.3s ease;
     }
 
-    .info-panel {
-      flex: 1;
-      opacity: 0;
-      animation: slideIn 0.8s cubic-bezier(0.2, 0.8, 0.2, 1) 0.2s forwards;
+    .logo-container:active {
+      transform: scale(0.95);
     }
 
-    @keyframes slideIn {
-      from {
-        opacity: 0;
-        transform: translateX(-20px);
-      }
-
-      to {
-        opacity: 1;
-        transform: translateX(0);
-      }
-    }
-
-    .info-panel h1 {
-      font-family: var(--font-display);
-      font-size: 48px;
-      font-weight: 300;
-      letter-spacing: -0.03em;
-      color: var(--text-white);
-      margin-bottom: 16px;
-    }
-
-    .info-panel p {
-      font-size: 16px;
-      line-height: 1.7;
-      color: var(--text-muted);
-      margin-bottom: 16px;
-    }
-
-    .features {
-      margin-top: 32px;
-      display: flex;
-      flex-direction: column;
-      gap: 16px;
-    }
-
-    .feature {
-      display: flex;
-      align-items: center;
-      gap: 12px;
-      color: var(--text-muted);
-      font-size: 14px;
-    }
-
-    .feature-icon {
-      width: 24px;
-      height: 24px;
-      border-radius: 8px;
-      background: rgba(139, 92, 246, 0.1);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      color: var(--lux-violet);
-    }
-
-    .easter-egg {
-      margin-top: 40px;
-      padding: 16px 20px;
-      background: linear-gradient(135deg, rgba(139, 92, 246, 0.05), rgba(6, 182, 212, 0.05));
-      border: 1px solid rgba(255, 255, 255, 0.05);
-      border-radius: 12px;
-      font-size: 12px;
-      color: var(--text-muted);
-      font-style: italic;
-    }
-
-    .easter-egg strong {
-      color: var(--lux-violet);
+    .logo-svg {
+      width: 64px;
+      height: 64px;
+      filter: drop-shadow(0 0 20px rgba(139, 92, 246, 0.4));
     }
 
     .login-panel {
@@ -182,8 +114,8 @@
       border-radius: 24px;
       padding: 40px;
       box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
-      opacity: 0;
-      animation: slideIn 0.8s cubic-bezier(0.2, 0.8, 0.2, 1) 0.4s forwards;
+      position: relative;
+      z-index: 10;
     }
 
     .login-header {
@@ -236,10 +168,6 @@
       box-shadow: 0 0 0 3px var(--theme-glow);
     }
 
-    .form-input::placeholder {
-      color: rgba(255, 255, 255, 0.3);
-    }
-
     .login-btn {
       width: 100%;
       padding: 14px;
@@ -254,15 +182,12 @@
       cursor: pointer;
       transition: all 0.3s;
       text-transform: uppercase;
+      margin-top: 10px;
     }
 
     .login-btn:hover {
       transform: translateY(-2px);
       box-shadow: 0 8px 24px var(--theme-glow);
-    }
-
-    .login-btn:active {
-      transform: translateY(0);
     }
 
     .error {
@@ -281,20 +206,95 @@
       display: block;
     }
 
-    @media (max-width: 768px) {
-      .login-container {
-        flex-direction: column;
-        gap: 40px;
-      }
+    .footer-mark {
+      margin-top: 40px;
+      font-size: 12px;
+      color: var(--text-muted);
+      opacity: 0.6;
+      letter-spacing: 0.05em;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
 
-      .info-panel h1 {
-        font-size: 36px;
-      }
+    /* Easter Egg Modal */
+    .easter-modal {
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.9);
+      backdrop-filter: blur(20px);
+      z-index: 100;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.5s ease;
+    }
 
-      .login-panel {
-        width: 100%;
-        max-width: 380px;
-      }
+    .easter-modal.active {
+      opacity: 1;
+      pointer-events: auto;
+    }
+
+    .easter-content {
+      text-align: center;
+      max-width: 500px;
+      padding: 40px;
+      border: 1px solid var(--glass-border);
+      border-radius: 32px;
+      background: rgba(10, 10, 10, 0.8);
+      transform: scale(0.9);
+      transition: transform 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    }
+
+    .easter-modal.active .easter-content {
+      transform: scale(1);
+    }
+
+    .easter-avatar {
+      width: 100px;
+      height: 100px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, var(--lux-violet), var(--lux-cyan));
+      margin: 0 auto 24px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 40px;
+      font-weight: 700;
+      color: white;
+      box-shadow: 0 0 40px var(--theme-glow);
+    }
+
+    .easter-title {
+      font-family: var(--font-display);
+      font-size: 32px;
+      margin-bottom: 16px;
+      background: linear-gradient(to right, #fff, #9CA3AF);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .easter-text {
+      font-size: 16px;
+      line-height: 1.6;
+      color: var(--text-muted);
+      margin-bottom: 32px;
+    }
+
+    .close-easter {
+      padding: 10px 24px;
+      background: rgba(255, 255, 255, 0.1);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 100px;
+      color: white;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .close-easter:hover {
+      background: rgba(255, 255, 255, 0.2);
     }
   </style>
 </head>
@@ -305,66 +305,87 @@
     <div class="noise"></div>
   </div>
 
-  <div class="login-container">
-    <div class="info-panel">
-      <h1>Interview Whisperer</h1>
-      <p>
-        Your AI-powered interview companion. Real-time transcription, intelligent answer suggestions,
-        and screen analysis—all working together to help you shine in every interview.
-      </p>
+  <!-- Logo (Click 5 times for easter egg) -->
+  <div class="logo-container" id="logoBtn">
+    <svg class="logo-svg" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <circle cx="50" cy="50" r="45" stroke="url(#paint0_linear)" stroke-width="2" />
+      <path d="M35 50L45 60L65 40" stroke="white" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" />
+      <defs>
+        <linearGradient id="paint0_linear" x1="0" y1="0" x2="100" y2="100" gradientUnits="userSpaceOnUse">
+          <stop stop-color="#8B5CF6" />
+          <stop offset="1" stop-color="#06B6D4" />
+        </linearGradient>
+      </defs>
+    </svg>
+  </div>
 
-      <div class="features">
-        <div class="feature">
-          <div class="feature-icon">✨</div>
-          <span>Real-time audio transcription</span>
-        </div>
-        <div class="feature">
-          <div class="feature-icon">🧠</div>
-          <span>AI-generated answer suggestions</span>
-        </div>
-        <div class="feature">
-          <div class="feature-icon">📸</div>
-          <span>Screen context analysis</span>
-        </div>
-        <div class="feature">
-          <div class="feature-icon">⚡</div>
-          <span>Instant response generation</span>
-        </div>
-      </div>
-
-      <div class="easter-egg">
-        🎨 Crafted with precision by <strong>Sam Oswald</strong>
-      </div>
+  <div class="login-panel">
+    <div class="login-header">
+      <h2>Interview Whisperer</h2>
+      <p>Sign in to your workspace</p>
     </div>
 
-    <div class="login-panel">
-      <div class="login-header">
-        <h2>Sign In</h2>
-        <p>Access your interview assistant</p>
+    <form id="loginForm">
+      <div class="form-group">
+        <label class="form-label">Username</label>
+        <input type="text" class="form-input" id="username" placeholder="Enter username" required>
       </div>
 
-      <form id="loginForm">
-        <div class="form-group">
-          <label class="form-label">Username</label>
-          <input type="text" class="form-input" id="username" placeholder="Enter username" required>
-        </div>
+      <div class="form-group">
+        <label class="form-label">Password</label>
+        <input type="password" class="form-input" id="password" placeholder="Enter password" required>
+      </div>
 
-        <div class="form-group">
-          <label class="form-label">Password</label>
-          <input type="password" class="form-input" id="password" placeholder="Enter password" required>
-        </div>
+      <button type="submit" class="login-btn">Sign In</button>
 
-        <button type="submit" class="login-btn">Sign In</button>
+      <div class="error" id="error"></div>
+    </form>
+  </div>
 
-        <div class="error" id="error"></div>
-      </form>
+  <div class="footer-mark">
+    Made in Canada 🇨🇦
+  </div>
+
+  <!-- Easter Egg Modal -->
+  <div class="easter-modal" id="easterModal">
+    <div class="easter-content">
+      <div class="easter-avatar">SO</div>
+      <h3 class="easter-title">Sam Oswald</h3>
+      <p class="easter-text">
+        Full-stack developer and architect behind Interview Whisperer.
+        Building tools that empower people to achieve their potential.
+      </p>
+      <button class="close-easter"
+        onclick="document.getElementById('easterModal').classList.remove('active')">Close</button>
     </div>
   </div>
 
   <script>
     const form = document.getElementById('loginForm');
     const errorEl = document.getElementById('error');
+    const logoBtn = document.getElementById('logoBtn');
+    const easterModal = document.getElementById('easterModal');
 
+    // Easter Egg Logic
+    let clickCount = 0;
+    let clickTimer;
+
+    logoBtn.addEventListener('click', () => {
+      clickCount++;
+
+      // Reset count if too slow
+      clearTimeout(clickTimer);
+      clickTimer = setTimeout(() => {
+        clickCount = 0;
+      }, 1000);
+
+      if (clickCount === 5) {
+        easterModal.classList.add('active');
+        clickCount = 0;
+      }
+    });
+
+    // Login Logic
     form.addEventListener('submit', async (e) => {
       e.preventDefault();
 

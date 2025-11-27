@@ -1,7 +1,7 @@
 import React from 'react';
 import './SettingsPopover.css';
 
-export default function SettingsPopover({ isOpen, speed, setSpeed }) {
+export default function SettingsPopover({ isOpen, speed, setSpeed, highContrast, setHighContrast }) {
     const getSpeedLabel = () => {
         if (speed === 0) return "Instant";
         if (speed < 10) return "Blazing";
@@ -11,15 +11,17 @@ export default function SettingsPopover({ isOpen, speed, setSpeed }) {
 
     return (
         <div className={`settings-popover ${isOpen ? 'open' : ''}`}>
+            <div className="settings-header">
+                <h3>Preferences</h3>
+            </div>
+
             <div className="setting-group">
                 <div className="setting-label">
                     Text Speed
-                    <span style={{ color: 'var(--text-white)' }}>
-                        {getSpeedLabel()}
-                    </span>
+                    <span className="value-badge">{getSpeedLabel()}</span>
                 </div>
                 <div className="range-wrap">
-                    <span style={{ fontSize: '10px', color: 'var(--text-muted)' }}>Slow</span>
+                    <span className="range-icon">⚡</span>
                     <input
                         type="range"
                         min="0"
@@ -29,8 +31,25 @@ export default function SettingsPopover({ isOpen, speed, setSpeed }) {
                         onChange={(e) => setSpeed(50 - parseInt(e.target.value))}
                         onPointerDown={(e) => e.stopPropagation()}
                     />
-                    <span style={{ fontSize: '10px', color: 'var(--text-muted)' }}>Fast</span>
+                    <span className="range-icon">🐢</span>
                 </div>
+            </div>
+
+            <div className="setting-divider"></div>
+
+            <div className="setting-group row">
+                <div className="setting-label">
+                    High Contrast
+                    <span className="sub-label">Better visibility</span>
+                </div>
+                <label className="toggle-switch">
+                    <input
+                        type="checkbox"
+                        checked={highContrast}
+                        onChange={(e) => setHighContrast(e.target.checked)}
+                    />
+                    <span className="slider"></span>
+                </label>
             </div>
         </div>
     );

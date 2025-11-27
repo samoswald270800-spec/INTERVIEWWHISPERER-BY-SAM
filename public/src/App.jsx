@@ -3,6 +3,7 @@ import StatusPill from './components/StatusPill';
 import CommandDock from './components/CommandDock';
 import JobDescription from './components/JobDescription';
 import QAList from './components/QAList';
+import SettingsPopover from './components/SettingsPopover';
 import { useAudioCapture } from './hooks/useAudioCapture';
 
 export default function App() {
@@ -15,6 +16,8 @@ export default function App() {
     const [isExpanding, setIsExpanding] = useState(false);
     const [jd, setJd] = useState("");
     const [speed, setSpeed] = useState(0);
+    const [highContrast, setHighContrast] = useState(false);
+    const [isSettingsOpen, setIsSettingsOpen] = useState(false);
 
     const pcRef = useRef(null);
     const dcRef = useRef(null);
@@ -327,24 +330,45 @@ export default function App() {
     };
 
     return (
-        <>
+        <div className={`app-container ${highContrast ? 'high-contrast' : ''}`}>
             <div className="void-bg">
                 <div className="aurora"></div>
                 <div className="noise"></div>
             </div>
 
-            <StatusPill
-                status={status}
-                isListening={isListening}
-                isProcessing={isProcessing}
-            />
+            <div className="status-pill-wrapper">
+                <StatusPill
+                    status={status}
+                    isListening={isListening}
+                    isProcessing={isProcessing}
+                />
+            </div>
 
             <button className="power-btn" onClick={handleLogout} title="Sign Out">
-                <svg className="icon" viewBox="0 0 24 24">
+                <svg className="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                     <path d="M18.36 6.64a9 9 0 1 1-12.73 0"></path>
                     <line x1="12" y1="2" x2="12" y2="12"></line>
                 </svg>
             </button>
+
+            <button
+                className={`settings-btn ${isSettingsOpen ? 'active' : ''}`}
+                onClick={() => setIsSettingsOpen(!isSettingsOpen)}
+                title="Preferences"
+            >
+                <svg className="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <circle cx="12" cy="12" r="3"></circle>
+                    <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+                </svg>
+            </button>
+
+            <SettingsPopover
+                isOpen={isSettingsOpen}
+                speed={speed}
+                setSpeed={setSpeed}
+                highContrast={highContrast}
+                setHighContrast={setHighContrast}
+            />
 
             <main className="stage">
                 <QAList qaList={qaList} />
@@ -361,8 +385,6 @@ export default function App() {
                 isMuted={isMuted}
                 canExpand={canExpand}
                 isExpanding={isExpanding}
-                speed={speed}
-                setSpeed={setSpeed}
             />
 
             <JobDescription
@@ -370,6 +392,6 @@ export default function App() {
                 setJd={setJd}
                 onSave={handleSaveJd}
             />
-        </>
+        </div>
     );
 }
