@@ -12,7 +12,8 @@ export default function CommandDock({
     isSessionActive,
     isMuted,
     canExpand,
-    isExpanding
+    isExpanding,
+    canAnalyze = true
 }) {
     const dragControls = useDragControls();
 
@@ -67,7 +68,12 @@ export default function CommandDock({
                 <div className="divider"></div>
 
                 {/* Analyze Button */}
-                <button className="dock-btn analyze" onClick={onAnalyze} disabled={!isSessionActive}>
+                <button
+                    className="dock-btn analyze"
+                    onClick={onAnalyze}
+                    disabled={!isSessionActive || !canAnalyze}
+                    title={!canAnalyze ? "Screen analysis disabled by admin" : "Analyze Screen"}
+                >
                     <svg className="icon" viewBox="0 0 24 24">
                         <path d="M21 12a9 9 0 1 1-6.219-8.56"></path>
                     </svg>

@@ -176,6 +176,7 @@ app.post("/api/login", async (req, res, next) => {
     // Success: set session & annotate
     req.session.userId = username;
     req.session.role = "user";
+    req.session.permissions = data.permissions || { canExpand: true, canAnalyze: true }; // Default to true if missing
     req.session.ip = req.headers["x-forwarded-for"] || req.ip;
     req.session.userAgent = req.headers["user-agent"] || "";
     req.session.deviceFingerprint = getDeviceFingerprint(req);
@@ -184,7 +185,7 @@ app.post("/api/login", async (req, res, next) => {
     // Track active session
     await addActiveSession(username, req.sessionID);
 
-    return res.json({ ok: true, role: "user" });
+    return res.json({ ok: true, role: "user", permissions: req.session.permissions });
   } catch (e) {
     // On any unexpected error we fall through to admin path to avoid blocking it
     return next();
@@ -268,6 +269,17 @@ app.use((req, _res, next) => {
   next();
 });
 
+// ---[ADD] Endpoint for frontend to check permissions ---
+app.get("/api/me", (req, res) => {
+  if (!req.session?.userId) return res.status(401).json({ error: "Not logged in" });
+
+  return res.json({
+    userId: req.session.userId,
+    role: req.session.role,
+    permissions: req.session.permissions || { canExpand: true, canAnalyze: true }
+  });
+});
+
 // Serve static files only after auth
 // ✅ ADMIN CONSOLE (protected area)
 function requireAdmin(req, res, next) {
@@ -275,10 +287,15 @@ function requireAdmin(req, res, next) {
   return res.status(403).json({ error: "Admin only" });
 }
 
-async function createTempUser(username, password, ttlHours = 24) {
+async function createTempUser(username, password, ttlHours = 24, permissions = {}) {
   const ttlSeconds = ttlHours * 3600;
   const now = Date.now();
-  const payload = { password, createdAt: now, expiresAt: now + ttlSeconds * 1000 };
+  const payload = {
+    password,
+    permissions, // Store permissions
+    createdAt: now,
+    expiresAt: now + ttlSeconds * 1000
+  };
   await redisClient.set(`tempuser:${username}`, JSON.stringify(payload), { EX: ttlSeconds });
 }
 
@@ -295,7 +312,7 @@ async function deleteTempUser(username) {
 
 // API endpoints
 app.post("/admin/api/users", requireAdmin, async (req, res) => {
-  const { username, password, hours = 24 } = req.body || {};
+  const { username, password, hours = 24, permissions = {} } = req.body || {};
 
   // basic validation to avoid writing unusable temp accounts
   if (!username || !password) {
@@ -307,7 +324,7 @@ app.post("/admin/api/users", requireAdmin, async (req, res) => {
     return res.status(400).json({ error: "hours must be a positive number" });
   }
 
-  await createTempUser(username, password, ttlHours);
+  await createTempUser(username, password, ttlHours, permissions);
   return res.json({ ok: true });
 });
 
@@ -317,7 +334,12 @@ app.get("/admin/api/users", requireAdmin, async (_req, res) => {
     const username = key.replace("tempuser:", "");
     const data = await getTempUser(username);
     const ttl = await redisClient.ttl(key);
-    users.push({ username, ttlSeconds: ttl, expiresAt: data.expiresAt });
+    users.push({
+      username,
+      ttlSeconds: ttl,
+      expiresAt: data.expiresAt,
+      permissions: data.permissions || { canExpand: true, canAnalyze: true }
+    });
   }
   return res.json({ ok: true, users });
 });
@@ -683,8 +705,13 @@ ${screenAnalysisContext ? `${screenAnalysisContext}` : ""}
  */
 app.post("/analyze-screen", requireAuth, async (req, res) => {
   try {
-    // Rate Limit Check (skip for admin)
+    // Check permissions & Rate Limit (skip for admin)
     if (req.session.role !== "admin") {
+      const perms = req.session.permissions || { canAnalyze: true };
+      if (!perms.canAnalyze) {
+        return res.status(403).json({ error: "Screen analysis is disabled for your account." });
+      }
+
       const limitCheck = await checkAnalyzeRateLimit(req.session.userId);
       if (!limitCheck.allowed) {
         return res.status(429).json({ error: limitCheck.error });

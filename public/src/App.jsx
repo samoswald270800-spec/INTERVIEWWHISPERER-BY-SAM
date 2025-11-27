@@ -17,6 +17,7 @@ export default function App() {
     const [jd, setJd] = useState("");
     const [speed, setSpeed] = useState(0);
     const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+    const [permissions, setPermissions] = useState({ canExpand: true, canAnalyze: true });
 
     const pcRef = useRef(null);
     const dcRef = useRef(null);
@@ -68,6 +69,18 @@ export default function App() {
             processTypeQueue();
         }
     }, [speed, processTypeQueue]);
+
+    // Fetch permissions on mount
+    useEffect(() => {
+        fetch('/api/me')
+            .then(res => res.json())
+            .then(data => {
+                if (data.permissions) {
+                    setPermissions(data.permissions);
+                }
+            })
+            .catch(err => console.error("Failed to fetch permissions:", err));
+    }, []);
 
     const startRealtime = async () => {
         setStatus("CONNECTING...");
@@ -380,8 +393,9 @@ export default function App() {
                 onExpand={expandLastAnswer}
                 isSessionActive={isSessionActive}
                 isMuted={isMuted}
-                canExpand={canExpand}
+                canExpand={canExpand && permissions.canExpand}
                 isExpanding={isExpanding}
+                canAnalyze={permissions.canAnalyze}
             />
 
             <JobDescription

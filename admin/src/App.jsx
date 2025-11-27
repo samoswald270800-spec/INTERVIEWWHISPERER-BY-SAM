@@ -16,6 +16,11 @@ export default function App() {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [hours, setHours] = useState(24);
+
+  // Permission states
+  const [canExpand, setCanExpand] = useState(true);
+  const [canAnalyze, setCanAnalyze] = useState(true);
+
   const [msg, setMsg] = useState("");
   const [pollMinutes, setPollMinutes] = useState(10); // configurable polling minutes
 
@@ -47,7 +52,15 @@ export default function App() {
     const res = await fetch("/admin/api/users", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ username, password, hours }),
+      body: JSON.stringify({
+        username,
+        password,
+        hours,
+        permissions: {
+          canExpand,
+          canAnalyze
+        }
+      }),
     });
 
     const data = await res.json();
@@ -56,6 +69,9 @@ export default function App() {
     await loadAll();
     setUsername("");
     setPassword("");
+    // Reset permissions to default
+    setCanExpand(true);
+    setCanAnalyze(true);
   }
 
   async function revokeUser(username) {
@@ -145,9 +161,34 @@ export default function App() {
             onChange={(e) => setHours(e.target.value)}
           />
 
+          {/* Permissions Checkboxes */}
+          <div className="flex flex-col gap-2 mt-2 p-3 bg-white/5 rounded-lg border border-white/10">
+            <span className="text-sm font-semibold text-white/70 uppercase tracking-wider">Permissions</span>
+
+            <label className="flex items-center gap-3 cursor-pointer hover:bg-white/5 p-2 rounded transition-colors">
+              <input
+                type="checkbox"
+                checked={canExpand}
+                onChange={(e) => setCanExpand(e.target.checked)}
+                className="w-5 h-5 accent-green-500 rounded"
+              />
+              <span className="text-sm">Allow Expand Answer</span>
+            </label>
+
+            <label className="flex items-center gap-3 cursor-pointer hover:bg-white/5 p-2 rounded transition-colors">
+              <input
+                type="checkbox"
+                checked={canAnalyze}
+                onChange={(e) => setCanAnalyze(e.target.checked)}
+                className="w-5 h-5 accent-green-500 rounded"
+              />
+              <span className="text-sm">Allow Screen Analysis</span>
+            </label>
+          </div>
+
           <button
             onClick={createUser}
-            className="bg-green-500/30 backdrop-blur-sm p-3 rounded-lg hover:bg-green-500/40 border border-green-400/30 transition-all"
+            className="bg-green-500/30 backdrop-blur-sm p-3 rounded-lg hover:bg-green-500/40 border border-green-400/30 transition-all mt-2"
           >
             ✅ Create User
           </button>
@@ -184,7 +225,7 @@ export default function App() {
             <thead>
               <tr className="border-b border-white/20">
                 <th className="p-3 text-left text-white/80">Username</th>
-                <th className="p-3 text-left text-white/80">IP Address</th>
+                <th className="p-3 text-left text-white/80">Permissions</th>
                 <th className="p-3 text-left text-white/80">Status</th>
                 <th className="p-3 text-left text-white/80">Login Time</th>
                 <th className="p-3 text-left text-white/80">TTL</th>
@@ -196,12 +237,27 @@ export default function App() {
               {users.map((u) => {
                 const s = findSessionForUser(u.username);
                 const online = Boolean(s && s.sessionId);
-                const ip = s?.ip || "—";
                 const loginTime = s?.loginAt ? fmtTime(s.loginAt) : "—";
+
+                // Parse permissions if they exist
+                const perms = u.permissions || { canExpand: true, canAnalyze: true };
+
                 return (
                   <tr key={u.username} className="border-b border-white/10 hover:bg-white/5">
-                    <td className="p-3">{u.username}</td>
-                    <td className="p-3">{ip}</td>
+                    <td className="p-3 font-medium">{u.username}</td>
+                    <td className="p-3">
+                      <div className="flex gap-2">
+                        {perms.canExpand && (
+                          <span className="text-xs bg-purple-500/30 px-2 py-1 rounded border border-purple-500/50">Expand</span>
+                        )}
+                        {perms.canAnalyze && (
+                          <span className="text-xs bg-cyan-500/30 px-2 py-1 rounded border border-cyan-500/50">Analyze</span>
+                        )}
+                        {!perms.canExpand && !perms.canAnalyze && (
+                          <span className="text-xs bg-gray-500/30 px-2 py-1 rounded border border-gray-500/50">None</span>
+                        )}
+                      </div>
+                    </td>
                     <td className="p-3">
                       <div className="flex items-center gap-2">
                         <span
@@ -216,11 +272,11 @@ export default function App() {
                         <span>{online ? "Online" : "Offline"}</span>
                       </div>
                     </td>
-                    <td className="p-3">{loginTime}</td>
-                    <td className="p-3">{u.ttlSeconds != null ? `${u.ttlSeconds}s` : "—"}</td>
+                    <td className="p-3 text-sm">{loginTime}</td>
+                    <td className="p-3 text-sm">{u.ttlSeconds != null ? `${u.ttlSeconds}s` : "—"}</td>
                     <td className="p-3">
                       <button
-                        className="bg-red-500/30 backdrop-blur-sm px-3 py-2 rounded-lg hover:bg-red-500/40 border border-red-400/30 transition-all"
+                        className="bg-red-500/30 backdrop-blur-sm px-3 py-2 rounded-lg hover:bg-red-500/40 border border-red-400/30 transition-all text-sm"
                         onClick={() => revokeUser(u.username)}
                       >
                         ❌ Revoke
@@ -228,9 +284,8 @@ export default function App() {
                     </td>
                     <td className="p-3">
                       <button
-                        className={`px-3 py-2 rounded-lg backdrop-blur-sm transition-all ${
-                          online ? "bg-yellow-500/30 hover:bg-yellow-500/40 border border-yellow-400/30" : "bg-white/5 border border-white/10 cursor-not-allowed opacity-60"
-                        }`}
+                        className={`px-3 py-2 rounded-lg backdrop-blur-sm transition-all text-sm ${online ? "bg-yellow-500/30 hover:bg-yellow-500/40 border border-yellow-400/30" : "bg-white/5 border border-white/10 cursor-not-allowed opacity-60"
+                          }`}
                         onClick={() => online && logoutSession(s.sessionId)}
                         disabled={!online}
                       >
