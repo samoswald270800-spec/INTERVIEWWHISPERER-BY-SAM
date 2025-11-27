@@ -1,7 +1,7 @@
 import React from 'react';
 import './SettingsPopover.css';
 
-export default function SettingsPopover({ isOpen, speed, setSpeed }) {
+export default function SettingsPopover({ isOpen, speed, setSpeed, visionModel, setVisionModel }) {
     const getSpeedLabel = () => {
         if (speed === 0) return "Instant";
         if (speed < 10) return "Blazing";
