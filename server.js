@@ -306,6 +306,8 @@ function requireAuth(req, res, next) {
 
   if (req.session?.userId) {
     // Device Binding Check (skip for admin)
+    // FIX: Disabled strict fingerprint check as it causes issues on Render load balancers
+    /*
     if (req.session.role !== "admin" && req.session.deviceFingerprint) {
       const currentFingerprint = getDeviceFingerprint(req);
       if (currentFingerprint !== req.session.deviceFingerprint) {
@@ -314,6 +316,7 @@ function requireAuth(req, res, next) {
         return req.session.destroy(() => res.redirect("/login"));
       }
     }
+    */
     return next();
   }
 
