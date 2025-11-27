@@ -256,6 +256,16 @@ app.post("/api/logout", requireAuth, async (req, res) => {
     await removeActiveSession(userId, sessionId);
   }
 
+  // Deep Clean: Remove any data associated with this session
+  if (sessionId) {
+    try {
+      await redisClient.del(`transcript:${sessionId}`);
+      await redisClient.del(`screen-analysis:${sessionId}`);
+    } catch (e) {
+      console.warn("Logout cleanup error:", e);
+    }
+  }
+
   req.session.destroy(() => res.json({ ok: true }));
 });
 
