@@ -1,0 +1,113 @@
+.dock-wrapper {
+    position: fixed;
+    bottom: 40px;
+    left: 50%;
+    z-index: 1000;
+    user-select: none;
+    /* x: -50% is handled by framer-motion style prop */
+}
+
+.dock {
+    background: rgba(10, 10, 10, 0.85);
+    backdrop-filter: blur(24px) saturate(120%);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 20px;
+    padding: 6px;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    box-shadow: 0 20px 50px rgba(0, 0, 0, 0.5);
+    transition: box-shadow 0.3s, border-color 0.3s;
+}
+
+.dock:hover {
+    border-color: rgba(255, 255, 255, 0.15);
+    box-shadow: 0 30px 60px rgba(0, 0, 0, 0.6);
+}
+
+.drag-handle {
+    width: 24px;
+    height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: grab;
+    opacity: 0.4;
+    transition: opacity 0.2s;
+    margin-left: 4px;
+    color: var(--text-white);
+}
+
+.drag-handle:active {
+    cursor: grabbing;
+}
+
+.dock-btn {
+    height: 44px;
+    padding: 0 16px;
+    border-radius: 14px;
+    border: 1px solid transparent;
+    background: transparent;
+    color: var(--text-muted);
+    font-family: var(--font-display);
+    font-weight: 500;
+    font-size: 12px;
+    cursor: pointer;
+    transition: all 0.3s;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    position: relative;
+    overflow: hidden;
+    letter-spacing: 0.02em;
+}
+
+.dock-btn:hover:not(:disabled) {
+    background: rgba(255, 255, 255, 0.05);
+    color: var(--text-white);
+}
+
+.dock-btn.active {
+    color: var(--theme-primary);
+    background: rgba(139, 92, 246, 0.1);
+}
+
+.dock-btn:disabled {
+    opacity: 0.3;
+    cursor: not-allowed;
+}
+
+.dock-btn.analyze {
+    background: rgba(255, 255, 255, 0.02);
+    border: 1px solid rgba(255, 255, 255, 0.05);
+    color: var(--text-white);
+    padding: 0 20px;
+    margin: 0 4px;
+}
+
+.dock-btn.analyze:hover:not(:disabled) {
+    border-color: var(--theme-primary);
+    box-shadow: 0 0 20px -5px var(--theme-glow);
+    background: rgba(255, 255, 255, 0.04);
+}
+
+.divider {
+    width: 1px;
+    height: 20px;
+    background: rgba(255, 255, 255, 0.08);
+    margin: 0 4px;
+}
+
+.spin {
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    from {
+        transform: rotate(0deg);
+    }
+
+    to {
+        transform: rotate(360deg);
+    }
+}

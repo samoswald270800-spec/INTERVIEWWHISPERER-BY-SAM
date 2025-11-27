@@ -1,0 +1,70 @@
+.settings-popover {
+    position: absolute;
+    bottom: 70px;
+    left: 0;
+    width: 320px;
+    background: #0A0A0C;
+    border: 1px solid var(--glass-border);
+    border-radius: 18px;
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+    transform-origin: bottom left;
+    transform: scale(0.9);
+    opacity: 0;
+    pointer-events: none;
+    transition: all 0.2s cubic-bezier(0.2, 0.8, 0.2, 1);
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.8);
+    z-index: 1001;
+}
+
+.settings-popover.open {
+    transform: scale(1);
+    opacity: 1;
+    pointer-events: auto;
+}
+
+.setting-group {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.setting-label {
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    letter-spacing: 0.05em;
+    display: flex;
+    justify-content: space-between;
+}
+
+.range-wrap {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+input[type="range"] {
+    flex: 1;
+    -webkit-appearance: none;
+    background: rgba(255, 255, 255, 0.1);
+    height: 4px;
+    border-radius: 2px;
+}
+
+input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 16px;
+    height: 16px;
+    background: var(--theme-primary);
+    border-radius: 50%;
+    cursor: pointer;
+    transition: transform 0.1s;
+}
+
+input[type="range"]::-webkit-slider-thumb:hover {
+    transform: scale(1.2);
+}

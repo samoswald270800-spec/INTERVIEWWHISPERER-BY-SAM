@@ -1,199 +1,355 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
-import Header from './components/Header';
-import HeroBanner from './components/HeroBanner';
-import ControlBar from './components/ControlBar';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
+import StatusPill from './components/StatusPill';
+import CommandDock from './components/CommandDock';
 import JobDescription from './components/JobDescription';
-import AudioVisualizer from './components/AudioVisualizer';
 import QAList from './components/QAList';
 import { useAudioCapture } from './hooks/useAudioCapture';
-import { useRealtimeSession } from './hooks/useRealtimeSession';
-import './App.css';
 
-function App() {
-    const [theme, setTheme] = useState('dark');
-    const [mode, setMode] = useState('smart');
-    const [jobDescription, setJobDescription] = useState('');
+export default function App() {
+    // UI State
+    const [status, setStatus] = useState("SYSTEM READY");
+    const [isListening, setIsListening] = useState(false);
+    const [isProcessing, setIsProcessing] = useState(false);
     const [qaList, setQaList] = useState([]);
-    const [status, setStatus] = useState('idle');
-    const [isAnalyzing, setIsAnalyzing] = useState(false);
+    const [isSessionActive, setIsSessionActive] = useState(false);
+    const [canExpand, setCanExpand] = useState(false);
+    const [isExpanding, setIsExpanding] = useState(false);
+    const [jd, setJd] = useState("");
+    const [speed, setSpeed] = useState(15); // Text speed delay (ms)
 
-    // Audio capture hook
-    const {
-        isCapturing,
-        isMuted,
-        audioLevel,
-        startCapture,
-        stopCapture,
-        toggleMute,
-    } = useAudioCapture();
+    // WebRTC Refs
+    const pcRef = useRef(null);
+    const dcRef = useRef(null);
+    const streamRef = useRef(null);
+    const lastQuestionRef = useRef("");
+    const typeQueueRef = useRef([]);
+    const isTypingRef = useRef(false);
 
-    // Realtime session hook
-    const {
-        isProcessing,
-        addToTranscript,
-        analyzeScreen,
-    } = useRealtimeSession(mode);
+    // Audio Hook
+    const { startCapture, stopCapture, toggleMute, isMuted } = useAudioCapture();
 
-    // Apply theme to document
-    useEffect(() => {
-        document.documentElement.setAttribute('data-theme', theme);
-    }, [theme]);
+    // --- Typewriter Logic ---
+    const processTypeQueue = useCallback(() => {
+        if (!isTypingRef.current && typeQueueRef.current.length > 0) {
+            isTypingRef.current = true;
+            const char = typeQueueRef.current.shift();
 
-    // Apply mode to document
-    useEffect(() => {
-        document.documentElement.setAttribute('data-mode', mode);
-    }, [mode]);
-
-    // Update status based on states
-    useEffect(() => {
-        if (isAnalyzing) {
-            setStatus('analyzing screen...');
-        } else if (isProcessing) {
-            setStatus('processing...');
-        } else if (isCapturing) {
-            setStatus('listening');
-        } else {
-            setStatus('idle');
-        }
-    }, [isCapturing, isProcessing, isAnalyzing]);
-
-    const handleStartCapture = async () => {
-        try {
-            await startCapture();
-            setStatus('listening');
-        } catch (error) {
-            console.error('Failed to start capture:', error);
-            alert('Failed to start tab capture. Please ensure you selected a tab and enabled "Share tab audio".');
-        }
-    };
-
-    const handleStopCapture = () => {
-        stopCapture();
-        setStatus('idle');
-    };
-
-    const handleClearAnswers = () => {
-        if (window.confirm('Clear all Q&A pairs?')) {
-            setQaList([]);
-        }
-    };
-
-    const handleSaveJobDescription = async () => {
-        try {
-            const response = await fetch('/set-jd', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ jd: jobDescription }),
+            setQaList(prev => {
+                const newList = [...prev];
+                if (newList.length > 0) {
+                    const lastItem = newList[newList.length - 1];
+                    lastItem.answer += char;
+                }
+                return newList;
             });
 
-            if (response.ok) {
-                alert('Job description saved successfully!');
-            } else {
-                alert('Failed to save job description');
-            }
-        } catch (error) {
-            console.error('Error saving JD:', error);
-            alert('Error saving job description');
+            setTimeout(() => {
+                isTypingRef.current = false;
+                processTypeQueue();
+            }, speed);
         }
+    }, [speed]);
+
+    // Trigger typing loop when queue changes or speed changes
+    useEffect(() => {
+        if (typeQueueRef.current.length > 0 && !isTypingRef.current) {
+            processTypeQueue();
+        }
+    }, [speed, processTypeQueue]);
+
+    // --- Realtime Session Logic ---
+    const startRealtime = async () => {
+        setStatus("CONNECTING...");
+
+        try {
+            // 1. Get Ephemeral Token
+            const tokenRes = await fetch("/session", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ mode: "smart" }) // Default to smart
+            });
+            const data = await tokenRes.json();
+
+            if (!data.client_secret?.value) {
+                setStatus("TOKEN ERROR");
+                return;
+            }
+
+            // 2. Start Audio Capture
+            const stream = await startCapture();
+            streamRef.current = stream;
+
+            // 3. Setup WebRTC
+            const pc = new RTCPeerConnection();
+            pcRef.current = pc;
+
+            // Add Audio Track
+            const audioTrack = stream.getAudioTracks()[0];
+            pc.addTrack(audioTrack, stream);
+
+            // Setup Data Channel
+            const dc = pc.createDataChannel("oai-events");
+            dcRef.current = dc;
+
+            dc.onopen = () => {
+                setIsSessionActive(true);
+                setStatus("LISTENING...");
+
+                // Send Initial Config
+                const instructions = buildInstructions("smart");
+                const event = {
+                    type: "session.update",
+                    session: {
+                        modalities: ["text"],
+                        instructions: instructions,
+                        input_audio_transcription: { model: "whisper-1" },
+                        turn_detection: { type: "server_vad" }
+                    }
+                };
+                dc.send(JSON.stringify(event));
+            };
+
+            dc.onmessage = (e) => handleServerEvent(JSON.parse(e.data));
+
+            // 4. Connect
+            const offer = await pc.createOffer();
+            await pc.setLocalDescription(offer);
+
+            const sdpResponse = await fetch(`https://api.openai.com/v1/realtime?model=gpt-4o-realtime-preview`, {
+                method: "POST",
+                body: offer.sdp,
+                headers: {
+                    Authorization: `Bearer ${data.client_secret.value}`,
+                    "Content-Type": "application/sdp"
+                },
+            });
+
+            const answerSdp = await sdpResponse.text();
+            await pc.setRemoteDescription({ type: "answer", sdp: answerSdp });
+
+        } catch (err) {
+            console.error(err);
+            setStatus("ERROR");
+            stopSession();
+        }
+    };
+
+    const stopSession = () => {
+        if (pcRef.current) pcRef.current.close();
+        stopCapture();
+        setIsSessionActive(false);
+        setStatus("STOPPED");
+        setIsListening(false);
+        setIsProcessing(false);
+        setCanExpand(false);
+    };
+
+    const handleServerEvent = (event) => {
+        const type = event.type;
+
+        if (type === "conversation.item.input_audio_transcription.completed") {
+            if (event.transcript) {
+                const qText = event.transcript.trim();
+                lastQuestionRef.current = qText;
+                setCanExpand(true);
+
+                // Add new Q&A card
+                setQaList(prev => [...prev, { question: qText, answer: "" }]);
+            }
+        }
+        else if (type === "response.text.delta") {
+            // Add to type queue
+            for (let char of event.delta) {
+                typeQueueRef.current.push(char);
+            }
+            processTypeQueue();
+        }
+        else if (type === "input_audio_buffer.speech_started") {
+            setStatus("USER SPEAKING");
+            setIsListening(true);
+        }
+        else if (type === "input_audio_buffer.speech_stopped") {
+            setStatus("PROCESSING...");
+            setIsListening(false);
+            setIsProcessing(true);
+        }
+        else if (type === "response.done") {
+            setStatus("LISTENING...");
+            setIsProcessing(false);
+            setIsExpanding(false);
+
+            // Reset instructions to smart mode if we just finished expanding
+            if (isExpanding) {
+                sendSessionUpdate("smart");
+            }
+        }
+    };
+
+    // --- Expand Logic ---
+    const expandLastAnswer = () => {
+        if (!dcRef.current || !lastQuestionRef.current || isExpanding) return;
+
+        setIsExpanding(true);
+
+        // 1. Update Instructions for Expansion
+        const expandInstructions = buildInstructions("expand");
+        sendSessionUpdate("expand", expandInstructions);
+
+        // 2. Send Fake User Message to Trigger Response
+        const event = {
+            type: "conversation.item.create",
+            item: {
+                type: "message",
+                role: "user",
+                content: [{ type: "input_text", text: `Expand on this: ${lastQuestionRef.current}` }]
+            }
+        };
+        dcRef.current.send(JSON.stringify(event));
+
+        // 3. Request Response
+        dcRef.current.send(JSON.stringify({ type: "response.create", response: { modalities: ["text"] } }));
+
+        // Clear last answer to make room for expansion (optional, or append)
+        // For now, let's append or replace. The user wants "Expand", so maybe we just let it stream in.
+        // The reference code clears it: qa.aEl.textContent = "A: ";
+        setQaList(prev => {
+            const newList = [...prev];
+            if (newList.length > 0) {
+                newList[newList.length - 1].answer = ""; // Clear for new expanded answer
+            }
+            return newList;
+        });
+    };
+
+    // --- Helpers ---
+    const buildInstructions = (mode) => {
+        const GLOBAL = `🔥 GLOBAL RULES\nYou are answering as the candidate in a live job interview.\nSpeak in first person ("I", "my project").\nSound human, conversational, not robotic.\nAnchor answers to: 1. Job Description, 2. Resume.\nUse STAR method implicitly.`.trim();
+
+        const SMART = `--- SMART MODE ---\nConcise, high-quality, 90-120s answers.`;
+        const EXPAND = `🔥 EXPANSION MODE (ULTRA-DETAILED)\nYou are expanding your previous answer into much more detail.\n- Minimum 1500 words\n- Full STAR methodology\n- Technical decisions and architecture\n- Business impact with metrics\n- Answer as fresh question (don't mention "expansion")`.trim();
+
+        const modeText = mode === "expand" ? EXPAND : SMART;
+        const jdText = jd || "(No JD)";
+
+        return [GLOBAL, modeText, "JD:", jdText].join("\n\n");
+    };
+
+    const sendSessionUpdate = (mode, instructionsOverride) => {
+        if (!dcRef.current) return;
+        const instructions = instructionsOverride || buildInstructions(mode);
+        const event = {
+            type: "session.update",
+            session: { instructions }
+        };
+        dcRef.current.send(JSON.stringify(event));
     };
 
     const handleAnalyzeScreen = async () => {
-        setIsAnalyzing(true);
-        try {
-            // Capture current tab screenshot
-            const stream = await navigator.mediaDevices.getDisplayMedia({
-                video: { mediaSource: 'screen' },
-            });
+        if (!streamRef.current) {
+            alert("Please start the session first.");
+            return;
+        }
 
-            const track = stream.getVideoTracks()[0];
+        try {
+            const track = streamRef.current.getVideoTracks()[0];
             const imageCapture = new ImageCapture(track);
             const bitmap = await imageCapture.grabFrame();
 
-            // Convert to base64
-            const canvas = document.createElement('canvas');
+            const canvas = document.createElement("canvas");
             canvas.width = bitmap.width;
             canvas.height = bitmap.height;
-            const ctx = canvas.getContext('2d');
+            const ctx = canvas.getContext("2d");
             ctx.drawImage(bitmap, 0, 0);
-            const base64 = canvas.toDataURL('image/png');
+            const base64 = canvas.toDataURL("image/jpeg", 0.8);
 
-            track.stop();
-            stream.getTracks().forEach(t => t.stop());
+            setStatus("ANALYZING...");
 
-            // Send to backend
-            const transcript = qaList.map(qa => `Q: ${qa.q}\nA: ${qa.a}`).join('\n\n');
-            const result = await analyzeScreen(base64, transcript);
+            const res = await fetch("/analyze-screen", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ screenshotBase64: base64, mode: "smart" })
+            });
 
-            if (result) {
-                alert(`Screen analyzed successfully!\n\nKey insights extracted and will be used for upcoming answers.`);
+            const data = await res.json();
+            if (data.analysis) {
+                // Send analysis as context to model
+                const event = {
+                    type: "conversation.item.create",
+                    item: {
+                        type: "message",
+                        role: "system",
+                        content: [{ type: "input_text", text: `[SCREEN CONTEXT]: ${data.analysis}` }]
+                    }
+                };
+                dcRef.current.send(JSON.stringify(event));
+                setStatus("SCREEN ANALYZED");
+                setTimeout(() => setStatus("LISTENING..."), 2000);
             }
-        } catch (error) {
-            console.error('Error analyzing screen:', error);
-            alert('Failed to analyze screen');
-        } finally {
-            setIsAnalyzing(false);
+        } catch (e) {
+            console.error(e);
+            setStatus("ANALYSIS FAILED");
         }
     };
 
-    const handleLogout = async () => {
-        try {
-            await fetch('/api/logout', { method: 'POST' });
-            window.location.href = '/login';
-        } catch (error) {
-            console.error('Logout error:', error);
+    const handleSaveJd = async (newJd) => {
+        setJd(newJd);
+        // Update session if active
+        if (isSessionActive) {
+            sendSessionUpdate("smart");
         }
+        return true;
     };
 
-    const toggleTheme = () => {
-        setTheme(prev => prev === 'dark' ? 'light' : 'dark');
-    };
-
-    const toggleMode = () => {
-        setMode(prev => prev === 'smart' ? 'god' : 'smart');
+    const handleClear = () => {
+        setQaList([]);
+        lastQuestionRef.current = "";
+        setCanExpand(false);
     };
 
     return (
-        <div className="app">
-            <HeroBanner />
+        <>
+            <div className="void-bg">
+                <div className="aurora"></div>
+                <div className="noise"></div>
+            </div>
 
-            <Header
-                theme={theme}
-                onToggleTheme={toggleTheme}
-                onLogout={handleLogout}
-            />
-
-            <ControlBar
-                mode={mode}
-                onToggleMode={toggleMode}
-                isCapturing={isCapturing}
-                isMuted={isMuted}
+            <StatusPill
                 status={status}
+                isListening={isListening}
                 isProcessing={isProcessing}
-                isAnalyzing={isAnalyzing}
-                onStartCapture={handleStartCapture}
-                onStopCapture={handleStopCapture}
-                onToggleMute={toggleMute}
-                onClearAnswers={handleClearAnswers}
-                onAnalyzeScreen={handleAnalyzeScreen}
             />
 
-            <main className="main-content">
-                <JobDescription
-                    value={jobDescription}
-                    onChange={setJobDescription}
-                    onSave={handleSaveJobDescription}
-                />
+            <button className="power-btn" onClick={() => window.location.reload()} title="Sign Out">
+                <svg className="icon" viewBox="0 0 24 24">
+                    <path d="M18.36 6.64a9 9 0 1 1-12.73 0"></path>
+                    <line x1="12" y1="2" x2="12" y2="12"></line>
+                </svg>
+            </button>
 
-                <AudioVisualizer
-                    audioLevel={audioLevel}
-                    isCapturing={isCapturing}
-                />
-
+            <main className="stage">
                 <QAList qaList={qaList} />
             </main>
-        </div>
+
+            <CommandDock
+                onStart={startRealtime}
+                onStop={stopSession}
+                onAnalyze={handleAnalyzeScreen}
+                onClear={handleClear}
+                onMute={toggleMute}
+                onExpand={expandLastAnswer}
+                isSessionActive={isSessionActive}
+                isMuted={isMuted}
+                canExpand={canExpand}
+                isExpanding={isExpanding}
+                speed={speed}
+                setSpeed={setSpeed}
+            />
+
+            <JobDescription
+                jd={jd}
+                setJd={setJd}
+                onSave={handleSaveJd}
+            />
+        </>
     );
 }
-
-export default App;

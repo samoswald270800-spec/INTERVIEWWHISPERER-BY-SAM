@@ -1,41 +1,55 @@
-import React from 'react';
-import { motion } from 'framer-motion';
+import React, { useState } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 import './JobDescription.css';
 
-const JobDescription = ({ value, onChange, onSave }) => {
+export default function JobDescription({ jd, setJd, onSave }) {
+    const [isOpen, setIsOpen] = useState(false);
+    const [isSaved, setIsSaved] = useState(false);
+
+    const handleSave = async () => {
+        const success = await onSave(jd);
+        if (success) {
+            setIsSaved(true);
+            setTimeout(() => setIsSaved(false), 2000);
+            setIsOpen(false);
+        }
+    };
+
     return (
-        <motion.div
-            className="job-description glass"
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.5, delay: 0.4 }}
-        >
-            <div className="jd-header">
-                <strong>Job Description</strong>
-                <span className="jd-hint">Paste the JD here to tailor your answers</span>
-            </div>
+        <div className="jd-anchor">
+            <AnimatePresence>
+                {isOpen && (
+                    <motion.div
+                        className="jd-panel"
+                        initial={{ opacity: 0, scale: 0.9, y: 20 }}
+                        animate={{ opacity: 1, scale: 1, y: 0 }}
+                        exit={{ opacity: 0, scale: 0.9, y: 20 }}
+                        transition={{ type: "spring", stiffness: 300, damping: 30 }}
+                    >
+                        <div className="jd-header">
+                            <span>Context</span>
+                            <span className={`saved-tag ${isSaved ? 'visible' : ''}`}>Saved</span>
+                        </div>
+                        <textarea
+                            id="jd"
+                            placeholder="Paste job description..."
+                            value={jd}
+                            onChange={(e) => setJd(e.target.value)}
+                        />
+                        <button className="save-btn" onClick={handleSave}>Save Context</button>
+                    </motion.div>
+                )}
+            </AnimatePresence>
 
-            <textarea
-                className="jd-textarea"
-                value={value}
-                onChange={(e) => onChange(e.target.value)}
-                placeholder="Paste the job description here..."
-                rows={6}
-            />
-
-            <div className="jd-footer">
-                <button
-                    className="glass-btn save-btn"
-                    onClick={onSave}
-                >
-                    Save Job Description
-                </button>
-                <small className="jd-tip">
-                    Tip: Save once; new sessions will auto-use it until you restart the server.
-                </small>
-            </div>
-        </motion.div>
+            <button className="jd-btn" onClick={() => setIsOpen(!isOpen)} title="Job Context">
+                <svg className="icon" viewBox="0 0 24 24">
+                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                    <polyline points="14 2 14 8 20 8"></polyline>
+                    <line x1="16" y1="13" x2="8" y2="13"></line>
+                    <line x1="16" y1="17" x2="8" y2="17"></line>
+                    <polyline points="10 9 9 9 8 9"></polyline>
+                </svg>
+            </button>
+        </div>
     );
-};
-
-export default JobDescription;
+}

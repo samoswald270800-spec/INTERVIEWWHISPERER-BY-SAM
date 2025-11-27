@@ -1,55 +1,60 @@
-import React from 'react';
+import React, { useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import './QAList.css';
 
-const QAList = ({ qaList }) => {
-    return (
-        <div className="qa-list-container">
-            <div className="qa-hint">
-                <span className="q-label">Q (blue)</span> is what we hear from the meeting tab.{' '}
-                <span className="a-label">A (green)</span> is the answer for you to read.
-            </div>
+export default function QAList({ qaList }) {
+    const listRef = useRef(null);
 
-            <div className="qa-list">
+    useEffect(() => {
+        if (listRef.current) {
+            listRef.current.scrollTop = listRef.current.scrollHeight;
+        }
+    }, [qaList]);
+
+    return (
+        <div className="stream" ref={listRef} id="list">
+            {qaList.length === 0 ? (
+                <motion.div
+                    className="empty-hero"
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.8, ease: "easeOut" }}
+                >
+                    <h1>Interview Whisperer</h1>
+                    <p>Advanced Intelligence System. Initialize session below.</p>
+                </motion.div>
+            ) : (
                 <AnimatePresence>
-                    {qaList.length === 0 ? (
+                    {qaList.map((qa, index) => (
                         <motion.div
-                            className="qa-empty"
-                            initial={{ opacity: 0 }}
-                            animate={{ opacity: 1 }}
-                            exit={{ opacity: 0 }}
+                            key={index}
+                            className="turn"
+                            initial={{ opacity: 0, y: 20 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            transition={{ duration: 0.5 }}
                         >
-                            No Q&A pairs yet. Start tab capture to begin.
+                            <div className="shard q">
+                                <div className="meta">
+                                    <svg className="icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"></circle><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>
+                                    INTERVIEWER
+                                </div>
+                                <div className="text">{qa.question}</div>
+                            </div>
+
+                            <div className="shard a">
+                                <div className="meta">
+                                    <svg className="icon" viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>
+                                    SUGGESTED ANSWER
+                                </div>
+                                <div className="text">
+                                    {qa.answer}
+                                    {index === qaList.length - 1 && <span className="cursor-blink"></span>}
+                                </div>
+                            </div>
                         </motion.div>
-                    ) : (
-                        qaList.map((qa, index) => (
-                            <motion.div
-                                key={index}
-                                className="qa-card glass"
-                                initial={{ opacity: 0, y: 20 }}
-                                animate={{ opacity: 1, y: 0 }}
-                                exit={{ opacity: 0, y: -20 }}
-                                transition={{ duration: 0.3, delay: index * 0.05 }}
-                            >
-                                {qa.q && (
-                                    <div className="question">
-                                        <div className="qa-label">Question</div>
-                                        <div className="qa-content">{qa.q}</div>
-                                    </div>
-                                )}
-                                {qa.a && (
-                                    <div className="answer">
-                                        <div className="qa-label">Answer</div>
-                                        <div className="qa-content">{qa.a}</div>
-                                    </div>
-                                )}
-                            </motion.div>
-                        ))
-                    )}
+                    ))}
                 </AnimatePresence>
-            </div>
+            )}
         </div>
     );
-};
-
-export default QAList;
+}

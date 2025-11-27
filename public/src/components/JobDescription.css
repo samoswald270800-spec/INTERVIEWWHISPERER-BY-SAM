@@ -1,104 +1,99 @@
-.job-description {
-    margin-bottom: 1.5rem;
-    padding: 1.5rem;
-    border-radius: 16px;
-    transition: all var(--transition-base);
+.jd-anchor {
+    position: fixed;
+    bottom: 40px;
+    right: 40px;
+    z-index: 90;
+}
+
+.jd-btn {
+    width: 50px;
+    height: 50px;
+    border-radius: 18px;
+    background: rgba(10, 10, 10, 0.8);
+    backdrop-filter: blur(16px);
+    border: 1px solid var(--glass-border);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--text-muted);
+    cursor: pointer;
+    transition: all 0.3s;
+}
+
+.jd-btn:hover {
+    transform: scale(1.05);
+    border-color: var(--theme-primary);
+    color: var(--theme-primary);
+}
+
+.jd-panel {
+    position: absolute;
+    bottom: 64px;
+    right: 0;
+    width: 380px;
+    height: 480px;
+    background: #080808;
+    border: 1px solid var(--glass-border);
+    border-radius: 20px;
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+    box-shadow: 0 40px 100px rgba(0, 0, 0, 0.9);
+    transform-origin: bottom right;
 }
 
 .jd-header {
     display: flex;
     justify-content: space-between;
-    align-items: center;
-    margin-bottom: 1rem;
-    flex-wrap: wrap;
-    gap: 0.5rem;
+    margin-bottom: 16px;
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
 }
 
-.jd-header strong {
-    font-size: 1rem;
-    font-weight: 600;
-    color: var(--text-primary);
+.saved-tag {
+    color: var(--lux-cyan);
+    opacity: 0;
+    transition: opacity 0.5s;
 }
 
-.jd-hint {
-    font-size: 0.8125rem;
-    color: var(--text-tertiary);
+.saved-tag.visible {
+    opacity: 1;
 }
 
-.jd-textarea {
-    width: 100%;
-    min-height: 150px;
-    padding: 1rem;
-    font-family: inherit;
-    font-size: 0.9375rem;
+textarea#jd {
+    flex: 1;
+    background: rgba(255, 255, 255, 0.02);
+    border: 1px solid var(--glass-border);
+    border-radius: 14px;
+    padding: 16px;
+    color: var(--text-white);
+    font-family: var(--font-body);
+    font-size: 13px;
     line-height: 1.6;
-    color: var(--text-primary);
-    background: var(--bg-secondary);
-    border: 1px solid var(--border-color);
-    border-radius: 12px;
-    resize: vertical;
-    transition: all var(--transition-base);
+    resize: none;
+    margin-bottom: 16px;
 }
 
-.jd-textarea:focus {
-    outline: none;
-    border-color: var(--accent-primary);
-    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
-}
-
-.jd-textarea::placeholder {
-    color: var(--text-tertiary);
-}
-
-.jd-footer {
-    display: flex;
-    align-items: center;
-    gap: 1rem;
-    margin-top: 1rem;
-    flex-wrap: wrap;
+textarea#jd:focus {
+    border-color: var(--theme-primary);
+    background: rgba(255, 255, 255, 0.03);
 }
 
 .save-btn {
-    padding: 0.625rem 1.25rem;
-    font-size: 0.875rem;
-    font-weight: 600;
-    color: white;
-    background: var(--accent-primary);
+    width: 100%;
+    padding: 12px;
+    background: var(--theme-primary);
     border: none;
     border-radius: 12px;
+    color: #fff;
+    font-weight: 600;
     cursor: pointer;
-    transition: all var(--transition-base);
-    box-shadow: 0 4px 14px rgba(59, 130, 246, 0.3);
+    transition: filter 0.2s;
 }
 
 .save-btn:hover {
-    background: var(--accent-primary-hover);
-    transform: translateY(-2px);
-    box-shadow: 0 6px 20px rgba(59, 130, 246, 0.4);
-}
-
-.jd-tip {
-    font-size: 0.8125rem;
-    color: var(--text-tertiary);
-    line-height: 1.4;
-}
-
-@media (max-width: 768px) {
-    .job-description {
-        padding: 1.25rem;
-    }
-
-    .jd-header {
-        flex-direction: column;
-        align-items: flex-start;
-    }
-
-    .jd-footer {
-        flex-direction: column;
-        align-items: flex-start;
-    }
-
-    .save-btn {
-        width: 100%;
-    }
+    filter: brightness(1.1);
 }

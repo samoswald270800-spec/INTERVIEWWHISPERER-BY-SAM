@@ -1,0 +1,67 @@
+.status-pill {
+    position: fixed;
+    top: 32px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 100;
+    background: var(--glass-frosted);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    border: 1px solid rgba(255, 255, 255, 0.05);
+    border-radius: 100px;
+    padding: 10px 24px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.05);
+    transition: background 0.3s, border-color 0.3s;
+}
+
+.status-pill:hover {
+    background: rgba(20, 20, 20, 0.8);
+    border-color: var(--glass-shine);
+}
+
+.status-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--text-muted);
+    transition: all 0.3s;
+}
+
+.status-dot.active {
+    background: var(--lux-green);
+    box-shadow: 0 0 8px rgba(16, 185, 129, 0.6);
+}
+
+.status-dot.processing {
+    background: var(--theme-primary);
+    animation: pulse 1.5s infinite;
+}
+
+@keyframes pulse {
+    0% {
+        opacity: 0.4;
+        transform: scale(1);
+    }
+
+    50% {
+        opacity: 1;
+        transform: scale(1.2);
+    }
+
+    100% {
+        opacity: 0.4;
+        transform: scale(1);
+    }
+}
+
+.status-text {
+    font-family: var(--font-display);
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--text-muted);
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+}
