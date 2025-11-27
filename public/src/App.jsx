@@ -19,6 +19,7 @@ export default function App() {
     const [speed, setSpeed] = useState(0);
     const [isSettingsOpen, setIsSettingsOpen] = useState(false);
     const [permissions, setPermissions] = useState({ canExpand: true, canAnalyze: true });
+    const [visionModel, setVisionModel] = useState("openai");
 
     const pcRef = useRef(null);
     const dcRef = useRef(null);
@@ -288,7 +289,11 @@ export default function App() {
             const res = await fetch("/analyze-screen", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ screenshotBase64: base64, mode: "smart" })
+                body: JSON.stringify({
+                    screenshotBase64: base64,
+                    mode: "smart",
+                    preferredModel: visionModel
+                })
             });
 
             const data = await res.json();
@@ -387,6 +392,8 @@ export default function App() {
                 isOpen={isSettingsOpen}
                 speed={speed}
                 setSpeed={setSpeed}
+                visionModel={visionModel}
+                setVisionModel={setVisionModel}
             />
 
             <main className="stage">

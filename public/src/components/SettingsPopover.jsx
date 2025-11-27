@@ -34,6 +34,24 @@ export default function SettingsPopover({ isOpen, speed, setSpeed }) {
                     <span className="range-icon">⚡</span>
                 </div>
             </div>
+
+            <div className="setting-group">
+                <div className="setting-label">Vision Model</div>
+                <div className="model-selector">
+                    <button
+                        className={`model-btn ${visionModel === 'openai' ? 'active' : ''}`}
+                        onClick={() => setVisionModel('openai')}
+                    >
+                        GPT-4o
+                    </button>
+                    <button
+                        className={`model-btn ${visionModel === 'anthropic' ? 'active' : ''}`}
+                        onClick={() => setVisionModel('anthropic')}
+                    >
+                        Claude 3.5
+                    </button>
+                </div>
+            </div>
         </div>
     );
 }

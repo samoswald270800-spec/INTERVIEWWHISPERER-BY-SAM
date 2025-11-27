@@ -15,6 +15,13 @@ const __dirname = path.dirname(__filename);
 const app = express();
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
+import { createAnthropic } from '@ai-sdk/anthropic';
+import { generateText } from 'ai';
+
+const anthropic = createAnthropic({
+  apiKey: process.env.ANTHROPIC_API_KEY || "",
+});
+
 console.log("🚀 Server starting... (Version: Unified Login Handler)");
 
 // Trust proxy for Render so secure cookies work
@@ -799,7 +806,8 @@ app.post("/analyze-screen", requireAuth, async (req, res) => {
       screenshotBase64,         // new shape
       sessionTranscript,        // new shape
       image,                    // legacy shape
-      transcript                // legacy shape (array or string)
+      transcript,               // legacy shape (array or string)
+      preferredModel            // 'openai' | 'anthropic'
     } = req.body || {};
 
     // Normalize screenshot (required)
@@ -930,39 +938,80 @@ Return ONLY the JSON. No explanations or text outside the JSON.
 --------------------------------------------------------------------------------
 `.trim();
 
-    // Build structured content; include transcript only if present
-    const content = [];
-    if (combinedTranscript) {
-      content.push({
-        type: "text",
-        text: `FULL TRANSCRIPT (from Redis):\n${combinedTranscript}`,
+    // Helper: Timeout wrapper
+    const timeout = (prom, ms) => Promise.race([prom, new Promise((_, reject) => setTimeout(() => reject(new Error("Timeout")), ms))]);
+
+    // Helper: OpenAI Call
+    const callOpenAI = async () => {
+      const content = [];
+      if (combinedTranscript) {
+        content.push({ type: "text", text: `FULL TRANSCRIPT (from Redis):\n${combinedTranscript}` });
+      }
+      content.push({ type: "text", text: visionPrompt });
+      content.push({ type: "image_url", image_url: { url: imageDataUrl } });
+
+      const response = await openai.chat.completions.create({
+        model: "gpt-4o",
+        messages: [{ role: "user", content }],
+        temperature: 0.4,
+        max_tokens: 3000,
+        response_format: { type: "json_object" }
       });
-    }
-    content.push({ type: "text", text: visionPrompt });
-    content.push({ type: "image_url", image_url: { url: imageDataUrl } });
+      return JSON.parse(response.choices[0].message.content);
+    };
 
-    const response = await openai.chat.completions.create({
-      model: "gpt-4o",
-      messages: [{ role: "user", content }],
-      temperature: 0.4,
-      max_tokens: 3000,
-      response_format: { type: "json_object" }
-    });
+    // Helper: Anthropic Call
+    const callAnthropic = async () => {
+      const base64Data = imageDataUrl.split(',')[1];
+      let promptText = visionPrompt;
+      if (combinedTranscript) {
+        promptText = `FULL TRANSCRIPT (from Redis):\n${combinedTranscript}\n\n${visionPrompt}`;
+      }
 
-    // Extract JSON text safely
-    let textOut = response?.choices?.[0]?.message?.content || "";
+      // Using Vercel AI SDK
+      const { text } = await generateText({
+        model: anthropic('claude-3-5-sonnet-20240620'),
+        messages: [
+          {
+            role: 'user',
+            content: [
+              { type: 'text', text: promptText },
+              { type: 'image', image: base64Data }
+            ]
+          }
+        ],
+        maxTokens: 3000,
+        temperature: 0.4,
+      });
+
+      // Robust JSON extraction
+      const s = text.indexOf("{");
+      const e = text.lastIndexOf("}");
+      if (s !== -1 && e !== -1) return JSON.parse(text.slice(s, e + 1));
+      return JSON.parse(text);
+    };
 
     let parsed;
+    const primary = preferredModel === 'anthropic' ? callAnthropic : callOpenAI;
+    const secondary = preferredModel === 'anthropic' ? callOpenAI : callAnthropic;
+    const primaryName = preferredModel === 'anthropic' ? 'Anthropic' : 'OpenAI';
+    const secondaryName = preferredModel === 'anthropic' ? 'OpenAI' : 'Anthropic';
+
     try {
-      parsed = JSON.parse(textOut);
-    } catch {
-      const s = textOut.indexOf("{");
-      const e = textOut.lastIndexOf("}");
-      if (s !== -1 && e !== -1) parsed = JSON.parse(textOut.slice(s, e + 1));
+      console.log(`[analyze-screen] Trying ${primaryName}...`);
+      parsed = await timeout(primary(), 30000); // 30s timeout
+    } catch (err) {
+      console.warn(`[analyze-screen] ${primaryName} failed/timeout: ${err.message}. Falling back to ${secondaryName}...`);
+      try {
+        parsed = await secondary();
+      } catch (err2) {
+        console.error(`[analyze-screen] Both models failed.`, err2);
+        return res.status(502).json({ error: "Analysis failed on both models." });
+      }
     }
 
     if (!parsed || typeof parsed !== "object") {
-      return res.status(502).json({ error: "bad_model_output", raw: textOut?.slice(0, 1000) });
+      return res.status(502).json({ error: "bad_model_output", raw: "Invalid JSON" });
     }
 
     const analysis = String(parsed.analysis || "").trim();
