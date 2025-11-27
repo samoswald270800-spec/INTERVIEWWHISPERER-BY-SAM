@@ -166,15 +166,39 @@ app.post("/api/login", async (req, res, next) => {
     }
 
     // Check for multiple sessions (NOT for admin)
-    // FIX: Instead of blocking, we invalidate (kick out) any old sessions so the user isn't locked out.
     const activeSessions = await getActiveSessions(username);
     if (activeSessions.length > 0) {
-      console.log(`[Login] Kicking out ${activeSessions.length} old sessions for ${username}`);
+      const currentIp = (req.headers["x-forwarded-for"] || req.ip || "").split(',')[0].trim();
+      let activeOnOtherDevice = false;
+
+      for (const sid of activeSessions) {
+        const raw = await redisClient.get(`sess:${sid}`);
+        if (raw) {
+          try {
+            const s = JSON.parse(raw);
+            const sIp = (s.ip || "").split(',')[0].trim();
+            // If IP exists and is different, block it
+            if (sIp && sIp !== currentIp) {
+              activeOnOtherDevice = true;
+              break;
+            }
+          } catch (e) {
+            // ignore malformed session data
+          }
+        }
+      }
+
+      if (activeOnOtherDevice) {
+        return res.status(403).json({
+          error: "Account is active on another device. Please logout there first."
+        });
+      }
+
+      // Same IP (or stale data) -> Allow login & cleanup old sessions
+      console.log(`[Login] Re-login from same IP. Cleaning up ${activeSessions.length} old sessions for ${username}`);
       for (const oldSessionId of activeSessions) {
-        // Delete the old session from Redis
         await redisClient.del(`sess:${oldSessionId}`);
       }
-      // Clear the active sessions list for this user
       await redisClient.del(`active_sessions:${username}`);
     }
 
