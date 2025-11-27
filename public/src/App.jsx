@@ -14,7 +14,7 @@ export default function App() {
     const [canExpand, setCanExpand] = useState(false);
     const [isExpanding, setIsExpanding] = useState(false);
     const [jd, setJd] = useState("");
-    const [speed, setSpeed] = useState(0); // 0 = INSTANT
+    const [speed, setSpeed] = useState(0);
 
     const pcRef = useRef(null);
     const dcRef = useRef(null);
@@ -149,26 +149,7 @@ export default function App() {
     const handleServerEvent = (event) => {
         const type = event.type;
 
-        if (type === "conversation.item.input_audio_transcription.completed") {
-            if (event.transcript) {
-                const qText = event.transcript.trim();
-                lastQuestionRef.current = qText;
-                setCanExpand(true);
-
-                // CRITICAL FIX: Clear any leftover text from previous answer
-                typeQueueRef.current = [];
-                isTypingRef.current = false;
-
-                setQaList(prev => [...prev, { question: qText, answer: "" }]);
-            }
-        }
-        else if (type === "response.text.delta") {
-            for (let char of event.delta) {
-                typeQueueRef.current.push(char);
-            }
-            processTypeQueue();
-        }
-        else if (type === "input_audio_buffer.speech_started") {
+        if (type === "input_audio_buffer.speech_started") {
             setStatus("USER SPEAKING");
             setIsListening(true);
         }
@@ -176,6 +157,33 @@ export default function App() {
             setStatus("PROCESSING...");
             setIsListening(false);
             setIsProcessing(true);
+
+            // CRITICAL FIX: Create card NOW before answer arrives
+            typeQueueRef.current = [];
+            isTypingRef.current = false;
+            setQaList(prev => [...prev, { question: "Processing...", answer: "" }]);
+        }
+        else if (type === "conversation.item.input_audio_transcription.completed") {
+            if (event.transcript) {
+                const qText = event.transcript.trim();
+                lastQuestionRef.current = qText;
+                setCanExpand(true);
+
+                // Update question in existing card
+                setQaList(prev => {
+                    const newList = [...prev];
+                    if (newList.length > 0) {
+                        newList[newList.length - 1].question = qText;
+                    }
+                    return newList;
+                });
+            }
+        }
+        else if (type === "response.text.delta") {
+            for (let char of event.delta) {
+                typeQueueRef.current.push(char);
+            }
+            processTypeQueue();
         }
         else if (type === "response.done") {
             setStatus("LISTENING...");
