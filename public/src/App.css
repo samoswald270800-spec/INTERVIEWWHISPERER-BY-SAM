@@ -14,14 +14,14 @@
     transform: translateX(-50%);
     z-index: 100;
     pointer-events: none;
-    /* Let clicks pass through to stage if needed */
 }
 
-/* Power Button (Top Right) */
+/* Power Button (Top Left) */
 .power-btn {
     position: fixed;
     top: 24px;
-    right: 24px;
+    left: 24px;
+    /* Moved to Left */
     width: 44px;
     height: 44px;
     border-radius: 14px;
@@ -51,16 +51,18 @@
     stroke-width: 2px;
 }
 
-/* Settings Button (Bottom Left) */
+/* Settings Button (Top Right) */
 .settings-btn {
     position: fixed;
-    bottom: 30px;
-    left: 30px;
-    width: 48px;
-    height: 48px;
-    border-radius: 50%;
-    background: rgba(10, 10, 10, 0.6);
-    border: 1px solid rgba(255, 255, 255, 0.1);
+    top: 24px;
+    right: 24px;
+    /* Moved to Top Right */
+    width: 44px;
+    height: 44px;
+    border-radius: 14px;
+    /* Match power button shape */
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.08);
     color: var(--text-muted);
     display: flex;
     align-items: center;
@@ -69,7 +71,6 @@
     transition: all 0.3s cubic-bezier(0.2, 0.8, 0.2, 1);
     z-index: 100;
     backdrop-filter: blur(10px);
-    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
 }
 
 .settings-btn:hover,
@@ -77,66 +78,91 @@
     background: rgba(255, 255, 255, 0.1);
     border-color: rgba(255, 255, 255, 0.2);
     color: var(--text-white);
-    transform: translateY(-2px);
-    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
+    transform: scale(1.05);
+    box-shadow: 0 0 20px rgba(255, 255, 255, 0.2);
 }
 
 .settings-btn .icon {
-    width: 22px;
-    height: 22px;
+    width: 20px;
+    height: 20px;
 }
 
-/* High Contrast Mode Overrides */
+/* High Contrast Mode Overrides - Using !important to force application */
 .high-contrast {
-    --text-muted: #e0e0e0;
-    /* Much brighter muted text */
-    --glass-frosted: rgba(0, 0, 0, 0.95);
-    /* Solid backgrounds */
+    --text-muted: #e0e0e0 !important;
+    --glass-frosted: #000000 !important;
+    --bg-void: #000000 !important;
 }
 
 .high-contrast .void-bg {
-    background: #000;
-    /* Pure black background */
+    background: #000000 !important;
 }
 
 .high-contrast .aurora,
 .high-contrast .noise {
-    display: none;
-    /* Remove distractions */
+    display: none !important;
 }
 
+/* Force high contrast on cards */
 .high-contrast .qa-card {
-    background: #000;
-    border: 1px solid #fff;
-    box-shadow: none;
+    background: #000000 !important;
+    border: 2px solid #ffffff !important;
+    box-shadow: none !important;
 }
 
 .high-contrast .qa-question {
-    color: #00ff00;
-    /* Bright green for questions */
-    font-weight: 700;
+    color: #00ff00 !important;
+    /* Bright green */
+    font-weight: 700 !important;
+    text-shadow: none !important;
 }
 
 .high-contrast .qa-answer {
-    color: #fff;
-    /* Pure white for answers */
-    font-weight: 500;
-    font-size: 1.1em;
-    /* Slightly larger text */
+    color: #ffffff !important;
+    /* Pure white */
+    font-weight: 600 !important;
+    text-shadow: none !important;
 }
 
-.high-contrast .command-dock {
-    background: #000;
-    border-top: 2px solid #fff;
+/* Force high contrast on dock */
+.high-contrast .dock {
+    background: #000000 !important;
+    border: 2px solid #ffffff !important;
 }
 
 .high-contrast .dock-btn {
-    border: 1px solid #fff;
-    background: #000;
-    color: #fff;
+    border: 1px solid #ffffff !important;
+    background: #000000 !important;
+    color: #ffffff !important;
 }
 
-.high-contrast .dock-btn.primary {
-    background: #fff;
-    color: #000;
+.high-contrast .dock-btn:hover {
+    background: #333333 !important;
+}
+
+.high-contrast .dock-btn.active {
+    background: #ffffff !important;
+    color: #000000 !important;
+}
+
+/* Force high contrast on JD */
+.high-contrast .jd-panel {
+    background: #000000 !important;
+    border: 2px solid #ffffff !important;
+}
+
+.high-contrast .jd-textarea {
+    background: #000000 !important;
+    color: #ffffff !important;
+    border: 1px solid #ffffff !important;
+}
+
+/* Force high contrast on Settings Popover */
+.high-contrast .settings-popover {
+    background: #000000 !important;
+    border: 2px solid #ffffff !important;
+}
+
+.high-contrast .setting-label {
+    color: #ffffff !important;
 }

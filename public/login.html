@@ -40,7 +40,6 @@
       font-family: var(--font-body);
       min-height: 100vh;
       display: flex;
-      flex-direction: column;
       align-items: center;
       justify-content: center;
       overflow: hidden;
@@ -90,20 +89,76 @@
       background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)' opacity='1'/%3E%3C/svg%3E");
     }
 
-    .logo-container {
-      margin-bottom: 40px;
+    .login-container {
+      width: 100%;
+      max-width: 900px;
+      display: flex;
+      gap: 60px;
+      align-items: center;
+      padding: 40px;
+      z-index: 1;
+    }
+
+    .info-panel {
+      flex: 1;
+      opacity: 0;
+      animation: slideIn 0.8s cubic-bezier(0.2, 0.8, 0.2, 1) 0.2s forwards;
+    }
+
+    @keyframes slideIn {
+      from {
+        opacity: 0;
+        transform: translateX(-20px);
+      }
+
+      to {
+        opacity: 1;
+        transform: translateX(0);
+      }
+    }
+
+    .info-panel h1 {
+      font-family: var(--font-display);
+      font-size: 48px;
+      font-weight: 300;
+      letter-spacing: -0.03em;
+      color: var(--text-white);
+      margin-bottom: 16px;
       cursor: pointer;
-      transition: transform 0.3s ease;
+      /* Trigger for easter egg */
     }
 
-    .logo-container:active {
-      transform: scale(0.95);
+    .info-panel p {
+      font-size: 16px;
+      line-height: 1.7;
+      color: var(--text-muted);
+      margin-bottom: 16px;
     }
 
-    .logo-svg {
-      width: 64px;
-      height: 64px;
-      filter: drop-shadow(0 0 20px rgba(139, 92, 246, 0.4));
+    .features {
+      margin-top: 32px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    .feature {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      color: var(--text-muted);
+      font-size: 14px;
+    }
+
+    .feature-icon {
+      width: 24px;
+      height: 24px;
+      border-radius: 8px;
+      background: rgba(139, 92, 246, 0.1);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--lux-violet);
     }
 
     .login-panel {
@@ -114,8 +169,10 @@
       border-radius: 24px;
       padding: 40px;
       box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
-      position: relative;
-      z-index: 10;
+      opacity: 0;
+      animation: slideIn 0.8s cubic-bezier(0.2, 0.8, 0.2, 1) 0.4s forwards;
+      display: flex;
+      flex-direction: column;
     }
 
     .login-header {
@@ -182,7 +239,6 @@
       cursor: pointer;
       transition: all 0.3s;
       text-transform: uppercase;
-      margin-top: 10px;
     }
 
     .login-btn:hover {
@@ -207,14 +263,12 @@
     }
 
     .footer-mark {
-      margin-top: 40px;
+      margin-top: 24px;
       font-size: 12px;
       color: var(--text-muted);
       opacity: 0.6;
       letter-spacing: 0.05em;
-      display: flex;
-      align-items: center;
-      gap: 6px;
+      text-align: center;
     }
 
     /* Easter Egg Modal */
@@ -296,6 +350,22 @@
     .close-easter:hover {
       background: rgba(255, 255, 255, 0.2);
     }
+
+    @media (max-width: 768px) {
+      .login-container {
+        flex-direction: column;
+        gap: 40px;
+      }
+
+      .info-panel h1 {
+        font-size: 36px;
+      }
+
+      .login-panel {
+        width: 100%;
+        max-width: 380px;
+      }
+    }
   </style>
 </head>
 
@@ -305,45 +375,60 @@
     <div class="noise"></div>
   </div>
 
-  <!-- Logo (Click 5 times for easter egg) -->
-  <div class="logo-container" id="logoBtn">
-    <svg class="logo-svg" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
-      <circle cx="50" cy="50" r="45" stroke="url(#paint0_linear)" stroke-width="2" />
-      <path d="M35 50L45 60L65 40" stroke="white" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" />
-      <defs>
-        <linearGradient id="paint0_linear" x1="0" y1="0" x2="100" y2="100" gradientUnits="userSpaceOnUse">
-          <stop stop-color="#8B5CF6" />
-          <stop offset="1" stop-color="#06B6D4" />
-        </linearGradient>
-      </defs>
-    </svg>
-  </div>
+  <div class="login-container">
+    <div class="info-panel">
+      <h1 id="easterTrigger">Interview Whisperer</h1>
+      <p>
+        Your AI-powered interview companion. Real-time transcription, intelligent answer suggestions,
+        and screen analysis—all working together to help you shine in every interview.
+      </p>
 
-  <div class="login-panel">
-    <div class="login-header">
-      <h2>Interview Whisperer</h2>
-      <p>Sign in to your workspace</p>
+      <div class="features">
+        <div class="feature">
+          <div class="feature-icon">✨</div>
+          <span>Real-time audio transcription</span>
+        </div>
+        <div class="feature">
+          <div class="feature-icon">🧠</div>
+          <span>AI-generated answer suggestions</span>
+        </div>
+        <div class="feature">
+          <div class="feature-icon">📸</div>
+          <span>Screen context analysis</span>
+        </div>
+        <div class="feature">
+          <div class="feature-icon">⚡</div>
+          <span>Instant response generation</span>
+        </div>
+      </div>
     </div>
 
-    <form id="loginForm">
-      <div class="form-group">
-        <label class="form-label">Username</label>
-        <input type="text" class="form-input" id="username" placeholder="Enter username" required>
+    <div class="login-panel">
+      <div class="login-header">
+        <h2>Sign In</h2>
+        <p>Access your interview assistant</p>
       </div>
 
-      <div class="form-group">
-        <label class="form-label">Password</label>
-        <input type="password" class="form-input" id="password" placeholder="Enter password" required>
+      <form id="loginForm">
+        <div class="form-group">
+          <label class="form-label">Username</label>
+          <input type="text" class="form-input" id="username" placeholder="Enter username" required>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Password</label>
+          <input type="password" class="form-input" id="password" placeholder="Enter password" required>
+        </div>
+
+        <button type="submit" class="login-btn">Sign In</button>
+
+        <div class="error" id="error"></div>
+      </form>
+
+      <div class="footer-mark">
+        Made in Canada 🇨🇦
       </div>
-
-      <button type="submit" class="login-btn">Sign In</button>
-
-      <div class="error" id="error"></div>
-    </form>
-  </div>
-
-  <div class="footer-mark">
-    Made in Canada 🇨🇦
+    </div>
   </div>
 
   <!-- Easter Egg Modal -->
@@ -363,14 +448,14 @@
   <script>
     const form = document.getElementById('loginForm');
     const errorEl = document.getElementById('error');
-    const logoBtn = document.getElementById('logoBtn');
+    const easterTrigger = document.getElementById('easterTrigger');
     const easterModal = document.getElementById('easterModal');
 
-    // Easter Egg Logic
+    // Easter Egg Logic (5 clicks on title)
     let clickCount = 0;
     let clickTimer;
 
-    logoBtn.addEventListener('click', () => {
+    easterTrigger.addEventListener('click', () => {
       clickCount++;
 
       // Reset count if too slow
