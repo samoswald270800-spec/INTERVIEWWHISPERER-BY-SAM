@@ -21,7 +21,6 @@
     position: fixed;
     top: 24px;
     left: 24px;
-    /* Moved to Left */
     width: 44px;
     height: 44px;
     border-radius: 14px;
@@ -56,11 +55,9 @@
     position: fixed;
     top: 24px;
     right: 24px;
-    /* Moved to Top Right */
     width: 44px;
     height: 44px;
     border-radius: 14px;
-    /* Match power button shape */
     background: rgba(255, 255, 255, 0.03);
     border: 1px solid rgba(255, 255, 255, 0.08);
     color: var(--text-muted);
@@ -85,84 +82,4 @@
 .settings-btn .icon {
     width: 20px;
     height: 20px;
-}
-
-/* High Contrast Mode Overrides - Using !important to force application */
-.high-contrast {
-    --text-muted: #e0e0e0 !important;
-    --glass-frosted: #000000 !important;
-    --bg-void: #000000 !important;
-}
-
-.high-contrast .void-bg {
-    background: #000000 !important;
-}
-
-.high-contrast .aurora,
-.high-contrast .noise {
-    display: none !important;
-}
-
-/* Force high contrast on cards */
-.high-contrast .qa-card {
-    background: #000000 !important;
-    border: 2px solid #ffffff !important;
-    box-shadow: none !important;
-}
-
-.high-contrast .qa-question {
-    color: #00ff00 !important;
-    /* Bright green */
-    font-weight: 700 !important;
-    text-shadow: none !important;
-}
-
-.high-contrast .qa-answer {
-    color: #ffffff !important;
-    /* Pure white */
-    font-weight: 600 !important;
-    text-shadow: none !important;
-}
-
-/* Force high contrast on dock */
-.high-contrast .dock {
-    background: #000000 !important;
-    border: 2px solid #ffffff !important;
-}
-
-.high-contrast .dock-btn {
-    border: 1px solid #ffffff !important;
-    background: #000000 !important;
-    color: #ffffff !important;
-}
-
-.high-contrast .dock-btn:hover {
-    background: #333333 !important;
-}
-
-.high-contrast .dock-btn.active {
-    background: #ffffff !important;
-    color: #000000 !important;
-}
-
-/* Force high contrast on JD */
-.high-contrast .jd-panel {
-    background: #000000 !important;
-    border: 2px solid #ffffff !important;
-}
-
-.high-contrast .jd-textarea {
-    background: #000000 !important;
-    color: #ffffff !important;
-    border: 1px solid #ffffff !important;
-}
-
-/* Force high contrast on Settings Popover */
-.high-contrast .settings-popover {
-    background: #000000 !important;
-    border: 2px solid #ffffff !important;
-}
-
-.high-contrast .setting-label {
-    color: #ffffff !important;
 }

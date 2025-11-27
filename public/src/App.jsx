@@ -16,7 +16,6 @@ export default function App() {
     const [isExpanding, setIsExpanding] = useState(false);
     const [jd, setJd] = useState("");
     const [speed, setSpeed] = useState(0);
-    const [highContrast, setHighContrast] = useState(false);
     const [isSettingsOpen, setIsSettingsOpen] = useState(false);
 
     const pcRef = useRef(null);
@@ -330,7 +329,7 @@ export default function App() {
     };
 
     return (
-        <div className={`app-container ${highContrast ? 'high-contrast' : ''}`}>
+        <div className="app-container">
             <div className="void-bg">
                 <div className="aurora"></div>
                 <div className="noise"></div>
@@ -366,8 +365,6 @@ export default function App() {
                 isOpen={isSettingsOpen}
                 speed={speed}
                 setSpeed={setSpeed}
-                highContrast={highContrast}
-                setHighContrast={setHighContrast}
             />
 
             <main className="stage">
