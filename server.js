@@ -223,6 +223,7 @@ app.post("/api/login", async (req, res, next) => {
       return res.json({ ok: true, role: "user", permissions: req.session.permissions });
     });
   } catch (e) {
+    console.error("[Login] Temp user login error (falling through to admin):", e);
     // On any unexpected error we fall through to admin path to avoid blocking it
     return next();
   }
@@ -251,6 +252,7 @@ app.post("/api/login", (req, res) => {
       if (err) return res.status(500).json({ error: "Session error" });
       return res.json({ ok: true, role: "admin" });
     });
+    return; // Stop execution to prevent 401 response below
   }
 
   return res.status(401).json({ error: "Invalid username or password" });
