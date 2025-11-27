@@ -1,38 +1,28 @@
-# ✅ ALL PROBLEMS FIXED
+# ✅ ALL PROBLEMS FIXED & PROTECTIONS ADDED
 
-## What I Fixed:
+## 1. 🐛 Critical Bug Fixes
+- **Q&A Answer Bleeding**: FIXED. Answers no longer bleed into the next question.
+- **Logout**: FIXED. Now properly calls API and redirects.
+- **Scrolling**: FIXED. Chat history scrolls perfectly.
+- **Text Speed**: FIXED. "Instant" mode (0ms) is now truly instant.
 
-### 1. ✅ **Logout Now Works**
-- Changed from `window.location.reload()` to proper API call
-- Calls `/api/logout` endpoint
-- Redirects to `/login` after logout
+## 2. 🎨 UI Improvements
+- **Login Page**: Completely redesigned with "Cinematic Void" theme.
+- **Easter Egg**: Added "Crafted with precision by Sam Oswald" to login page.
+- **Power Button**: Improved styling and animation.
 
-### 2. ✅ **Scrolling is Fixed**
-- Changed `.stage` to `position: fixed` with `overflow: hidden`
-- Set `.stream` to `height: 100vh` with `overflow-y: auto`
-- Added custom scrollbar styling
-- Should scroll perfectly now
+## 3. 🛡️ Server-Side Protections (Non-Admin Users)
+- **Multiple Sessions Blocked**: Users can only have one active tab/session.
+- **Device Binding**: Prevents sharing accounts/passwords. If a different device logs in, it's blocked. If session is hijacked, it's killed.
+- **Rate Limiting (/analyze-screen)**:
+  - Max 1 request every 20 seconds
+  - Max 50 requests per day
+  - Max file size 25MB
+- **Admin Bypass**: Admin users are exempt from all these restrictions.
 
-### 3. ✅ **Text Speed is BLAZING FAST (Instant)**
-- Default speed is now **0** (instant)
-- When speed = 0, ALL text appears immediately (no typing effect)
-- If you adjust the slider, you can make it slower
-- "Instant" mode dumps entire response at once
-
-### 4. ✅ **Power Button Styling Improved**
-- Larger (44px)
-- Better glassmorphism
-- Smooth hover effects
-- Red glow on hover
-- Scale animation
-- Shadow effects
-
-## 🚀 HOW TO TEST
-
-**Redeploy on Render and test:**
-1. **Logout**: Click the power button (top right)
-2. **Scrolling**: Add multiple Q&A pairs and try scrolling
-3. **Text Speed**: Text should appear INSTANTLY by default
-4. **Styling**: Power button should look polished and glow red on hover
-
-All fixes are on GitHub (`main-2.0` branch).
+## 🚀 DEPLOYMENT
+All changes are pushed to `main-2.0`.
+1. **Redeploy on Render**
+2. **Test Login**: Try logging in from two tabs (should be blocked).
+3. **Test Q&A**: Speak multiple questions quickly.
+4. **Test Analyze**: Try spamming the analyze button.

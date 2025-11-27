@@ -85,6 +85,64 @@ app.use(
 // ---[ADD] Temp-user pre-handler for /api/login (kept before your existing /api/login) ---
 const TEMP_USER_PREFIX = "tempuser:";
 
+/* ========================================================================
+   SESSION PROTECTION HELPERS (skip for admin)
+   ======================================================================== */
+
+// Track active session for a user
+async function addActiveSession(userId, sessionId) {
+  const key = `active_sessions:${userId}`;
+  await redisClient.sAdd(key, sessionId);
+  await redisClient.expire(key, 6 * 3600); // Match session TTL
+}
+
+// Remove session from active list
+async function removeActiveSession(userId, sessionId) {
+  const key = `active_sessions:${userId}`;
+  await redisClient.sRem(key, sessionId);
+}
+
+// Check if user has active sessions
+async function getActiveSessions(userId) {
+  const key = `active_sessions:${userId}`;
+  return await redisClient.sMembers(key);
+}
+
+// Generate device fingerprint
+function getDeviceFingerprint(req) {
+  const ip = req.headers["x-forwarded-for"] || req.ip || "unknown";
+  const userAgent = req.headers["user-agent"] || "unknown";
+  return `${ip}|${userAgent}`;
+}
+
+// Rate limit check for analyze-screen
+async function checkAnalyzeRateLimit(userId) {
+  const now = Date.now();
+  const today = new Date().toISOString().split('T')[0];
+
+  const lastKey = `analyze_last:${userId}`;
+  const countKey = `analyze_count:${userId}:${today}`;
+
+  // 1. Check frequency (1 req / 20s)
+  const lastTime = await redisClient.get(lastKey);
+  if (lastTime && (now - Number(lastTime) < 20000)) {
+    return { allowed: false, error: "Slow down. Please wait 20 seconds between analysis requests." };
+  }
+
+  // 2. Check daily limit (50 req / day)
+  const dailyCount = await redisClient.get(countKey);
+  if (dailyCount && Number(dailyCount) >= 50) {
+    return { allowed: false, error: "Daily limit reached (50 analysis requests per day)." };
+  }
+
+  // Update counters
+  await redisClient.set(lastKey, now);
+  await redisClient.incr(countKey);
+  await redisClient.expire(countKey, 24 * 3600); // 24h TTL
+
+  return { allowed: true };
+}
+
 // Try temp-user credentials first; if not found, fall through to your existing /api/login.
 app.post("/api/login", async (req, res, next) => {
   try {
@@ -107,11 +165,24 @@ app.post("/api/login", async (req, res, next) => {
       return next();
     }
 
+    // Check for multiple sessions (NOT for admin)
+    const activeSessions = await getActiveSessions(username);
+    if (activeSessions.length > 0) {
+      return res.status(403).json({
+        error: "Multiple sessions not allowed. You are already in a running session. Please close other windows."
+      });
+    }
+
     // Success: set session & annotate
     req.session.userId = username;
     req.session.role = "user";
     req.session.ip = req.headers["x-forwarded-for"] || req.ip;
+    req.session.userAgent = req.headers["user-agent"] || "";
+    req.session.deviceFingerprint = getDeviceFingerprint(req);
     req.session.loginAt = Date.now();
+
+    // Track active session
+    await addActiveSession(username, req.sessionID);
 
     return res.json({ ok: true, role: "user" });
   } catch (e) {
@@ -134,14 +205,27 @@ app.post("/api/login", (req, res) => {
     req.session.userId = username;
     req.session.role = "admin";   // ✅ keep admin role set
     req.session.ip = req.headers["x-forwarded-for"] || req.ip;
+    req.session.userAgent = req.headers["user-agent"] || "";
+    req.session.deviceFingerprint = getDeviceFingerprint(req);
     req.session.loginAt = Date.now();
+
+    // NO session tracking for admin
     return res.json({ ok: true, role: "admin" });
   }
 
   return res.status(401).json({ error: "Invalid username or password" });
 });
 
-app.post("/api/logout", requireAuth, (req, res) => {
+app.post("/api/logout", requireAuth, async (req, res) => {
+  const userId = req.session?.userId;
+  const sessionId = req.sessionID;
+  const role = req.session?.role;
+
+  // Remove from active sessions (not for admin)
+  if (userId && sessionId && role !== "admin") {
+    await removeActiveSession(userId, sessionId);
+  }
+
   req.session.destroy(() => res.json({ ok: true }));
 });
 
@@ -154,7 +238,19 @@ app.get("/login", (req, res) => {
 /* ---------- Auth gate (protect everything else) ---------- */
 function requireAuth(req, res, next) {
   if (req.path === "/login" || req.path === "/api/login") return next();
-  if (req.session?.userId) return next();
+
+  if (req.session?.userId) {
+    // Device Binding Check (skip for admin)
+    if (req.session.role !== "admin" && req.session.deviceFingerprint) {
+      const currentFingerprint = getDeviceFingerprint(req);
+      if (currentFingerprint !== req.session.deviceFingerprint) {
+        // Mismatch! Destroy session and redirect
+        return req.session.destroy(() => res.redirect("/login"));
+      }
+    }
+    return next();
+  }
+
   return res.redirect("/login");
 }
 app.use(requireAuth);
@@ -587,6 +683,14 @@ ${screenAnalysisContext ? `${screenAnalysisContext}` : ""}
  */
 app.post("/analyze-screen", requireAuth, async (req, res) => {
   try {
+    // Rate Limit Check (skip for admin)
+    if (req.session.role !== "admin") {
+      const limitCheck = await checkAnalyzeRateLimit(req.session.userId);
+      if (!limitCheck.allowed) {
+        return res.status(429).json({ error: limitCheck.error });
+      }
+    }
+
     const {
       screenshotBase64,         // new shape
       sessionTranscript,        // new shape
@@ -607,8 +711,10 @@ app.post("/analyze-screen", requireAuth, async (req, res) => {
     let imageDataUrl = screenshot.startsWith("data:")
       ? screenshot
       : `data:image/png;base64,${screenshot}`;
-    if (imageDataUrl.length > 50_000_000) {
-      return res.status(413).json({ error: "screenshot too large" });
+
+    // Max size 25MB
+    if (imageDataUrl.length > 26_214_400) {
+      return res.status(413).json({ error: "Screenshot too large (max 25MB)" });
     }
 
     // Normalize transcript (optional)
