@@ -15,6 +15,8 @@ const __dirname = path.dirname(__filename);
 const app = express();
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
+console.log("🚀 Server starting... (Version: Unified Login Handler)");
+
 // Trust proxy for Render so secure cookies work
 app.set("trust proxy", 1);
 
@@ -246,6 +248,7 @@ app.post("/api/login", async (req, res) => {
         console.error("User session save error:", err);
         return res.status(500).json({ error: "Login failed (session error)" });
       }
+      console.log(`[Login] Success for ${username}. SessionID: ${req.sessionID} saved.`);
       return res.json({ ok: true, role: "user", permissions: req.session.permissions });
     });
 
@@ -288,11 +291,17 @@ app.get("/login", (req, res) => {
 function requireAuth(req, res, next) {
   if (req.path === "/login" || req.path === "/api/login") return next();
 
+  // DEBUG LOGGING
+  if (req.path === "/" || req.path === "/index.html") {
+    console.log(`[Auth Check] Path: ${req.path}, SessionID: ${req.sessionID}, User: ${req.session?.userId}, Role: ${req.session?.role}`);
+  }
+
   if (req.session?.userId) {
     // Device Binding Check (skip for admin)
     if (req.session.role !== "admin" && req.session.deviceFingerprint) {
       const currentFingerprint = getDeviceFingerprint(req);
       if (currentFingerprint !== req.session.deviceFingerprint) {
+        console.log(`[Auth] Fingerprint mismatch for ${req.session.userId}. Destroying session.`);
         // Mismatch! Destroy session and redirect
         return req.session.destroy(() => res.redirect("/login"));
       }
@@ -300,6 +309,7 @@ function requireAuth(req, res, next) {
     return next();
   }
 
+  console.log(`[Auth] No session found. Redirecting to /login. (SessionID: ${req.sessionID})`);
   return res.redirect("/login");
 }
 app.use(requireAuth);
