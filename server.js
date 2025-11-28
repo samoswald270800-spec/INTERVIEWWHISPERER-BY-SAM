@@ -968,9 +968,9 @@ Return ONLY the JSON. No explanations or text outside the JSON.
         promptText = `FULL TRANSCRIPT (from Redis):\n${combinedTranscript}\n\n${visionPrompt}`;
       }
 
-      // Using Vercel AI SDK (Claude 3.5 Sonnet - stable version)
+      // Using Vercel AI SDK (Claude 3.5 Sonnet - using alias instead of version)
       const { text } = await generateText({
-        model: anthropic('claude-3-5-sonnet-20240620'),
+        model: anthropic('claude-3-5-sonnet'),
         messages: [
           {
             role: 'user',
