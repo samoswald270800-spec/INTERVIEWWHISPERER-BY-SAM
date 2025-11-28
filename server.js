@@ -968,9 +968,9 @@ Return ONLY the JSON. No explanations or text outside the JSON.
         promptText = `FULL TRANSCRIPT (from Redis):\n${combinedTranscript}\n\n${visionPrompt}`;
       }
 
-      // Using Vercel AI SDK
+      // Using Vercel AI SDK (latest Claude 3.5 Sonnet)
       const { text } = await generateText({
-        model: anthropic('claude-3-5-sonnet-20240620'),
+        model: anthropic('claude-3-5-sonnet-20241022'),
         messages: [
           {
             role: 'user',
@@ -1001,11 +1001,16 @@ Return ONLY the JSON. No explanations or text outside the JSON.
       console.log(`[analyze-screen] Trying ${primaryName}...`);
       parsed = await timeout(primary(), 30000); // 30s timeout
     } catch (err) {
-      console.warn(`[analyze-screen] ${primaryName} failed/timeout: ${err.message}. Falling back to ${secondaryName}...`);
+      console.warn(`[analyze-screen] ${primaryName} failed/timeout:`, err.message);
+      console.warn(`[analyze-screen] Full error:`, err);
+      console.log(`[analyze-screen] Falling back to ${secondaryName}...`);
       try {
         parsed = await secondary();
+        console.log(`[analyze-screen] ${secondaryName} fallback succeeded`);
       } catch (err2) {
-        console.error(`[analyze-screen] Both models failed.`, err2);
+        console.error(`[analyze-screen] Both models failed.`);
+        console.error(`[analyze-screen] Primary error:`, err);
+        console.error(`[analyze-screen] Secondary error:`, err2);
         return res.status(502).json({ error: "Analysis failed on both models." });
       }
     }
