@@ -1,7 +1,7 @@
 import React from 'react';
 import './SettingsPopover.css';
 
-export default function SettingsPopover({ isOpen, speed, setSpeed, visionModel, setVisionModel }) {
+export default function SettingsPopover({ isOpen, speed, setSpeed, visionModel, setVisionModel, interviewMode, setInterviewMode }) {
     const getSpeedLabel = () => {
         if (speed === 0) return "Instant";
         if (speed < 10) return "Blazing";
@@ -49,6 +49,40 @@ export default function SettingsPopover({ isOpen, speed, setSpeed, visionModel, 
                         onClick={() => setVisionModel('anthropic')}
                     >
                         Claude 3.5
+                    </button>
+                </div>
+            </div>
+
+            <div className="setting-group">
+                <div className="setting-label">Interview Mode</div>
+                <div className="mode-grid">
+                    <button
+                        className={`mode-card ${interviewMode === 'smart' ? 'active' : ''}`}
+                        onClick={() => setInterviewMode('smart')}
+                    >
+                        <span className="mode-icon">💡</span>
+                        <span className="mode-name">Smart Detail</span>
+                    </button>
+                    <button
+                        className={`mode-card ${interviewMode === 'hr' ? 'active' : ''}`}
+                        onClick={() => setInterviewMode('hr')}
+                    >
+                        <span className="mode-icon">🤝</span>
+                        <span className="mode-name">HR Focus</span>
+                    </button>
+                    <button
+                        className={`mode-card ${interviewMode === 'technical' ? 'active' : ''}`}
+                        onClick={() => setInterviewMode('technical')}
+                    >
+                        <span className="mode-icon">⚙️</span>
+                        <span className="mode-name">Technical</span>
+                    </button>
+                    <button
+                        className={`mode-card ${interviewMode === 'vp' ? 'active' : ''}`}
+                        onClick={() => setInterviewMode('vp')}
+                    >
+                        <span className="mode-icon">🎯</span>
+                        <span className="mode-name">VP Level</span>
                     </button>
                 </div>
             </div>

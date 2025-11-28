@@ -20,6 +20,8 @@ export default function App() {
     const [isSettingsOpen, setIsSettingsOpen] = useState(false);
     const [permissions, setPermissions] = useState({ canExpand: true, canAnalyze: true });
     const [visionModel, setVisionModel] = useState("openai");
+    const [interviewMode, setInterviewMode] = useState("smart"); // 'smart' | 'hr' | 'technical' | 'vp'
+
 
     const pcRef = useRef(null);
     const dcRef = useRef(null);
@@ -91,7 +93,7 @@ export default function App() {
             const tokenRes = await fetch("/session", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ mode: "smart" })
+                body: JSON.stringify({ mode: "smart", interviewMode })
             });
             const data = await tokenRes.json();
 
@@ -394,6 +396,8 @@ export default function App() {
                 setSpeed={setSpeed}
                 visionModel={visionModel}
                 setVisionModel={setVisionModel}
+                interviewMode={interviewMode}
+                setInterviewMode={setInterviewMode}
             />
 
             <main className="stage">
