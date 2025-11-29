@@ -10,12 +10,13 @@
 .status-pill-wrapper {
     position: fixed;
     top: 24px;
-    left: 50%;
+    left: 50vw;              /* always center on screen */
     transform: translateX(-50%);
+    width: max-content;      /* prevents weird offsets */
+    margin: 0;               /* prevents inherited margins */
     z-index: 100;
     pointer-events: none;
 }
-
 /* Logout Button (Top Right) */
 .power-btn {
     position: fixed !important;
