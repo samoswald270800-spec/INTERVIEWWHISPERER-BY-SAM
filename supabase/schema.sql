@@ -1,6 +1,7 @@
 -- ============================================================================
 -- INTERVIEW WHISPERER v2 - MULTI-TENANT DATABASE SCHEMA
--- Uses USERNAME as identifier (NOT email)
+-- Super Admins: use USERNAME
+-- Admins & Users: use EMAIL
 -- Run this in Supabase SQL Editor
 -- ============================================================================
 
@@ -27,7 +28,7 @@ CREATE TABLE IF NOT EXISTS admins (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     created_by UUID REFERENCES super_admins(id) ON DELETE SET NULL,
     name TEXT NOT NULL,
-    username TEXT UNIQUE NOT NULL,
+    email TEXT UNIQUE NOT NULL,
     password_hash TEXT NOT NULL,
     credits INTEGER DEFAULT 0,
     status TEXT DEFAULT 'active' CHECK (status IN ('active', 'paused', 'expired')),
@@ -36,7 +37,7 @@ CREATE TABLE IF NOT EXISTS admins (
     last_login TIMESTAMPTZ
 );
 
-CREATE INDEX IF NOT EXISTS idx_admins_username ON admins(username);
+CREATE INDEX IF NOT EXISTS idx_admins_email ON admins(email);
 CREATE INDEX IF NOT EXISTS idx_admins_status ON admins(status);
 
 -- ============================================================================
@@ -45,18 +46,18 @@ CREATE INDEX IF NOT EXISTS idx_admins_status ON admins(status);
 CREATE TABLE IF NOT EXISTS users (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     admin_id UUID NOT NULL REFERENCES admins(id) ON DELETE CASCADE,
-    username TEXT NOT NULL,
+    email TEXT NOT NULL,
     password_hash TEXT NOT NULL,
     credits INTEGER DEFAULT 0,
     status TEXT DEFAULT 'active' CHECK (status IN ('active', 'paused', 'expired')),
     permissions JSONB DEFAULT '{"canExpand": true, "canAnalyze": true}'::jsonb,
     created_at TIMESTAMPTZ DEFAULT NOW(),
     last_login TIMESTAMPTZ,
-    UNIQUE(admin_id, username)
+    UNIQUE(admin_id, email)
 );
 
 CREATE INDEX IF NOT EXISTS idx_users_admin_id ON users(admin_id);
-CREATE INDEX IF NOT EXISTS idx_users_username ON users(username);
+CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
 
 -- ============================================================================
 -- 4. SESSIONS (Interview tracking)
@@ -131,5 +132,5 @@ INSERT INTO system_settings (key, value, description) VALUES
 ON CONFLICT (key) DO NOTHING;
 
 -- ============================================================================
--- DONE! Tables use USERNAME (not email)
+-- DONE! Super Admins use USERNAME, Admins & Users use EMAIL
 -- ============================================================================

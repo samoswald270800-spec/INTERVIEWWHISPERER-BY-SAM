@@ -1,7 +1,8 @@
 /**
  * Authentication Service
  * Handles authentication for multi-tenant system
- * Uses USERNAME as identifier (NOT email)
+ * - Super Admins: use USERNAME
+ * - Admins & Users: use EMAIL
  */
 
 import bcrypt from 'bcrypt';
@@ -104,13 +105,13 @@ export async function authenticateSuperAdmin(supabase, username, password) {
 }
 
 /**
- * Authenticate Admin (Consultancy) - FOR FUTURE USE
+ * Authenticate Admin (Consultancy)
  */
-export async function authenticateAdmin(supabase, username, password) {
+export async function authenticateAdmin(supabase, email, password) {
   const { data: admin, error } = await supabase
     .from('admins')
     .select('*')
-    .eq('username', username)
+    .eq('email', email)
     .single();
 
   if (error || !admin) {
@@ -135,7 +136,7 @@ export async function authenticateAdmin(supabase, username, password) {
     success: true,
     user: {
       id: admin.id,
-      username: admin.username,
+      email: admin.email,
       name: admin.name,
       credits: admin.credits,
       role: 'admin',
@@ -144,13 +145,13 @@ export async function authenticateAdmin(supabase, username, password) {
 }
 
 /**
- * Authenticate User (Candidate) - FOR FUTURE USE
+ * Authenticate User (Candidate)
  */
-export async function authenticateUser(supabase, username, password, adminId = null) {
+export async function authenticateUser(supabase, email, password, adminId = null) {
   let query = supabase
     .from('users')
     .select('*, admins!inner(id, name, status)')
-    .eq('username', username);
+    .eq('email', email);
 
   if (adminId) {
     query = query.eq('admin_id', adminId);
@@ -177,7 +178,7 @@ export async function authenticateUser(supabase, username, password, adminId = n
         success: true,
         user: {
           id: user.id,
-          username: user.username,
+          email: user.email,
           adminId: user.admin_id,
           adminName: user.admins.name,
           credits: user.credits,
@@ -189,6 +190,99 @@ export async function authenticateUser(supabase, username, password, adminId = n
   }
 
   return { success: false, error: 'Invalid credentials' };
+}
+
+/**
+ * Create Admin (by Super Admin)
+ */
+export async function createAdmin(supabase, { name, email, password, credits = 0, createdBy }) {
+  // Check if email already exists
+  const { data: existing } = await supabase
+    .from('admins')
+    .select('id')
+    .eq('email', email)
+    .single();
+
+  if (existing) {
+    return { success: false, error: 'Email already exists' };
+  }
+
+  const passwordHash = await hashPassword(password);
+
+  const { data, error } = await supabase
+    .from('admins')
+    .insert({
+      name,
+      email,
+      password_hash: passwordHash,
+      credits,
+      status: 'active',
+      created_by: createdBy,
+    })
+    .select()
+    .single();
+
+  if (error) {
+    return { success: false, error: error.message };
+  }
+
+  return { success: true, admin: { ...data, password_hash: undefined } };
+}
+
+/**
+ * Create User (by Admin)
+ */
+export async function createUser(supabase, { email, password, credits = 0, permissions = {}, adminId }) {
+  // Check if email already exists for this admin
+  const { data: existing } = await supabase
+    .from('users')
+    .select('id')
+    .eq('email', email)
+    .eq('admin_id', adminId)
+    .single();
+
+  if (existing) {
+    return { success: false, error: 'User already exists with this email' };
+  }
+
+  const passwordHash = await hashPassword(password);
+
+  const { data, error } = await supabase
+    .from('users')
+    .insert({
+      email,
+      password_hash: passwordHash,
+      admin_id: adminId,
+      credits,
+      permissions: { canExpand: true, canAnalyze: true, ...permissions },
+      status: 'active',
+    })
+    .select()
+    .single();
+
+  if (error) {
+    return { success: false, error: error.message };
+  }
+
+  return { success: true, user: { ...data, password_hash: undefined } };
+}
+
+/**
+ * Update User Permissions
+ */
+export async function updateUserPermissions(supabase, userId, permissions) {
+  const { data, error } = await supabase
+    .from('users')
+    .update({ permissions })
+    .eq('id', userId)
+    .select()
+    .single();
+
+  if (error) {
+    return { success: false, error: error.message };
+  }
+
+  return { success: true, user: data };
 }
 
 /**
