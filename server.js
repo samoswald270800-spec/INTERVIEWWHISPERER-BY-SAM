@@ -44,7 +44,6 @@ if (process.env.SUPABASE_URL && process.env.SUPABASE_KEY) {
    Auth & Credits Services
    ======================================================================= */
 import {
-  seedSuperAdmin,
   authenticateSuperAdmin,
   authenticateAdmin,
   authenticateUser,
@@ -139,12 +138,8 @@ app.use(
 app.locals.supabase = supabase;
 app.locals.redisClient = redisClient;
 
-// Seed Super Admin on startup (if configured)
-if (supabase) {
-  seedSuperAdmin(supabase).catch(err => {
-    console.error("❌ Super Admin seed error:", err);
-  });
-}
+// Super Admin auth is via env vars - no seeding needed
+console.log("ℹ️  Super Admin auth via SUPER_ADMIN_USERNAME / SUPER_ADMIN_PASSWORD env vars");
 
 // All auth is now via Supabase (no more temp users)
 
@@ -218,8 +213,8 @@ app.post("/api/login", async (req, res) => {
       return res.status(400).json({ error: "Username and password are required" });
     }
 
-    // Try Super Admin first
-    const superResult = await authenticateSuperAdmin(supabase, username, password);
+    // Try Super Admin first (auth via env vars, no supabase)
+    const superResult = await authenticateSuperAdmin(username, password);
     if (superResult.success) {
       req.session.userId = username;
       req.session.supabaseId = superResult.user.id;
@@ -367,28 +362,92 @@ app.post("/api/logout", requireAuth, async (req, res) => {
   req.session.destroy(() => res.json({ ok: true }));
 });
 
+/**
+ * Force logout a user (by Admin or Super Admin)
+ */
+async function forceLogoutUser(userId) {
+  const key = `active_sessions:supabase:${userId}`;
+  const sessions = await redisClient.sMembers(key);
+  
+  for (const sid of sessions) {
+    await redisClient.del(`sess:${sid}`);
+    await redisClient.del(`transcript:${sid}`);
+    await redisClient.del(`screen-analysis:${sid}`);
+  }
+  
+  await redisClient.del(key);
+  return sessions.length;
+}
+
+/**
+ * Force logout an admin (by Super Admin)
+ */
+async function forceLogoutAdmin(adminId) {
+  // Find all sessions with this admin ID
+  const pattern = 'sess:*';
+  let cursor = '0';
+  let loggedOut = 0;
+  
+  do {
+    const [newCursor, keys] = await redisClient.scan(cursor, { MATCH: pattern, COUNT: 100 });
+    cursor = newCursor;
+    
+    for (const key of keys) {
+      try {
+        const sessionData = await redisClient.get(key);
+        if (sessionData) {
+          const session = JSON.parse(sessionData);
+          if (session.supabaseId === adminId && session.role === 'admin') {
+            await redisClient.del(key);
+            loggedOut++;
+          }
+        }
+      } catch (e) { /* ignore */ }
+    }
+  } while (cursor !== '0');
+  
+  return loggedOut;
+}
+
+/**
+ * Force logout all users under an admin
+ */
+async function forceLogoutAllUsersUnderAdmin(supabaseClient, adminId) {
+  if (!supabaseClient) return 0;
+  
+  const { data: users } = await supabaseClient
+    .from('users')
+    .select('id')
+    .eq('admin_id', adminId);
+  
+  let total = 0;
+  for (const user of (users || [])) {
+    total += await forceLogoutUser(user.id);
+  }
+  return total;
+}
+
+// Add force logout helpers to app.locals for routes
+app.locals.forceLogoutUser = forceLogoutUser;
+app.locals.forceLogoutAdmin = forceLogoutAdmin;
+app.locals.forceLogoutAllUsersUnderAdmin = forceLogoutAllUsersUnderAdmin;
+
 /* =======================================================================
    Multi-Tenant Authentication Endpoints
    ======================================================================= */
 
 /**
  * POST /api/auth/super-admin
- * Super Admin login (hidden easter egg)
+ * Super Admin login (auth via env vars)
  */
 app.post("/api/auth/super-admin", async (req, res) => {
   try {
-    if (!supabase) {
-      return res.status(503).json({ error: "Multi-tenant system not configured" });
-    }
-
-    // Accept both username and email for flexibility
-    const { username, email, password } = req.body || {};
-    const identifier = username || email;
-    if (!identifier || !password) {
+    const { username, password } = req.body || {};
+    if (!username || !password) {
       return res.status(400).json({ error: "Username and password are required" });
     }
 
-    const result = await authenticateSuperAdmin(supabase, identifier, password);
+    const result = await authenticateSuperAdmin(username, password);
     if (!result.success) {
       return res.status(401).json({ error: result.error });
     }

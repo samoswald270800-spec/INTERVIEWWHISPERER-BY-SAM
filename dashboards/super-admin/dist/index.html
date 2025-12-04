@@ -54,6 +54,8 @@
     .btn-secondary { background: transparent; color: var(--text-muted); border: 1px solid var(--border); }
     .btn-secondary:hover { background: rgba(255,255,255,0.05); color: var(--text-white); }
     .btn-danger { background: var(--danger); color: white; }
+    .btn-warning { background: var(--warning); color: black; }
+    .btn-sm { padding: 6px 12px; font-size: 12px; }
     .stats-grid {
       display: grid;
       grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
@@ -76,6 +78,7 @@
       border: 1px solid var(--border);
       border-radius: 12px;
       overflow: hidden;
+      margin-bottom: 24px;
     }
     .panel-header {
       display: flex;
@@ -85,14 +88,44 @@
       border-bottom: 1px solid var(--border);
     }
     .panel-header h2 { font-size: 16px; font-weight: 600; }
-    table { width: 100%; border-collapse: collapse; }
-    th, td { padding: 14px 20px; text-align: left; border-bottom: 1px solid var(--border); }
-    th { font-size: 11px; text-transform: uppercase; color: var(--text-muted); }
-    td { font-size: 14px; }
-    tr:hover { background: rgba(255,255,255,0.02); }
+    .admin-row { border-bottom: 1px solid var(--border); }
+    .admin-row:last-child { border-bottom: none; }
+    .admin-main {
+      display: flex;
+      align-items: center;
+      padding: 14px 20px;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+    .admin-main:hover { background: rgba(255,255,255,0.02); }
+    .admin-expand { width: 30px; color: var(--text-muted); font-size: 12px; }
+    .admin-info { flex: 1; display: grid; grid-template-columns: 2fr 1fr 1fr 1fr 1fr; gap: 16px; align-items: center; }
+    .admin-name { font-weight: 600; }
+    .admin-username { color: var(--text-muted); font-size: 13px; }
+    .admin-actions { display: flex; gap: 8px; }
+    .users-list {
+      background: rgba(0,0,0,0.2);
+      padding: 0;
+      display: none;
+    }
+    .users-list.open { display: block; }
+    .user-row {
+      display: grid;
+      grid-template-columns: 30px 2fr 1fr 1fr 1fr 1fr 150px;
+      gap: 16px;
+      padding: 12px 20px;
+      align-items: center;
+      border-bottom: 1px solid var(--border);
+      font-size: 13px;
+    }
+    .user-row:last-child { border-bottom: none; }
     .badge { display: inline-block; padding: 4px 10px; border-radius: 100px; font-size: 11px; font-weight: 500; }
     .badge-active { background: rgba(16, 185, 129, 0.15); color: var(--success); }
     .badge-paused { background: rgba(245, 158, 11, 0.15); color: var(--warning); }
+    .perm { display: inline-flex; gap: 4px; }
+    .perm span { width: 20px; height: 20px; display: flex; align-items: center; justify-content: center; border-radius: 4px; font-size: 10px; }
+    .perm .on { background: rgba(16, 185, 129, 0.2); color: var(--success); }
+    .perm .off { background: rgba(239, 68, 68, 0.2); color: var(--danger); }
     .modal-overlay {
       position: fixed; top: 0; left: 0; right: 0; bottom: 0;
       background: rgba(0,0,0,0.7);
@@ -142,6 +175,7 @@
     <div class="header">
       <h1>🛡️ Super Admin Dashboard</h1>
       <div style="display:flex;gap:12px;">
+        <button class="btn btn-secondary" onclick="window.location.href='/'">← Back to Tool</button>
         <button class="btn btn-secondary" onclick="refreshData()">Refresh</button>
         <button class="btn btn-danger" onclick="logout()">Logout</button>
       </div>
@@ -156,13 +190,10 @@
     
     <div class="panel">
       <div class="panel-header">
-        <h2>Manage Admins</h2>
+        <h2>Manage Admins (click to expand users)</h2>
         <button class="btn btn-primary" onclick="showModal('createAdminModal')">+ Add Admin</button>
       </div>
-      <table>
-        <thead><tr><th>Name</th><th>Username</th><th>Credits</th><th>Users</th><th>Status</th><th>Actions</th></tr></thead>
-        <tbody id="adminsTable"><tr><td colspan="6" style="text-align:center;padding:40px;color:var(--text-muted);">Loading...</td></tr></tbody>
-      </table>
+      <div id="adminsContainer"><div style="padding:40px;text-align:center;color:var(--text-muted);">Loading...</div></div>
     </div>
   </div>
   
@@ -200,6 +231,9 @@
   <div class="toast" id="toast"></div>
 
   <script>
+    let expandedAdmins = {};
+    let adminsData = [];
+
     async function api(endpoint, options = {}) {
       const res = await fetch(`/api/super-admin${endpoint}`, {
         ...options,
@@ -239,28 +273,117 @@
     async function loadAdmins() {
       try {
         const { admins } = await api('/admins');
-        const tbody = document.getElementById('adminsTable');
-        if (!admins.length) {
-          tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:40px;color:var(--text-muted);">No admins yet</td></tr>';
-          return;
-        }
-        tbody.innerHTML = admins.map(a => `
-          <tr>
-            <td><strong>${a.name}</strong></td>
-            <td>${a.username}</td>
-            <td>${a.credits.toLocaleString()}</td>
-            <td>${a.userCount}</td>
-            <td><span class="badge badge-${a.status || 'active'}">${a.status || 'active'}</span></td>
-            <td>
-              <button class="btn btn-secondary" style="padding:6px 12px;font-size:12px;" onclick="showCreditsModal('${a.id}', '${a.name}')">Credits</button>
-              <button class="btn btn-danger" style="padding:6px 12px;font-size:12px;" onclick="deleteAdmin('${a.id}', '${a.name}')">Delete</button>
-            </td>
-          </tr>
-        `).join('');
+        adminsData = admins;
+        renderAdmins();
       } catch (e) {
         console.error(e);
-        document.getElementById('adminsTable').innerHTML = '<tr><td colspan="6" style="color:var(--danger);">Failed to load</td></tr>';
+        document.getElementById('adminsContainer').innerHTML = '<div style="padding:40px;text-align:center;color:var(--danger);">Failed to load</div>';
       }
+    }
+
+    function renderAdmins() {
+      const container = document.getElementById('adminsContainer');
+      if (!adminsData.length) {
+        container.innerHTML = '<div style="padding:40px;text-align:center;color:var(--text-muted);">No admins yet</div>';
+        return;
+      }
+      
+      container.innerHTML = adminsData.map(a => `
+        <div class="admin-row">
+          <div class="admin-main" onclick="toggleAdmin('${a.id}')">
+            <div class="admin-expand">${expandedAdmins[a.id] ? '▼' : '▶'}</div>
+            <div class="admin-info">
+              <div><div class="admin-name">${a.name}</div><div class="admin-username">${a.username}</div></div>
+              <div>${a.credits.toLocaleString()} credits</div>
+              <div>${a.userCount} users</div>
+              <div><span class="badge badge-${a.status || 'active'}">${a.status || 'active'}</span></div>
+              <div class="admin-actions" onclick="event.stopPropagation()">
+                <button class="btn btn-secondary btn-sm" onclick="showCreditsModal('${a.id}', '${a.name}')">Credits</button>
+                <button class="btn btn-warning btn-sm" onclick="forceLogoutAdmin('${a.id}', '${a.name}')">Kick</button>
+                <button class="btn btn-danger btn-sm" onclick="deleteAdmin('${a.id}', '${a.name}')">Delete</button>
+              </div>
+            </div>
+          </div>
+          <div class="users-list ${expandedAdmins[a.id] ? 'open' : ''}" id="users-${a.id}">
+            <div style="padding:20px;text-align:center;color:var(--text-muted);">Loading users...</div>
+          </div>
+        </div>
+      `).join('');
+      
+      // Load users for expanded admins
+      Object.keys(expandedAdmins).forEach(adminId => {
+        if (expandedAdmins[adminId]) loadUsersForAdmin(adminId);
+      });
+    }
+
+    async function toggleAdmin(adminId) {
+      expandedAdmins[adminId] = !expandedAdmins[adminId];
+      renderAdmins();
+    }
+
+    async function loadUsersForAdmin(adminId) {
+      const container = document.getElementById(`users-${adminId}`);
+      if (!container) return;
+      
+      try {
+        const { users } = await api(`/admins/${adminId}/users`);
+        if (!users.length) {
+          container.innerHTML = '<div style="padding:20px;text-align:center;color:var(--text-muted);">No users</div>';
+          return;
+        }
+        
+        container.innerHTML = users.map(u => {
+          const p = u.permissions || {};
+          return `
+            <div class="user-row">
+              <div></div>
+              <div><strong>${u.username}</strong></div>
+              <div>${u.credits} credits</div>
+              <div><span class="badge badge-${u.status}">${u.status}</span></div>
+              <div class="perm">
+                <span class="${p.canExpand ? 'on' : 'off'}" title="Expand" onclick="toggleUserPerm('${u.id}', 'canExpand', ${!p.canExpand})">E</span>
+                <span class="${p.canAnalyze ? 'on' : 'off'}" title="Analyze" onclick="toggleUserPerm('${u.id}', 'canAnalyze', ${!p.canAnalyze})">A</span>
+              </div>
+              <div>${u.last_login ? new Date(u.last_login).toLocaleDateString() : 'Never'}</div>
+              <div style="display:flex;gap:6px;">
+                <button class="btn btn-warning btn-sm" onclick="forceLogoutUser('${u.id}', '${u.username}')">Kick</button>
+              </div>
+            </div>
+          `;
+        }).join('');
+      } catch (e) {
+        console.error(e);
+        container.innerHTML = '<div style="padding:20px;text-align:center;color:var(--danger);">Failed to load users</div>';
+      }
+    }
+
+    async function toggleUserPerm(userId, perm, value) {
+      try {
+        await api(`/users/${userId}/permissions`, {
+          method: 'PATCH',
+          body: JSON.stringify({ permissions: { [perm]: value } })
+        });
+        showToast(`${perm} ${value ? 'enabled' : 'disabled'}`);
+        // Reload the admin's users
+        const adminId = Object.keys(expandedAdmins).find(id => expandedAdmins[id]);
+        if (adminId) loadUsersForAdmin(adminId);
+      } catch (e) { showToast(e.message, 'error'); }
+    }
+
+    async function forceLogoutUser(userId, username) {
+      if (!confirm(`Force logout "${username}"?`)) return;
+      try {
+        const { sessionsTerminated } = await api(`/users/${userId}/force-logout`, { method: 'POST' });
+        showToast(`User kicked (${sessionsTerminated} sessions terminated)`);
+      } catch (e) { showToast(e.message, 'error'); }
+    }
+
+    async function forceLogoutAdmin(adminId, name) {
+      if (!confirm(`Force logout admin "${name}"?`)) return;
+      try {
+        const { sessionsTerminated } = await api(`/admins/${adminId}/force-logout`, { method: 'POST' });
+        showToast(`Admin kicked (${sessionsTerminated} sessions terminated)`);
+      } catch (e) { showToast(e.message, 'error'); }
     }
 
     document.getElementById('createAdminForm').addEventListener('submit', async (e) => {
@@ -300,7 +423,7 @@
     });
 
     async function deleteAdmin(id, name) {
-      if (!confirm(`Delete "${name}" and all their users?`)) return;
+      if (!confirm(`Delete "${name}" and all their users? They will be force logged out.`)) return;
       try {
         await api(`/admins/${id}`, { method: 'DELETE' });
         showToast('Admin deleted');

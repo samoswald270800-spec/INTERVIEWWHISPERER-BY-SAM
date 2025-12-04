@@ -1,7 +1,7 @@
 /**
  * Super Admin API Routes
  * All routes require super_admin role
- * ALL LOGINS USE USERNAME
+ * ALL USE USERNAME (not email)
  */
 
 import express from 'express';
@@ -10,6 +10,10 @@ import {
   hashPassword,
   logAudit,
 } from '../services/auth.js';
+import {
+  addCreditsToAdmin,
+  deductCreditsFromAdmin,
+} from '../services/credits.js';
 
 const router = express.Router();
 
@@ -103,6 +107,30 @@ router.get('/admins', async (req, res) => {
 });
 
 /**
+ * GET /api/super-admin/admins/:id/users
+ * Get all users under a specific admin (expandable view)
+ */
+router.get('/admins/:id/users', async (req, res) => {
+  try {
+    const { supabase } = req.app.locals;
+    const { id } = req.params;
+
+    const { data: users, error } = await supabase
+      .from('users')
+      .select('id, username, credits, status, permissions, created_at, last_login')
+      .eq('admin_id', id)
+      .order('created_at', { ascending: false });
+
+    if (error) throw error;
+
+    res.json({ ok: true, users: users || [] });
+  } catch (e) {
+    console.error('[Super Admin Get Admin Users]', e);
+    res.status(500).json({ error: 'Failed to fetch users' });
+  }
+});
+
+/**
  * POST /api/super-admin/admins
  */
 router.post('/admins', async (req, res) => {
@@ -119,7 +147,6 @@ router.post('/admins', async (req, res) => {
       username,
       password,
       credits,
-      createdBy: req.session.supabaseId,
     });
 
     if (!result.success) {
@@ -128,7 +155,7 @@ router.post('/admins', async (req, res) => {
 
     await logAudit(supabase, {
       actorType: 'super_admin',
-      actorId: req.session.supabaseId,
+      actorId: 'super-admin',
       action: 'create_admin',
       targetType: 'admin',
       targetId: result.admin.id,
@@ -146,18 +173,26 @@ router.post('/admins', async (req, res) => {
 
 /**
  * DELETE /api/super-admin/admins/:id
+ * Delete admin and force logout all their users
  */
 router.delete('/admins/:id', async (req, res) => {
   try {
-    const { supabase } = req.app.locals;
+    const { supabase, forceLogoutAdmin, forceLogoutAllUsersUnderAdmin } = req.app.locals;
     const { id } = req.params;
 
+    // Force logout the admin
+    await forceLogoutAdmin(id);
+
+    // Force logout all users under this admin
+    await forceLogoutAllUsersUnderAdmin(supabase, id);
+
+    // Delete admin (cascade deletes users)
     const { error } = await supabase.from('admins').delete().eq('id', id);
     if (error) throw error;
 
     await logAudit(supabase, {
       actorType: 'super_admin',
-      actorId: req.session.supabaseId,
+      actorId: 'super-admin',
       action: 'delete_admin',
       targetType: 'admin',
       targetId: id,
@@ -169,6 +204,82 @@ router.delete('/admins/:id', async (req, res) => {
   } catch (e) {
     console.error('[Super Admin Delete Admin]', e);
     res.status(500).json({ error: 'Failed to delete admin' });
+  }
+});
+
+/**
+ * POST /api/super-admin/admins/:id/force-logout
+ * Force logout an admin
+ */
+router.post('/admins/:id/force-logout', async (req, res) => {
+  try {
+    const { forceLogoutAdmin } = req.app.locals;
+    const { id } = req.params;
+
+    const count = await forceLogoutAdmin(id);
+
+    res.json({ ok: true, sessionsTerminated: count });
+  } catch (e) {
+    console.error('[Super Admin Force Logout Admin]', e);
+    res.status(500).json({ error: 'Failed to force logout' });
+  }
+});
+
+/**
+ * POST /api/super-admin/users/:id/force-logout
+ * Force logout a user (Super Admin can logout any user)
+ */
+router.post('/users/:id/force-logout', async (req, res) => {
+  try {
+    const { forceLogoutUser } = req.app.locals;
+    const { id } = req.params;
+
+    const count = await forceLogoutUser(id);
+
+    res.json({ ok: true, sessionsTerminated: count });
+  } catch (e) {
+    console.error('[Super Admin Force Logout User]', e);
+    res.status(500).json({ error: 'Failed to force logout' });
+  }
+});
+
+/**
+ * PATCH /api/super-admin/users/:id/permissions
+ * Update user permissions (Super Admin can update any user)
+ */
+router.patch('/users/:id/permissions', async (req, res) => {
+  try {
+    const { supabase } = req.app.locals;
+    const { id } = req.params;
+    const { permissions } = req.body;
+
+    if (!permissions) {
+      return res.status(400).json({ error: 'permissions object required' });
+    }
+
+    const { data: user, error: fetchError } = await supabase
+      .from('users')
+      .select('permissions')
+      .eq('id', id)
+      .single();
+
+    if (fetchError || !user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    const newPermissions = { ...user.permissions, ...permissions };
+
+    const { error } = await supabase
+      .from('users')
+      .update({ permissions: newPermissions })
+      .eq('id', id);
+
+    if (error) throw error;
+
+    res.json({ ok: true, permissions: newPermissions });
+  } catch (e) {
+    console.error('[Super Admin Update User Permissions]', e);
+    res.status(500).json({ error: 'Failed to update permissions' });
   }
 });
 
@@ -185,30 +296,18 @@ router.post('/admins/:id/credits', async (req, res) => {
       return res.status(400).json({ error: 'amount must be a non-zero number' });
     }
 
-    const { data: admin, error: fetchError } = await supabase
-      .from('admins')
-      .select('credits')
-      .eq('id', id)
-      .single();
-
-    if (fetchError || !admin) {
-      return res.status(404).json({ error: 'Admin not found' });
+    let result;
+    if (amount > 0) {
+      result = await addCreditsToAdmin(supabase, { adminId: id, amount, description });
+    } else {
+      result = await deductCreditsFromAdmin(supabase, { adminId: id, amount: Math.abs(amount), description });
     }
 
-    const newCredits = Math.max(0, admin.credits + amount);
+    if (!result.success) {
+      return res.status(400).json({ error: result.error });
+    }
 
-    await supabase.from('admins').update({ credits: newCredits }).eq('id', id);
-
-    await supabase.from('credit_transactions').insert({
-      admin_id: id,
-      super_admin_id: req.session.supabaseId,
-      type: amount > 0 ? 'admin_refill' : 'admin_deduct',
-      amount,
-      balance_after: newCredits,
-      description: description || (amount > 0 ? 'Credits added' : 'Credits deducted'),
-    });
-
-    res.json({ ok: true, newCredits });
+    res.json({ ok: true, newCredits: result.newCredits });
   } catch (e) {
     console.error('[Super Admin Modify Credits]', e);
     res.status(500).json({ error: 'Failed to modify credits' });

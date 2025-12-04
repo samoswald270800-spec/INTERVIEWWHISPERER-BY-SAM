@@ -1,6 +1,8 @@
 /**
  * Authentication Service
- * ALL LOGINS USE USERNAME (not email)
+ * - Super Admin: Auth via env vars (no database)
+ * - Admin & User: Auth via Supabase
+ * - ALL USE USERNAME (not email)
  */
 
 import bcrypt from 'bcrypt';
@@ -22,83 +24,28 @@ export async function verifyPassword(password, hash) {
 }
 
 /**
- * Seed Super Admin on first boot
+ * Authenticate Super Admin (via environment variables - no database)
  */
-export async function seedSuperAdmin(supabase) {
-  const username = process.env.SUPER_ADMIN_USERNAME;
-  const password = process.env.SUPER_ADMIN_PASSWORD;
+export async function authenticateSuperAdmin(username, password) {
+  const validUsername = process.env.SUPER_ADMIN_USERNAME;
+  const validPassword = process.env.SUPER_ADMIN_PASSWORD;
 
-  if (!username || !password) {
-    console.log("ℹ️  No SUPER_ADMIN_USERNAME/PASSWORD set. Skipping super admin seed.");
-    return null;
+  if (!validUsername || !validPassword) {
+    return { success: false, error: 'Super Admin not configured' };
   }
 
-  // Check if super admin already exists
-  const { data: existing } = await supabase
-    .from('super_admins')
-    .select('id')
-    .eq('username', username)
-    .single();
-
-  if (existing) {
-    console.log("✅ Super Admin already exists:", username);
-    return existing;
+  if (username === validUsername && password === validPassword) {
+    return {
+      success: true,
+      user: {
+        id: 'super-admin',
+        username: validUsername,
+        role: 'super_admin',
+      }
+    };
   }
 
-  // Create new super admin
-  const passwordHash = await hashPassword(password);
-  const { data, error } = await supabase
-    .from('super_admins')
-    .insert({
-      username,
-      password_hash: passwordHash,
-    })
-    .select()
-    .single();
-
-  if (error) {
-    console.error("❌ Failed to seed Super Admin:", error.message);
-    return null;
-  }
-
-  console.log("✅ Super Admin created:", username);
-  return data;
-}
-
-/**
- * Authenticate Super Admin
- */
-export async function authenticateSuperAdmin(supabase, username, password) {
-  const { data: admin, error } = await supabase
-    .from('super_admins')
-    .select('*')
-    .eq('username', username)
-    .eq('is_active', true)
-    .single();
-
-  if (error || !admin) {
-    return { success: false, error: 'Invalid credentials' };
-  }
-
-  const valid = await verifyPassword(password, admin.password_hash);
-  if (!valid) {
-    return { success: false, error: 'Invalid credentials' };
-  }
-
-  // Update last login
-  await supabase
-    .from('super_admins')
-    .update({ last_login: new Date().toISOString() })
-    .eq('id', admin.id);
-
-  return {
-    success: true,
-    user: {
-      id: admin.id,
-      username: admin.username,
-      role: 'super_admin',
-    }
-  };
+  return { success: false, error: 'Invalid credentials' };
 }
 
 /**
@@ -192,7 +139,7 @@ export async function authenticateUser(supabase, username, password, adminId = n
 /**
  * Create Admin (by Super Admin)
  */
-export async function createAdmin(supabase, { name, username, password, credits = 0, createdBy }) {
+export async function createAdmin(supabase, { name, username, password, credits = 0 }) {
   const passwordHash = await hashPassword(password);
 
   const { data, error } = await supabase
@@ -203,7 +150,6 @@ export async function createAdmin(supabase, { name, username, password, credits 
       password_hash: passwordHash,
       credits,
       status: 'active',
-      created_by: createdBy,
     })
     .select()
     .single();
@@ -269,6 +215,8 @@ export async function updateUserPermissions(supabase, userId, permissions) {
  * Log Audit Event
  */
 export async function logAudit(supabase, { actorType, actorId, action, targetType, targetId, details, ip, userAgent }) {
+  if (!supabase) return;
+  
   const { error } = await supabase
     .from('audit_logs')
     .insert({

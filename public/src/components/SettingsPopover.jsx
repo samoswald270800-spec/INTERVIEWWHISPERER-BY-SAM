@@ -1,13 +1,40 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import './SettingsPopover.css';
 
 export default function SettingsPopover({ isOpen, speed, setSpeed, visionModel, setVisionModel, interviewMode, setInterviewMode }) {
+    const [userInfo, setUserInfo] = useState(null);
+
+    useEffect(() => {
+        fetch('/api/me')
+            .then(res => res.json())
+            .then(data => {
+                if (data.role) {
+                    setUserInfo(data);
+                }
+            })
+            .catch(() => {});
+    }, []);
+
     const getSpeedLabel = () => {
         if (speed === 0) return "Instant";
         if (speed < 10) return "Blazing";
         if (speed < 25) return "Normal";
         return "Relaxed";
     };
+
+    const handleDashboard = () => {
+        if (userInfo?.dashboardUrl) {
+            window.location.href = userInfo.dashboardUrl;
+        }
+    };
+
+    const handleLogout = async () => {
+        await fetch('/api/logout', { method: 'POST' });
+        window.location.href = '/login';
+    };
+
+    // Only show dashboard for admin and super_admin roles
+    const showDashboard = userInfo?.role === 'admin' || userInfo?.role === 'super_admin';
 
     return (
         <div className={`settings-popover ${isOpen ? 'open' : ''}`}>
@@ -85,6 +112,20 @@ export default function SettingsPopover({ isOpen, speed, setSpeed, visionModel, 
                         <span className="mode-name">VP Level</span>
                     </button>
                 </div>
+            </div>
+
+            {showDashboard && (
+                <div className="setting-group">
+                    <button className="dashboard-btn" onClick={handleDashboard}>
+                        📊 Open Dashboard
+                    </button>
+                </div>
+            )}
+
+            <div className="setting-group">
+                <button className="logout-btn" onClick={handleLogout}>
+                    🚪 Logout
+                </button>
             </div>
         </div>
     );

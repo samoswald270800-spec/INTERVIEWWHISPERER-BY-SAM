@@ -63,6 +63,8 @@
     .btn-secondary { background: transparent; color: var(--text-muted); border: 1px solid var(--border); }
     .btn-secondary:hover { background: rgba(255,255,255,0.05); color: var(--text-white); }
     .btn-danger { background: var(--danger); color: white; }
+    .btn-warning { background: var(--warning); color: black; }
+    .btn-sm { padding: 6px 12px; font-size: 12px; }
     .stats-grid {
       display: grid;
       grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
@@ -109,6 +111,7 @@
       border-radius: 6px;
       display: flex; align-items: center; justify-content: center;
       font-size: 12px;
+      cursor: pointer;
     }
     .perm-icon.on { background: rgba(16, 185, 129, 0.2); color: var(--success); }
     .perm-icon.off { background: rgba(239, 68, 68, 0.2); color: var(--danger); }
@@ -167,6 +170,7 @@
           <span class="label">Your Credits</span>
           <span class="value" id="myCredits">-</span>
         </div>
+        <button class="btn btn-secondary" onclick="window.location.href='/'">← Back to Tool</button>
         <button class="btn btn-secondary" onclick="refreshData()">Refresh</button>
         <button class="btn btn-danger" onclick="logout()">Logout</button>
       </div>
@@ -292,17 +296,16 @@
             <td>${u.credits}</td>
             <td>
               <div class="perm-icons">
-                <span class="perm-icon ${p.canExpand ? 'on' : 'off'}" title="Expand">E</span>
-                <span class="perm-icon ${p.canAnalyze ? 'on' : 'off'}" title="Analyze">A</span>
+                <span class="perm-icon ${p.canExpand ? 'on' : 'off'}" title="Expand" onclick="togglePerm('${u.id}', 'canExpand', ${!p.canExpand})">E</span>
+                <span class="perm-icon ${p.canAnalyze ? 'on' : 'off'}" title="Analyze" onclick="togglePerm('${u.id}', 'canAnalyze', ${!p.canAnalyze})">A</span>
               </div>
             </td>
             <td>${u.sessionCount || 0}</td>
             <td><span class="badge badge-${u.status || 'active'}">${u.status || 'active'}</span></td>
             <td>
-              <button class="btn btn-secondary" style="padding:6px 10px;font-size:11px;" onclick="showCreditsModal('${u.id}', '${u.username}', ${u.credits})">Credits</button>
-              <button class="btn btn-secondary" style="padding:6px 10px;font-size:11px;" onclick="togglePerm('${u.id}', 'canExpand', ${!p.canExpand})">E</button>
-              <button class="btn btn-secondary" style="padding:6px 10px;font-size:11px;" onclick="togglePerm('${u.id}', 'canAnalyze', ${!p.canAnalyze})">A</button>
-              <button class="btn btn-danger" style="padding:6px 10px;font-size:11px;" onclick="deleteUser('${u.id}', '${u.username}')">×</button>
+              <button class="btn btn-secondary btn-sm" onclick="showCreditsModal('${u.id}', '${u.username}', ${u.credits})">Credits</button>
+              <button class="btn btn-warning btn-sm" onclick="forceLogout('${u.id}', '${u.username}')">Kick</button>
+              <button class="btn btn-danger btn-sm" onclick="deleteUser('${u.id}', '${u.username}')">×</button>
             </td>
           </tr>
         `}).join('');
@@ -356,6 +359,14 @@
         });
         showToast(`${perm} ${value ? 'enabled' : 'disabled'}`);
         loadUsers();
+      } catch (e) { showToast(e.message, 'error'); }
+    }
+
+    async function forceLogout(userId, username) {
+      if (!confirm(`Force logout "${username}"?`)) return;
+      try {
+        const { sessionsTerminated } = await api(`/users/${userId}/force-logout`, { method: 'POST' });
+        showToast(`User kicked (${sessionsTerminated} sessions terminated)`);
       } catch (e) { showToast(e.message, 'error'); }
     }
 
