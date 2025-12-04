@@ -68,13 +68,8 @@
     }
 
     @keyframes breathe {
-      0% {
-        opacity: 0.5;
-      }
-
-      100% {
-        opacity: 1;
-      }
+      0% { opacity: 0.5; }
+      100% { opacity: 1; }
     }
 
     .noise {
@@ -106,15 +101,8 @@
     }
 
     @keyframes slideIn {
-      from {
-        opacity: 0;
-        transform: translateX(-20px);
-      }
-
-      to {
-        opacity: 1;
-        transform: translateX(0);
-      }
+      from { opacity: 0; transform: translateX(-20px); }
+      to { opacity: 1; transform: translateX(0); }
     }
 
     .info-panel h1 {
@@ -125,7 +113,6 @@
       color: var(--text-white);
       margin-bottom: 16px;
       cursor: pointer;
-      /* Trigger for easter egg */
     }
 
     .info-panel p {
@@ -177,7 +164,7 @@
 
     .login-header {
       text-align: center;
-      margin-bottom: 32px;
+      margin-bottom: 24px;
     }
 
     .login-header h2 {
@@ -191,6 +178,45 @@
     .login-header p {
       font-size: 13px;
       color: var(--text-muted);
+    }
+
+    /* Login Type Tabs */
+    .login-tabs {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 24px;
+      background: rgba(255, 255, 255, 0.03);
+      padding: 4px;
+      border-radius: 12px;
+    }
+
+    .login-tab {
+      flex: 1;
+      padding: 10px 12px;
+      background: transparent;
+      border: none;
+      border-radius: 8px;
+      color: var(--text-muted);
+      font-family: var(--font-body);
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    .login-tab:hover {
+      color: var(--text-white);
+    }
+
+    .login-tab.active {
+      background: var(--theme-primary);
+      color: white;
+    }
+
+    .login-tab.active.business {
+      background: var(--lux-cyan);
     }
 
     .form-group {
@@ -246,6 +272,14 @@
       box-shadow: 0 8px 24px var(--theme-glow);
     }
 
+    .login-btn.business {
+      background: var(--lux-cyan);
+    }
+
+    .login-btn.business:hover {
+      box-shadow: 0 8px 24px rgba(6, 182, 212, 0.3);
+    }
+
     .error {
       margin-top: 16px;
       padding: 12px;
@@ -271,7 +305,7 @@
       text-align: center;
     }
 
-    /* Easter Egg Modal */
+    /* Easter Egg Modal (Super Admin) */
     .easter-modal {
       position: fixed;
       inset: 0;
@@ -293,7 +327,7 @@
 
     .easter-content {
       text-align: center;
-      max-width: 500px;
+      max-width: 400px;
       padding: 40px;
       border: 1px solid var(--glass-border);
       border-radius: 32px;
@@ -307,48 +341,74 @@
     }
 
     .easter-avatar {
-      width: 100px;
-      height: 100px;
+      width: 80px;
+      height: 80px;
       border-radius: 50%;
-      background: linear-gradient(135deg, var(--lux-violet), var(--lux-cyan));
+      background: linear-gradient(135deg, var(--lux-violet), var(--lux-rose));
       margin: 0 auto 24px;
       display: flex;
       align-items: center;
       justify-content: center;
-      font-size: 40px;
-      font-weight: 700;
-      color: white;
-      box-shadow: 0 0 40px var(--theme-glow);
+      font-size: 32px;
+      box-shadow: 0 0 40px rgba(139, 92, 246, 0.3);
     }
 
     .easter-title {
       font-family: var(--font-display);
-      font-size: 32px;
+      font-size: 24px;
       margin-bottom: 16px;
-      background: linear-gradient(to right, #fff, #9CA3AF);
-      -webkit-background-clip: text;
-      -webkit-text-fill-color: transparent;
+      color: var(--text-white);
     }
 
-    .easter-text {
-      font-size: 16px;
-      line-height: 1.6;
-      color: var(--text-muted);
-      margin-bottom: 32px;
+    .easter-form {
+      margin-top: 24px;
+    }
+
+    .easter-form .form-group {
+      margin-bottom: 16px;
+    }
+
+    .easter-form .form-input {
+      background: rgba(139, 92, 246, 0.1);
+      border-color: rgba(139, 92, 246, 0.3);
+    }
+
+    .easter-form .form-input:focus {
+      border-color: var(--lux-violet);
+    }
+
+    .easter-btn {
+      width: 100%;
+      padding: 12px;
+      background: linear-gradient(135deg, var(--lux-violet), var(--lux-rose));
+      border: none;
+      border-radius: 12px;
+      color: white;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.3s;
+    }
+
+    .easter-btn:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 8px 24px rgba(139, 92, 246, 0.4);
     }
 
     .close-easter {
-      padding: 10px 24px;
-      background: rgba(255, 255, 255, 0.1);
+      margin-top: 16px;
+      padding: 8px 20px;
+      background: transparent;
       border: 1px solid rgba(255, 255, 255, 0.1);
       border-radius: 100px;
-      color: white;
+      color: var(--text-muted);
+      font-size: 12px;
       cursor: pointer;
       transition: all 0.2s;
     }
 
     .close-easter:hover {
-      background: rgba(255, 255, 255, 0.2);
+      background: rgba(255, 255, 255, 0.05);
+      color: var(--text-white);
     }
 
     @media (max-width: 768px) {
@@ -405,8 +465,14 @@
 
     <div class="login-panel">
       <div class="login-header">
-        <h2>Sign In</h2>
-        <p>Access your interview assistant</p>
+        <h2 id="loginTitle">Candidate Sign In</h2>
+        <p id="loginSubtitle">Access your interview assistant</p>
+      </div>
+
+      <!-- Login Type Tabs -->
+      <div class="login-tabs">
+        <button type="button" class="login-tab active" data-type="user">Candidate</button>
+        <button type="button" class="login-tab" data-type="admin">Business</button>
       </div>
 
       <form id="loginForm">
@@ -420,7 +486,7 @@
           <input type="password" class="form-input" id="password" placeholder="Enter password" required>
         </div>
 
-        <button type="submit" class="login-btn">Sign In</button>
+        <button type="submit" class="login-btn" id="loginBtn">Sign In</button>
 
         <div class="error" id="error"></div>
       </form>
@@ -431,17 +497,24 @@
     </div>
   </div>
 
-  <!-- Easter Egg Modal -->
+  <!-- Easter Egg Modal (Super Admin Login) -->
   <div class="easter-modal" id="easterModal">
     <div class="easter-content">
-      <div class="easter-avatar">SO</div>
-      <h3 class="easter-title">Sam Oswald</h3>
-      <p class="easter-text">
-       A noob behind Interview Whisperer.
-       Building tools that empower people to achieve their potential.
-      </p>
-      <button class="close-easter"
-        onclick="document.getElementById('easterModal').classList.remove('active')">Close</button>
+      <div class="easter-avatar">🛡️</div>
+      <h3 class="easter-title">Super Admin Access</h3>
+      
+      <form class="easter-form" id="superAdminForm">
+        <div class="form-group">
+          <input type="text" class="form-input" id="superUsername" placeholder="Username" required>
+        </div>
+        <div class="form-group">
+          <input type="password" class="form-input" id="superPassword" placeholder="Password" required>
+        </div>
+        <button type="submit" class="easter-btn">Access Control Panel</button>
+        <div class="error" id="superError" style="margin-top:12px;"></div>
+      </form>
+      
+      <button class="close-easter" onclick="document.getElementById('easterModal').classList.remove('active')">Cancel</button>
     </div>
   </div>
 
@@ -450,19 +523,45 @@
     const errorEl = document.getElementById('error');
     const easterTrigger = document.getElementById('easterTrigger');
     const easterModal = document.getElementById('easterModal');
+    const loginTitle = document.getElementById('loginTitle');
+    const loginSubtitle = document.getElementById('loginSubtitle');
+    const loginBtn = document.getElementById('loginBtn');
+    const tabs = document.querySelectorAll('.login-tab');
 
-    // Easter Egg Logic (5 clicks on title)
+    let currentLoginType = 'user'; // 'user' or 'admin'
+
+    // Tab switching
+    tabs.forEach(tab => {
+      tab.addEventListener('click', () => {
+        tabs.forEach(t => t.classList.remove('active'));
+        tab.classList.add('active');
+        currentLoginType = tab.dataset.type;
+        
+        if (currentLoginType === 'admin') {
+          loginTitle.textContent = 'Business Sign In';
+          loginSubtitle.textContent = 'Manage your consultancy account';
+          loginBtn.textContent = 'Sign In as Business';
+          loginBtn.classList.add('business');
+          tab.classList.add('business');
+        } else {
+          loginTitle.textContent = 'Candidate Sign In';
+          loginSubtitle.textContent = 'Access your interview assistant';
+          loginBtn.textContent = 'Sign In';
+          loginBtn.classList.remove('business');
+        }
+        
+        errorEl.classList.remove('show');
+      });
+    });
+
+    // Easter Egg Logic (5 clicks on title = Super Admin)
     let clickCount = 0;
     let clickTimer;
 
     easterTrigger.addEventListener('click', () => {
       clickCount++;
-
-      // Reset count if too slow
       clearTimeout(clickTimer);
-      clickTimer = setTimeout(() => {
-        clickCount = 0;
-      }, 1000);
+      clickTimer = setTimeout(() => { clickCount = 0; }, 1000);
 
       if (clickCount === 5) {
         easterModal.classList.add('active');
@@ -470,15 +569,16 @@
       }
     });
 
-    // Login Logic
-    form.addEventListener('submit', async (e) => {
+    // Super Admin Login
+    document.getElementById('superAdminForm').addEventListener('submit', async (e) => {
       e.preventDefault();
-
-      const username = document.getElementById('username').value;
-      const password = document.getElementById('password').value;
+      const superError = document.getElementById('superError');
+      
+      const username = document.getElementById('superUsername').value;
+      const password = document.getElementById('superPassword').value;
 
       try {
-        const res = await fetch('/api/login', {
+        const res = await fetch('/api/auth/super-admin', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ username, password })
@@ -487,7 +587,45 @@
         const data = await res.json();
 
         if (data.ok) {
-          window.location.href = '/';
+          window.location.href = '/super-admin';
+        } else {
+          superError.textContent = data.error || 'Invalid credentials';
+          superError.classList.add('show');
+        }
+      } catch (err) {
+        superError.textContent = 'Connection error';
+        superError.classList.add('show');
+      }
+    });
+
+    // Main Login Logic
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+
+      const username = document.getElementById('username').value;
+      const password = document.getElementById('password').value;
+
+      // Choose endpoint based on login type
+      const endpoint = currentLoginType === 'admin' 
+        ? '/api/auth/admin' 
+        : '/api/auth/user';
+
+      try {
+        const res = await fetch(endpoint, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ username, password })
+        });
+
+        const data = await res.json();
+
+        if (data.ok) {
+          // Redirect based on role
+          if (data.role === 'admin') {
+            window.location.href = '/admin-dashboard';
+          } else {
+            window.location.href = '/';
+          }
         } else {
           errorEl.textContent = data.error || 'Invalid credentials. Please try again.';
           errorEl.classList.add('show');
