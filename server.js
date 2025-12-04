@@ -44,6 +44,7 @@ if (process.env.SUPABASE_URL && process.env.SUPABASE_KEY) {
    Auth & Credits Services
    ======================================================================= */
 import {
+  seedSuperAdmin,
   authenticateSuperAdmin,
   authenticateAdmin,
   authenticateUser,
@@ -138,10 +139,15 @@ app.use(
 app.locals.supabase = supabase;
 app.locals.redisClient = redisClient;
 
-// Super Admin auth is via env vars - no seeding needed
-console.log("ℹ️  Super Admin auth via SUPER_ADMIN_USERNAME / SUPER_ADMIN_PASSWORD env vars");
+// Seed Super Admin on startup (if configured)
+if (supabase) {
+  seedSuperAdmin(supabase).catch(err => {
+    console.error("❌ Super Admin seed error:", err);
+  });
+}
 
-// All auth is now via Supabase (no more temp users)
+// Legacy temp user prefix (for backward compatibility during migration)
+const TEMP_USER_PREFIX = "tempuser:";
 
 /* ========================================================================
    SESSION PROTECTION HELPERS (skip for admin)
@@ -201,138 +207,120 @@ async function checkAnalyzeRateLimit(userId) {
   return { allowed: true };
 }
 
-// Main login endpoint - routes to appropriate Supabase auth
+// Unified Login Handler (Admin + Temp User)
 app.post("/api/login", async (req, res) => {
   try {
-    if (!supabase) {
-      return res.status(503).json({ error: "Authentication system not configured. Please set up Supabase." });
-    }
-
     const { username, password } = req.body || {};
     if (!username || !password) {
       return res.status(400).json({ error: "Username and password are required" });
     }
 
-    // Try Super Admin first (auth via env vars, no supabase)
-    const superResult = await authenticateSuperAdmin(username, password);
-    if (superResult.success) {
+    // 1. Check Admin Credentials
+    const ADMIN_USER = process.env.ADMIN_USER || "";
+    const ADMIN_PASS = process.env.ADMIN_PASS || "";
+
+    if (username === ADMIN_USER && password === ADMIN_PASS) {
       req.session.userId = username;
-      req.session.supabaseId = superResult.user.id;
-      req.session.role = "super_admin";
-      req.session.ip = req.headers["x-forwarded-for"] || req.ip;
-      req.session.userAgent = req.headers["user-agent"] || "";
-      req.session.loginAt = Date.now();
-
-      await logAudit(supabase, {
-        actorType: 'super_admin',
-        actorId: superResult.user.id,
-        action: 'login',
-        ip: req.ip,
-        userAgent: req.headers['user-agent'],
-      });
-
-      return req.session.save((err) => {
-        if (err) return res.status(500).json({ error: "Session error" });
-        return res.json({ ok: true, role: "super_admin", user: superResult.user });
-      });
-    }
-
-    // Try Admin
-    const adminResult = await authenticateAdmin(supabase, username, password);
-    if (adminResult.success) {
-      req.session.userId = username;
-      req.session.supabaseId = adminResult.user.id;
       req.session.role = "admin";
-      req.session.credits = adminResult.user.credits;
-      req.session.adminName = adminResult.user.name;
       req.session.ip = req.headers["x-forwarded-for"] || req.ip;
       req.session.userAgent = req.headers["user-agent"] || "";
+      req.session.deviceFingerprint = getDeviceFingerprint(req);
       req.session.loginAt = Date.now();
 
-      await logAudit(supabase, {
-        actorType: 'admin',
-        actorId: adminResult.user.id,
-        action: 'login',
-        ip: req.ip,
-        userAgent: req.headers['user-agent'],
-      });
-
+      // Force save for admin
       return req.session.save((err) => {
-        if (err) return res.status(500).json({ error: "Session error" });
-        return res.json({ ok: true, role: "admin", user: adminResult.user });
+        if (err) {
+          console.error("Admin session save error:", err);
+          return res.status(500).json({ error: "Session error" });
+        }
+        return res.json({ ok: true, role: "admin" });
       });
     }
 
-    // Try User
-    const userResult = await authenticateUser(supabase, username, password);
-    if (userResult.success) {
-      // Single device enforcement
-      const activeSessions = await getActiveSessions(`supabase:${userResult.user.id}`);
-      if (activeSessions.length > 0) {
-        const currentIp = (req.headers["x-forwarded-for"] || req.ip || "").split(',')[0].trim();
-        let activeOnOtherDevice = false;
+    // 2. Check Temp User Credentials (Redis)
+    const key = `${TEMP_USER_PREFIX}${username}`;
+    const raw = await redisClient.get(key);
 
-        for (const sid of activeSessions) {
-          const sRaw = await redisClient.get(`sess:${sid}`);
-          if (sRaw) {
-            try {
-              const s = JSON.parse(sRaw);
-              const sIp = (s.ip || "").split(',')[0].trim();
-              if (sIp && sIp !== currentIp) {
-                activeOnOtherDevice = true;
-                break;
-              }
-            } catch (e) { /* ignore */ }
-          }
-        }
+    if (!raw) {
+      return res.status(401).json({ error: "Invalid credentials" });
+    }
 
-        if (activeOnOtherDevice) {
-          return res.status(403).json({
-            error: "Account is active on another device. Please logout there first."
-          });
-        }
+    let data;
+    try {
+      data = JSON.parse(raw);
+    } catch {
+      return res.status(401).json({ error: "Account data error" });
+    }
 
-        // Same IP -> Kick out old sessions
-        for (const oldSessionId of activeSessions) {
-          await redisClient.del(`sess:${oldSessionId}`);
+    if (data.password !== password) {
+      return res.status(401).json({ error: "Invalid credentials" });
+    }
+
+    // 3. Temp User Session Logic
+    // Check for existing sessions
+    const activeSessions = await getActiveSessions(username);
+    if (activeSessions.length > 0) {
+      const currentIp = (req.headers["x-forwarded-for"] || req.ip || "").split(',')[0].trim();
+      let activeOnOtherDevice = false;
+
+      // Check if active on a DIFFERENT IP
+      for (const sid of activeSessions) {
+        const sRaw = await redisClient.get(`sess:${sid}`);
+        if (sRaw) {
+          try {
+            const s = JSON.parse(sRaw);
+            const sIp = (s.ip || "").split(',')[0].trim();
+            if (sIp && sIp !== currentIp) {
+              activeOnOtherDevice = true;
+              break;
+            }
+          } catch (e) { /* ignore */ }
         }
-        await redisClient.del(`active_sessions:supabase:${userResult.user.id}`);
       }
 
-      req.session.regenerate(async (err) => {
-        if (err) return res.status(500).json({ error: "Login failed" });
-
-        req.session.userId = username;
-        req.session.supabaseId = userResult.user.id;
-        req.session.role = "user";
-        req.session.adminId = userResult.user.adminId;
-        req.session.adminName = userResult.user.adminName;
-        req.session.credits = userResult.user.credits;
-        req.session.permissions = userResult.user.permissions;
-        req.session.ip = req.headers["x-forwarded-for"] || req.ip;
-        req.session.userAgent = req.headers["user-agent"] || "";
-        req.session.loginAt = Date.now();
-
-        await addActiveSession(`supabase:${userResult.user.id}`, req.sessionID);
-
-        await logAudit(supabase, {
-          actorType: 'user',
-          actorId: userResult.user.id,
-          action: 'login',
-          ip: req.ip,
-          userAgent: req.headers['user-agent'],
+      if (activeOnOtherDevice) {
+        return res.status(403).json({
+          error: "Account is active on another device. Please logout there first."
         });
+      }
 
-        return req.session.save((err) => {
-          if (err) return res.status(500).json({ error: "Login failed" });
-          return res.json({ ok: true, role: "user", user: userResult.user });
-        });
-      });
-      return;
+      // Same IP -> Kick out old sessions (fix for closed tab)
+      console.log(`[Login] Re-login from same IP. Cleaning up ${activeSessions.length} old sessions for ${username}`);
+      for (const oldSessionId of activeSessions) {
+        await redisClient.del(`sess:${oldSessionId}`);
+      }
+      await redisClient.del(`active_sessions:${username}`);
     }
 
-    // No match found
-    return res.status(401).json({ error: "Invalid credentials" });
+    // 4. Success: Create New Session
+    req.session.regenerate(async (err) => {
+      if (err) {
+        console.error("Session regenerate error:", err);
+        return res.status(500).json({ error: "Login failed (session error)" });
+      }
+
+      req.session.userId = username;
+      req.session.role = "user";
+      req.session.permissions = data.permissions || { canExpand: true, canAnalyze: true };
+      req.session.ip = req.headers["x-forwarded-for"] || req.ip;
+      req.session.userAgent = req.headers["user-agent"] || "";
+      req.session.deviceFingerprint = getDeviceFingerprint(req);
+      req.session.loginAt = Date.now();
+
+      // Track this new session
+      await addActiveSession(username, req.sessionID);
+
+      // Force save
+      return req.session.save((err) => {
+        if (err) {
+          console.error("User session save error:", err);
+          return res.status(500).json({ error: "Login failed (session error)" });
+        }
+        console.log(`[Login] Success for ${username}. SessionID: ${req.sessionID} saved.`);
+        return res.json({ ok: true, role: "user", permissions: req.session.permissions });
+      });
+    });
+
   } catch (e) {
     console.error("Login handler error:", e);
     return res.status(500).json({ error: "Internal server error" });
@@ -362,98 +350,32 @@ app.post("/api/logout", requireAuth, async (req, res) => {
   req.session.destroy(() => res.json({ ok: true }));
 });
 
-/**
- * Force logout a user (by Admin or Super Admin)
- */
-async function forceLogoutUser(userId) {
-  const key = `active_sessions:supabase:${userId}`;
-  const sessions = await redisClient.sMembers(key);
-  
-  for (const sid of sessions) {
-    await redisClient.del(`sess:${sid}`);
-    await redisClient.del(`transcript:${sid}`);
-    await redisClient.del(`screen-analysis:${sid}`);
-  }
-  
-  await redisClient.del(key);
-  return sessions.length;
-}
-
-/**
- * Force logout an admin (by Super Admin)
- */
-async function forceLogoutAdmin(adminId) {
-  // Find all sessions with this admin ID
-  const pattern = 'sess:*';
-  let cursor = '0';
-  let loggedOut = 0;
-  
-  do {
-    const [newCursor, keys] = await redisClient.scan(cursor, { MATCH: pattern, COUNT: 100 });
-    cursor = newCursor;
-    
-    for (const key of keys) {
-      try {
-        const sessionData = await redisClient.get(key);
-        if (sessionData) {
-          const session = JSON.parse(sessionData);
-          if (session.supabaseId === adminId && session.role === 'admin') {
-            await redisClient.del(key);
-            loggedOut++;
-          }
-        }
-      } catch (e) { /* ignore */ }
-    }
-  } while (cursor !== '0');
-  
-  return loggedOut;
-}
-
-/**
- * Force logout all users under an admin
- */
-async function forceLogoutAllUsersUnderAdmin(supabaseClient, adminId) {
-  if (!supabaseClient) return 0;
-  
-  const { data: users } = await supabaseClient
-    .from('users')
-    .select('id')
-    .eq('admin_id', adminId);
-  
-  let total = 0;
-  for (const user of (users || [])) {
-    total += await forceLogoutUser(user.id);
-  }
-  return total;
-}
-
-// Add force logout helpers to app.locals for routes
-app.locals.forceLogoutUser = forceLogoutUser;
-app.locals.forceLogoutAdmin = forceLogoutAdmin;
-app.locals.forceLogoutAllUsersUnderAdmin = forceLogoutAllUsersUnderAdmin;
-
 /* =======================================================================
    Multi-Tenant Authentication Endpoints
    ======================================================================= */
 
 /**
  * POST /api/auth/super-admin
- * Super Admin login (auth via env vars)
+ * Super Admin login (hidden easter egg)
  */
 app.post("/api/auth/super-admin", async (req, res) => {
   try {
-    const { username, password } = req.body || {};
-    if (!username || !password) {
-      return res.status(400).json({ error: "Username and password are required" });
+    if (!supabase) {
+      return res.status(503).json({ error: "Multi-tenant system not configured" });
     }
 
-    const result = await authenticateSuperAdmin(username, password);
+    const { email, password } = req.body || {};
+    if (!email || !password) {
+      return res.status(400).json({ error: "Email and password are required" });
+    }
+
+    const result = await authenticateSuperAdmin(supabase, email, password);
     if (!result.success) {
       return res.status(401).json({ error: result.error });
     }
 
     // Create session
-    req.session.userId = identifier;
+    req.session.userId = result.user.email;
     req.session.supabaseId = result.user.id;
     req.session.role = "super_admin";
     req.session.ip = req.headers["x-forwarded-for"] || req.ip;
@@ -492,20 +414,18 @@ app.post("/api/auth/admin", async (req, res) => {
       return res.status(503).json({ error: "Multi-tenant system not configured" });
     }
 
-    // Accept both username and email for flexibility
-    const { username, email, password } = req.body || {};
-    const identifier = username || email;
-    if (!identifier || !password) {
-      return res.status(400).json({ error: "Username and password are required" });
+    const { email, password } = req.body || {};
+    if (!email || !password) {
+      return res.status(400).json({ error: "Email and password are required" });
     }
 
-    const result = await authenticateAdmin(supabase, identifier, password);
+    const result = await authenticateAdmin(supabase, email, password);
     if (!result.success) {
       return res.status(401).json({ error: result.error });
     }
 
     // Create session
-    req.session.userId = identifier;
+    req.session.userId = result.user.email;
     req.session.supabaseId = result.user.id;
     req.session.role = "admin";
     req.session.credits = result.user.credits;
@@ -546,14 +466,12 @@ app.post("/api/auth/user", async (req, res) => {
       return res.status(503).json({ error: "Multi-tenant system not configured" });
     }
 
-    // Accept both username and email for flexibility
-    const { username, email, password } = req.body || {};
-    const identifier = username || email;
-    if (!identifier || !password) {
-      return res.status(400).json({ error: "Username and password are required" });
+    const { email, password } = req.body || {};
+    if (!email || !password) {
+      return res.status(400).json({ error: "Email and password are required" });
     }
 
-    const result = await authenticateUser(supabase, identifier, password);
+    const result = await authenticateUser(supabase, email, password);
     if (!result.success) {
       return res.status(401).json({ error: result.error });
     }
@@ -598,7 +516,7 @@ app.post("/api/auth/user", async (req, res) => {
         return res.status(500).json({ error: "Login failed (session error)" });
       }
 
-      req.session.userId = identifier;
+      req.session.userId = result.user.email;
       req.session.supabaseId = result.user.id;
       req.session.role = "user";
       req.session.adminId = result.user.adminId;
@@ -651,6 +569,18 @@ function requireAuth(req, res, next) {
   }
 
   if (req.session?.userId) {
+    // Device Binding Check (skip for admin)
+    // FIX: Disabled strict fingerprint check as it causes issues on Render load balancers
+    /*
+    if (req.session.role !== "admin" && req.session.deviceFingerprint) {
+      const currentFingerprint = getDeviceFingerprint(req);
+      if (currentFingerprint !== req.session.deviceFingerprint) {
+        console.log(`[Auth] Fingerprint mismatch for ${req.session.userId}. Destroying session.`);
+        // Mismatch! Destroy session and redirect
+        return req.session.destroy(() => res.redirect("/login"));
+      }
+    }
+    */
     return next();
   }
 
@@ -740,10 +670,10 @@ app.get("/api/me", async (req, res) => {
     });
   }
 
-  // Unknown role
+  // Legacy temp user (backward compatibility)
   return res.json({
     userId: req.session.userId,
-    role: req.session.role,
+    role: req.session.role || "user",
     permissions: req.session.permissions || { canExpand: true, canAnalyze: true }
   });
 });
@@ -781,7 +711,171 @@ function requireUserRole(req, res, next) {
   return res.status(403).json({ error: "User only" });
 }
 
-/* ---------- Multi-Tenant Dashboard SPAs ---------- */
+async function createTempUser(username, password, ttlHours = 24, permissions = {}) {
+  const ttlSeconds = ttlHours * 3600;
+  const now = Date.now();
+  const payload = {
+    password,
+    permissions, // Store permissions
+    createdAt: now,
+    expiresAt: now + ttlSeconds * 1000
+  };
+  await redisClient.set(`tempuser:${username}`, JSON.stringify(payload), { EX: ttlSeconds });
+}
+
+async function getTempUser(username) {
+  const raw = await redisClient.get(`tempuser:${username}`);
+  return raw ? JSON.parse(raw) : null;
+}
+
+async function deleteTempUser(username) {
+  await redisClient.del(`tempuser:${username}`);
+}
+
+
+
+// API endpoints
+app.post("/admin/api/users", requireAdmin, async (req, res) => {
+  const { username, password, hours = 24, permissions = {} } = req.body || {};
+
+  // basic validation to avoid writing unusable temp accounts
+  if (!username || !password) {
+    return res.status(400).json({ error: "username and password are required" });
+  }
+
+  const ttlHours = Number(hours);
+  if (!Number.isFinite(ttlHours) || ttlHours <= 0) {
+    return res.status(400).json({ error: "hours must be a positive number" });
+  }
+
+  await createTempUser(username, password, ttlHours, permissions);
+  return res.json({ ok: true });
+});
+
+app.get("/admin/api/users", requireAdmin, async (_req, res) => {
+  const users = [];
+  for await (const key of redisClient.scanIterator({ MATCH: "tempuser:*" })) {
+    const username = key.replace("tempuser:", "");
+    const data = await getTempUser(username);
+    const ttl = await redisClient.ttl(key);
+    users.push({
+      username,
+      ttlSeconds: ttl,
+      expiresAt: data.expiresAt,
+      permissions: data.permissions || { canExpand: true, canAnalyze: true }
+    });
+  }
+  return res.json({ ok: true, users });
+});
+
+app.delete("/admin/api/users/:username", requireAdmin, async (req, res) => {
+  await deleteTempUser(req.params.username);
+  res.json({ ok: true });
+});
+
+/* ---------- Admin: session management endpoints ---------- */
+/* Return list of active sessions (sessionId, userId, ip, loginAt, ttlSeconds) */
+app.get("/admin/api/sessions", requireAdmin, async (_req, res) => {
+  try {
+    const sessions = [];
+
+    // The session keys stored by connect-redis use the prefix we configured ("sess:")
+    for await (const key of redisClient.scanIterator({ MATCH: "sess:*" })) {
+      try {
+        const raw = await redisClient.get(key);
+        if (!raw) continue;
+
+        // Some session stores store JSON; parse it
+        let parsed;
+        try {
+          parsed = JSON.parse(raw);
+        } catch {
+          // If not JSON, skip
+          continue;
+        }
+
+        // sessionId is key without prefix
+        const sessionId = key.replace(/^sess:/, "");
+        const userId = parsed.userId || parsed.user || null;
+        const ip = parsed.ip || (parsed?.cookie?.ip) || null;
+        const loginAt = parsed.loginAt ? Number(parsed.loginAt) : null;
+
+        // TTL (seconds) - optional but useful
+        let ttlSeconds = null;
+        try {
+          const ttl = await redisClient.ttl(key);
+          ttlSeconds = typeof ttl === "number" ? ttl : null;
+        } catch {
+          ttlSeconds = null;
+        }
+
+        sessions.push({
+          sessionId,
+          userId,
+          ip,
+          loginAt,
+          ttlSeconds,
+        });
+      } catch (e) {
+        console.error("Error reading session key", key, e);
+      }
+    }
+
+    return res.json({ ok: true, sessions });
+  } catch (e) {
+    console.error("Failed to list sessions:", e);
+    return res.status(500).json({ error: "Failed to list sessions" });
+  }
+});
+
+/* Force-logout (destroy) a single session by sessionId */
+app.post("/admin/api/sessions/:sessionId/logout", requireAdmin, async (req, res) => {
+  try {
+    const { sessionId } = req.params;
+    if (!sessionId) return res.status(400).json({ error: "Missing sessionId" });
+
+    const key = `sess:${sessionId}`;
+
+    // Check existence
+    const exists = await redisClient.exists(key);
+    if (!exists) {
+      return res.status(404).json({ error: "Session not found" });
+    }
+
+    // Remove the session key (destroy session)
+    await redisClient.del(key);
+
+    // Optionally, if you prefer to use the store API:
+    // if (store && typeof store.destroy === 'function') {
+    //   await new Promise((resolve, reject) => store.destroy(sessionId, (err) => (err ? reject(err) : resolve())));
+    // }
+
+    return res.json({ ok: true, sessionId });
+  } catch (e) {
+    console.error("Failed to logout session:", e);
+    return res.status(500).json({ error: "Failed to logout session" });
+  }
+});
+
+// ...existing code continues (static serving etc.)...
+// Serve the Admin UI (React SPA build)
+
+
+/* ---------- Static & Admin SPA (order matters) ---------- */
+
+// React Admin build (protected) - Legacy admin console
+app.use(
+  "/admin",
+  requireAdmin,
+  express.static(path.join(__dirname, "admin", "dist"))
+);
+
+// SPA fallback for any nested admin routes
+app.get("/admin/*", requireAdmin, (req, res) => {
+  res.sendFile(path.join(__dirname, "admin", "dist", "index.html"));
+});
+
+/* ---------- New Multi-Tenant Dashboard SPAs ---------- */
 
 // Super Admin Dashboard
 app.use(
@@ -943,8 +1037,8 @@ Use the STAR structure **without naming STAR**:
 
 4. **Result**
    - Business outcomes with numbers (% conversion, revenue lift, hours saved, cost efficiency)
-   - ALWAYS quantify impact, even if directional ("~22% uplift in CTR")
-   - Show insight → "Here's what I learned"
+   - ALWAYS quantify impact, even if directional (“~22% uplift in CTR”)
+   - Show insight → “Here’s what I learned”
    - Link learning back to THIS role
 
 CONTENT YOU MUST COVER (EVERY TIME)
@@ -960,10 +1054,10 @@ IF QUESTION IS SHORT (CRITICAL RULE)
 ------------------------------------
 If interviewer asks something like:
 
-• "Why?"
-• "What project?"
-• "Example?"
-• "How did you handle it?"
+• “Why?”
+• “What project?”
+• “Example?”
+• “How did you handle it?”
 
 → Treat it as permission to give a **full 10-minute storytelling documentary**.
 
@@ -973,7 +1067,7 @@ TONE + VOICE RULES
 ------------------
 - First person ("I led…", "I built…")
 - Human sounding
-- Micro fillers allowed, naturally (e.g., "so yeah," "honestly," "ahh,")
+- Micro fillers allowed, naturally (e.g., “so yeah,” “honestly,” “ahh,”)
 - Confidence without arrogance
 - Speak like someone who already works there
 
@@ -983,7 +1077,7 @@ Smart Mode = Answer efficiently
 GOD Mode = Leave them speechless
 
 End every answer like this:
-"...and here's how that applies directly to this role."
+“...and here’s how that applies directly to this role.”
 
 `.trim();
 
@@ -1101,7 +1195,7 @@ ${screenAnalysisContext ? `${screenAnalysisContext}` : ""}
 app.post("/analyze-screen", requireAuth, async (req, res) => {
   try {
     // Check permissions & Rate Limit (skip for admin)
-    if (req.session.role !== "admin" && req.session.role !== "super_admin") {
+    if (req.session.role !== "admin") {
       const perms = req.session.permissions || { canAnalyze: true };
       if (!perms.canAnalyze) {
         return res.status(403).json({ error: "Screen analysis is disabled for your account." });
@@ -1241,7 +1335,7 @@ GLOBAL RULES:
 - First-person voice NOT needed here (the realtime model handles tone)
 - Do NOT mention screenshots, images, or that you are analyzing an image
 - Do NOT talk about AI, prompts, or instructions
-- Do NOT speculate about unreadable text (say "unreadable label" instead)
+- Do NOT speculate about unreadable text (say “unreadable label” instead)
 - Everything must be factual, structured, and extremely high signal
 
 OUTPUT:
