@@ -138,6 +138,72 @@ app.use(
 app.locals.supabase = supabase;
 app.locals.redisClient = redisClient;
 
+/* ========================================================================
+   FORCE LOGOUT FUNCTIONS (used by dashboard routes)
+   ======================================================================== */
+
+// Force logout a specific user by destroying all their sessions
+async function forceLogoutUser(userId) {
+  let count = 0;
+  for await (const key of redisClient.scanIterator({ MATCH: "sess:*" })) {
+    try {
+      const raw = await redisClient.get(key);
+      if (!raw) continue;
+      const parsed = JSON.parse(raw);
+      if (parsed.supabaseId === userId || parsed.userId === userId) {
+        await redisClient.del(key);
+        count++;
+      }
+    } catch (e) { /* ignore */ }
+  }
+  // Also clean up active sessions tracking
+  await redisClient.del(`active_sessions:supabase:${userId}`);
+  await redisClient.del(`active_sessions:${userId}`);
+  return count;
+}
+
+// Force logout an admin by destroying all their sessions
+async function forceLogoutAdmin(adminId) {
+  let count = 0;
+  for await (const key of redisClient.scanIterator({ MATCH: "sess:*" })) {
+    try {
+      const raw = await redisClient.get(key);
+      if (!raw) continue;
+      const parsed = JSON.parse(raw);
+      if (parsed.supabaseId === adminId && parsed.role === 'admin') {
+        await redisClient.del(key);
+        count++;
+      }
+    } catch (e) { /* ignore */ }
+  }
+  return count;
+}
+
+// Force logout all users under a specific admin
+async function forceLogoutAllUsersUnderAdmin(supabaseClient, adminId) {
+  if (!supabaseClient) return 0;
+  
+  // Get all users under this admin
+  const { data: users } = await supabaseClient
+    .from('users')
+    .select('id')
+    .eq('admin_id', adminId);
+  
+  if (!users || users.length === 0) return 0;
+  
+  let totalCount = 0;
+  for (const user of users) {
+    const count = await forceLogoutUser(user.id);
+    totalCount += count;
+  }
+  return totalCount;
+}
+
+// Expose force logout functions to routes via app.locals
+app.locals.forceLogoutUser = forceLogoutUser;
+app.locals.forceLogoutAdmin = forceLogoutAdmin;
+app.locals.forceLogoutAllUsersUnderAdmin = forceLogoutAllUsersUnderAdmin;
+
 // Super Admin auth is via env vars ONLY - no database seeding needed
 console.log("â„¹ï¸  Super Admin auth via SUPER_ADMIN_USERNAME / SUPER_ADMIN_PASSWORD env vars");
 
