@@ -1,5 +1,8 @@
 
-// Replace your existing server.js with this updated version (keeps existing behavior; adds mode-aware instructions)
+/**
+ * Interview Whisperer v2 - Multi-Tenant Server
+ * Supports: Super Admin, Admin (consultancies), Users (candidates)
+ */
 import express from "express";
 import fetch from "node-fetch";
 import "dotenv/config";
@@ -7,7 +10,6 @@ import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
 import OpenAI from "openai";
-
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -23,7 +25,7 @@ const anthropic = createAnthropic({
 });
 
 /* =======================================================================
-   Supabase client (optional, ready for future use)
+   Supabase client (required for multi-tenant system)
    ======================================================================= */
 import { createClient as createSupabaseClient } from '@supabase/supabase-js';
 
@@ -35,10 +37,34 @@ if (process.env.SUPABASE_URL && process.env.SUPABASE_KEY) {
   );
   console.log("✅ Supabase client initialized");
 } else {
-  console.log("ℹ️  Supabase not configured (optional)");
+  console.log("ℹ️  Supabase not configured (multi-tenant features disabled)");
 }
 
-console.log("🚀 Server starting... (Version: Unified Login Handler)");
+/* =======================================================================
+   Auth & Credits Services
+   ======================================================================= */
+import {
+  seedSuperAdmin,
+  authenticateSuperAdmin,
+  authenticateAdmin,
+  authenticateUser,
+  logAudit,
+} from './services/auth.js';
+import {
+  startSession as startInterviewSession,
+  endSession as endInterviewSession,
+  getActiveSession,
+  chargeScreenAnalysis,
+} from './services/credits.js';
+
+/* =======================================================================
+   Dashboard Routes
+   ======================================================================= */
+import superAdminRoutes from './routes/super-admin.js';
+import adminRoutes from './routes/admin.js';
+import userRoutes from './routes/user.js';
+
+console.log("🚀 Server starting... (Version: Multi-Tenant Dashboard v2)");
 
 // Trust proxy for Render so secure cookies work
 app.set("trust proxy", 1);
@@ -108,7 +134,19 @@ app.use(
   })
 );
 /* ============================================================================================= */
-// ---[ADD] Temp-user pre-handler for /api/login (kept before your existing /api/login) ---
+
+// Store clients in app.locals for route access
+app.locals.supabase = supabase;
+app.locals.redisClient = redisClient;
+
+// Seed Super Admin on startup (if configured)
+if (supabase) {
+  seedSuperAdmin(supabase).catch(err => {
+    console.error("❌ Super Admin seed error:", err);
+  });
+}
+
+// Legacy temp user prefix (for backward compatibility during migration)
 const TEMP_USER_PREFIX = "tempuser:";
 
 /* ========================================================================
@@ -169,7 +207,7 @@ async function checkAnalyzeRateLimit(userId) {
   return { allowed: true };
 }
 
-// Unified Login Handler (Admin + Temp User)
+// Unified Login Handler (Admin + Temp User) - Legacy support
 app.post("/api/login", async (req, res) => {
   try {
     const { username, password } = req.body || {};
@@ -312,6 +350,209 @@ app.post("/api/logout", requireAuth, async (req, res) => {
   req.session.destroy(() => res.json({ ok: true }));
 });
 
+/* =======================================================================
+   Multi-Tenant Authentication Endpoints
+   ======================================================================= */
+
+/**
+ * POST /api/auth/super-admin
+ * Super Admin login (hidden easter egg)
+ */
+app.post("/api/auth/super-admin", async (req, res) => {
+  try {
+    if (!supabase) {
+      return res.status(503).json({ error: "Multi-tenant system not configured" });
+    }
+
+    const { email, password } = req.body || {};
+    if (!email || !password) {
+      return res.status(400).json({ error: "Email and password are required" });
+    }
+
+    const result = await authenticateSuperAdmin(supabase, email, password);
+    if (!result.success) {
+      return res.status(401).json({ error: result.error });
+    }
+
+    // Create session
+    req.session.userId = result.user.email;
+    req.session.supabaseId = result.user.id;
+    req.session.role = "super_admin";
+    req.session.ip = req.headers["x-forwarded-for"] || req.ip;
+    req.session.userAgent = req.headers["user-agent"] || "";
+    req.session.loginAt = Date.now();
+
+    // Log audit
+    await logAudit(supabase, {
+      actorType: 'super_admin',
+      actorId: result.user.id,
+      action: 'login',
+      ip: req.ip,
+      userAgent: req.headers['user-agent'],
+    });
+
+    return req.session.save((err) => {
+      if (err) {
+        console.error("Super Admin session save error:", err);
+        return res.status(500).json({ error: "Session error" });
+      }
+      return res.json({ ok: true, role: "super_admin", user: result.user });
+    });
+  } catch (e) {
+    console.error("Super Admin login error:", e);
+    return res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+/**
+ * POST /api/auth/admin
+ * Admin (Consultancy) login
+ */
+app.post("/api/auth/admin", async (req, res) => {
+  try {
+    if (!supabase) {
+      return res.status(503).json({ error: "Multi-tenant system not configured" });
+    }
+
+    const { email, password } = req.body || {};
+    if (!email || !password) {
+      return res.status(400).json({ error: "Email and password are required" });
+    }
+
+    const result = await authenticateAdmin(supabase, email, password);
+    if (!result.success) {
+      return res.status(401).json({ error: result.error });
+    }
+
+    // Create session
+    req.session.userId = result.user.email;
+    req.session.supabaseId = result.user.id;
+    req.session.role = "admin";
+    req.session.credits = result.user.credits;
+    req.session.adminName = result.user.name;
+    req.session.ip = req.headers["x-forwarded-for"] || req.ip;
+    req.session.userAgent = req.headers["user-agent"] || "";
+    req.session.loginAt = Date.now();
+
+    // Log audit
+    await logAudit(supabase, {
+      actorType: 'admin',
+      actorId: result.user.id,
+      action: 'login',
+      ip: req.ip,
+      userAgent: req.headers['user-agent'],
+    });
+
+    return req.session.save((err) => {
+      if (err) {
+        console.error("Admin session save error:", err);
+        return res.status(500).json({ error: "Session error" });
+      }
+      return res.json({ ok: true, role: "admin", user: result.user });
+    });
+  } catch (e) {
+    console.error("Admin login error:", e);
+    return res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+/**
+ * POST /api/auth/user
+ * User (Candidate) login
+ */
+app.post("/api/auth/user", async (req, res) => {
+  try {
+    if (!supabase) {
+      return res.status(503).json({ error: "Multi-tenant system not configured" });
+    }
+
+    const { email, password } = req.body || {};
+    if (!email || !password) {
+      return res.status(400).json({ error: "Email and password are required" });
+    }
+
+    const result = await authenticateUser(supabase, email, password);
+    if (!result.success) {
+      return res.status(401).json({ error: result.error });
+    }
+
+    // Single device enforcement
+    const activeSessions = await getActiveSessions(`supabase:${result.user.id}`);
+    if (activeSessions.length > 0) {
+      const currentIp = (req.headers["x-forwarded-for"] || req.ip || "").split(',')[0].trim();
+      let activeOnOtherDevice = false;
+
+      for (const sid of activeSessions) {
+        const sRaw = await redisClient.get(`sess:${sid}`);
+        if (sRaw) {
+          try {
+            const s = JSON.parse(sRaw);
+            const sIp = (s.ip || "").split(',')[0].trim();
+            if (sIp && sIp !== currentIp) {
+              activeOnOtherDevice = true;
+              break;
+            }
+          } catch (e) { /* ignore */ }
+        }
+      }
+
+      if (activeOnOtherDevice) {
+        return res.status(403).json({
+          error: "Account is active on another device. Please logout there first."
+        });
+      }
+
+      // Same IP -> Kick out old sessions
+      for (const oldSessionId of activeSessions) {
+        await redisClient.del(`sess:${oldSessionId}`);
+      }
+      await redisClient.del(`active_sessions:supabase:${result.user.id}`);
+    }
+
+    // Create session
+    req.session.regenerate(async (err) => {
+      if (err) {
+        console.error("User session regenerate error:", err);
+        return res.status(500).json({ error: "Login failed (session error)" });
+      }
+
+      req.session.userId = result.user.email;
+      req.session.supabaseId = result.user.id;
+      req.session.role = "user";
+      req.session.adminId = result.user.adminId;
+      req.session.adminName = result.user.adminName;
+      req.session.credits = result.user.credits;
+      req.session.permissions = result.user.permissions;
+      req.session.ip = req.headers["x-forwarded-for"] || req.ip;
+      req.session.userAgent = req.headers["user-agent"] || "";
+      req.session.loginAt = Date.now();
+
+      // Track session
+      await addActiveSession(`supabase:${result.user.id}`, req.sessionID);
+
+      // Log audit
+      await logAudit(supabase, {
+        actorType: 'user',
+        actorId: result.user.id,
+        action: 'login',
+        ip: req.ip,
+        userAgent: req.headers['user-agent'],
+      });
+
+      return req.session.save((err) => {
+        if (err) {
+          console.error("User session save error:", err);
+          return res.status(500).json({ error: "Login failed (session error)" });
+        }
+        return res.json({ ok: true, role: "user", user: result.user });
+      });
+    });
+  } catch (e) {
+    console.error("User login error:", e);
+    return res.status(500).json({ error: "Internal server error" });
+  }
+});
+
 // Serve the login page itself
 app.get("/login", (req, res) => {
   if (req.session?.userId) return res.redirect("/");
@@ -328,18 +569,6 @@ function requireAuth(req, res, next) {
   }
 
   if (req.session?.userId) {
-    // Device Binding Check (skip for admin)
-    // FIX: Disabled strict fingerprint check as it causes issues on Render load balancers
-    /*
-    if (req.session.role !== "admin" && req.session.deviceFingerprint) {
-      const currentFingerprint = getDeviceFingerprint(req);
-      if (currentFingerprint !== req.session.deviceFingerprint) {
-        console.log(`[Auth] Fingerprint mismatch for ${req.session.userId}. Destroying session.`);
-        // Mismatch! Destroy session and redirect
-        return req.session.destroy(() => res.redirect("/login"));
-      }
-    }
-    */
     return next();
   }
 
@@ -361,30 +590,113 @@ app.use((req, _res, next) => {
   next();
 });
 // ---[ADD] Endpoint for frontend to check permissions ---
-app.get("/api/me", (req, res) => {
+app.get("/api/me", async (req, res) => {
   if (!req.session?.userId) return res.status(401).json({ error: "Not logged in" });
 
-  // Admin always has full permissions
-  if (req.session.role === "admin") {
+  const baseResponse = {
+    userId: req.session.userId,
+    role: req.session.role,
+    supabaseId: req.session.supabaseId,
+  };
+
+  // Super Admin
+  if (req.session.role === "super_admin") {
     return res.json({
-      userId: req.session.userId,
-      role: "admin",
-      permissions: { canExpand: true, canAnalyze: true }
+      ...baseResponse,
+      permissions: { canExpand: true, canAnalyze: true },
+      dashboardUrl: "/super-admin"
     });
   }
 
+  // Admin (Consultancy)
+  if (req.session.role === "admin") {
+    // Refresh credits from Supabase
+    let credits = req.session.credits || 0;
+    if (supabase && req.session.supabaseId) {
+      const { data } = await supabase
+        .from('admins')
+        .select('credits')
+        .eq('id', req.session.supabaseId)
+        .single();
+      if (data) credits = data.credits;
+    }
+
+    return res.json({
+      ...baseResponse,
+      adminName: req.session.adminName,
+      credits,
+      permissions: { canExpand: true, canAnalyze: true },
+      dashboardUrl: "/admin-dashboard"
+    });
+  }
+
+  // User (Candidate)
+  if (req.session.role === "user") {
+    // Refresh credits and permissions from Supabase
+    let credits = req.session.credits || 0;
+    let permissions = req.session.permissions || { canExpand: true, canAnalyze: true };
+    
+    if (supabase && req.session.supabaseId) {
+      const { data } = await supabase
+        .from('users')
+        .select('credits, permissions')
+        .eq('id', req.session.supabaseId)
+        .single();
+      if (data) {
+        credits = data.credits;
+        permissions = data.permissions || permissions;
+      }
+    }
+
+    return res.json({
+      ...baseResponse,
+      adminId: req.session.adminId,
+      adminName: req.session.adminName,
+      credits,
+      permissions,
+      dashboardUrl: "/user-dashboard"
+    });
+  }
+
+  // Legacy temp user (backward compatibility)
   return res.json({
     userId: req.session.userId,
-    role: req.session.role,
+    role: req.session.role || "user",
     permissions: req.session.permissions || { canExpand: true, canAnalyze: true }
   });
 });
 
+/* =======================================================================
+   Mount Dashboard API Routes
+   ======================================================================= */
+app.use('/api/super-admin', superAdminRoutes);
+app.use('/api/admin', adminRoutes);
+app.use('/api/user', userRoutes);
+
 // Serve static files only after auth
 // ✅ ADMIN CONSOLE (protected area)
 function requireAdmin(req, res, next) {
-  if (req.session?.role === "admin") return next();
+  // Support both old 'admin' role and new 'super_admin' role
+  if (req.session?.role === "admin" || req.session?.role === "super_admin") return next();
   return res.status(403).json({ error: "Admin only" });
+}
+
+// Require Super Admin role specifically
+function requireSuperAdmin(req, res, next) {
+  if (req.session?.role === "super_admin") return next();
+  return res.status(403).json({ error: "Super Admin only" });
+}
+
+// Require Consultancy Admin role specifically  
+function requireConsultancyAdmin(req, res, next) {
+  if (req.session?.role === "admin") return next();
+  return res.status(403).json({ error: "Consultancy Admin only" });
+}
+
+// Require User role
+function requireUserRole(req, res, next) {
+  if (req.session?.role === "user") return next();
+  return res.status(403).json({ error: "User only" });
 }
 
 async function createTempUser(username, password, ttlHours = 24, permissions = {}) {
@@ -521,11 +833,6 @@ app.post("/admin/api/sessions/:sessionId/logout", requireAdmin, async (req, res)
     // Remove the session key (destroy session)
     await redisClient.del(key);
 
-    // Optionally, if you prefer to use the store API:
-    // if (store && typeof store.destroy === 'function') {
-    //   await new Promise((resolve, reject) => store.destroy(sessionId, (err) => (err ? reject(err) : resolve())));
-    // }
-
     return res.json({ ok: true, sessionId });
   } catch (e) {
     console.error("Failed to logout session:", e);
@@ -533,13 +840,10 @@ app.post("/admin/api/sessions/:sessionId/logout", requireAdmin, async (req, res)
   }
 });
 
-// ...existing code continues (static serving etc.)...
-// Serve the Admin UI (React SPA build)
-
 
 /* ---------- Static & Admin SPA (order matters) ---------- */
 
-// React Admin build (protected)
+// React Admin build (protected) - Legacy admin console
 app.use(
   "/admin",
   requireAdmin,
@@ -549,6 +853,38 @@ app.use(
 // SPA fallback for any nested admin routes
 app.get("/admin/*", requireAdmin, (req, res) => {
   res.sendFile(path.join(__dirname, "admin", "dist", "index.html"));
+});
+
+/* ---------- New Multi-Tenant Dashboard SPAs ---------- */
+
+// Super Admin Dashboard
+app.use(
+  "/super-admin",
+  requireSuperAdmin,
+  express.static(path.join(__dirname, "dashboards", "super-admin", "dist"))
+);
+app.get("/super-admin/*", requireSuperAdmin, (req, res) => {
+  res.sendFile(path.join(__dirname, "dashboards", "super-admin", "dist", "index.html"));
+});
+
+// Admin (Consultancy) Dashboard
+app.use(
+  "/admin-dashboard",
+  requireConsultancyAdmin,
+  express.static(path.join(__dirname, "dashboards", "admin", "dist"))
+);
+app.get("/admin-dashboard/*", requireConsultancyAdmin, (req, res) => {
+  res.sendFile(path.join(__dirname, "dashboards", "admin", "dist", "index.html"));
+});
+
+// User (Candidate) Dashboard
+app.use(
+  "/user-dashboard",
+  requireUserRole,
+  express.static(path.join(__dirname, "dashboards", "user", "dist"))
+);
+app.get("/user-dashboard/*", requireUserRole, (req, res) => {
+  res.sendFile(path.join(__dirname, "dashboards", "user", "dist", "index.html"));
 });
 
 // Public React app (built from public/src → public/build)
@@ -681,8 +1017,8 @@ Use the STAR structure **without naming STAR**:
 
 4. **Result**
    - Business outcomes with numbers (% conversion, revenue lift, hours saved, cost efficiency)
-   - ALWAYS quantify impact, even if directional (“~22% uplift in CTR”)
-   - Show insight → “Here’s what I learned”
+   - ALWAYS quantify impact, even if directional ("~22% uplift in CTR")
+   - Show insight → "Here's what I learned"
    - Link learning back to THIS role
 
 CONTENT YOU MUST COVER (EVERY TIME)
@@ -698,10 +1034,10 @@ IF QUESTION IS SHORT (CRITICAL RULE)
 ------------------------------------
 If interviewer asks something like:
 
-• “Why?”
-• “What project?”
-• “Example?”
-• “How did you handle it?”
+• "Why?"
+• "What project?"
+• "Example?"
+• "How did you handle it?"
 
 → Treat it as permission to give a **full 10-minute storytelling documentary**.
 
@@ -711,7 +1047,7 @@ TONE + VOICE RULES
 ------------------
 - First person ("I led…", "I built…")
 - Human sounding
-- Micro fillers allowed, naturally (e.g., “so yeah,” “honestly,” “ahh,”)
+- Micro fillers allowed, naturally (e.g., "so yeah," "honestly," "ahh,")
 - Confidence without arrogance
 - Speak like someone who already works there
 
@@ -721,7 +1057,7 @@ Smart Mode = Answer efficiently
 GOD Mode = Leave them speechless
 
 End every answer like this:
-“...and here’s how that applies directly to this role.”
+"...and here's how that applies directly to this role."
 
 `.trim();
 
@@ -839,7 +1175,7 @@ ${screenAnalysisContext ? `${screenAnalysisContext}` : ""}
 app.post("/analyze-screen", requireAuth, async (req, res) => {
   try {
     // Check permissions & Rate Limit (skip for admin)
-    if (req.session.role !== "admin") {
+    if (req.session.role !== "admin" && req.session.role !== "super_admin") {
       const perms = req.session.permissions || { canAnalyze: true };
       if (!perms.canAnalyze) {
         return res.status(403).json({ error: "Screen analysis is disabled for your account." });
@@ -979,7 +1315,7 @@ GLOBAL RULES:
 - First-person voice NOT needed here (the realtime model handles tone)
 - Do NOT mention screenshots, images, or that you are analyzing an image
 - Do NOT talk about AI, prompts, or instructions
-- Do NOT speculate about unreadable text (say “unreadable label” instead)
+- Do NOT speculate about unreadable text (say "unreadable label" instead)
 - Everything must be factual, structured, and extremely high signal
 
 OUTPUT:

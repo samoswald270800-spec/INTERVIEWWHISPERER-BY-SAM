@@ -19,6 +19,7 @@
       --lux-violet: #8B5CF6;
       --lux-cyan: #06B6D4;
       --lux-rose: #E11D48;
+      --lux-gold: #F59E0B;
       --font-display: 'Space Grotesk', sans-serif;
       --font-body: 'Manrope', sans-serif;
       --text-white: #F3F4F6;
@@ -27,12 +28,7 @@
       --theme-glow: rgba(139, 92, 246, 0.2);
     }
 
-    * {
-      margin: 0;
-      padding: 0;
-      box-sizing: border-box;
-      outline: none;
-    }
+    * { margin: 0; padding: 0; box-sizing: border-box; outline: none; }
 
     body {
       background-color: var(--bg-void);
@@ -48,18 +44,15 @@
 
     .void-bg {
       position: fixed;
-      top: 0;
-      left: 0;
-      width: 100vw;
-      height: 100vh;
+      top: 0; left: 0;
+      width: 100vw; height: 100vh;
       z-index: -2;
       background: radial-gradient(circle at 50% -20%, #1a1a2e, #050505 60%);
     }
 
     .aurora {
       position: absolute;
-      width: 100%;
-      height: 100%;
+      width: 100%; height: 100%;
       background:
         radial-gradient(circle at 0% 0%, rgba(139, 92, 246, 0.05), transparent 40%),
         radial-gradient(circle at 100% 0%, rgba(6, 182, 212, 0.05), transparent 40%);
@@ -68,21 +61,14 @@
     }
 
     @keyframes breathe {
-      0% {
-        opacity: 0.5;
-      }
-
-      100% {
-        opacity: 1;
-      }
+      0% { opacity: 0.5; }
+      100% { opacity: 1; }
     }
 
     .noise {
       position: fixed;
-      top: 0;
-      left: 0;
-      width: 100%;
-      height: 100%;
+      top: 0; left: 0;
+      width: 100%; height: 100%;
       opacity: 0.03;
       pointer-events: none;
       z-index: -1;
@@ -106,15 +92,8 @@
     }
 
     @keyframes slideIn {
-      from {
-        opacity: 0;
-        transform: translateX(-20px);
-      }
-
-      to {
-        opacity: 1;
-        transform: translateX(0);
-      }
+      from { opacity: 0; transform: translateX(-20px); }
+      to { opacity: 1; transform: translateX(0); }
     }
 
     .info-panel h1 {
@@ -124,8 +103,6 @@
       letter-spacing: -0.03em;
       color: var(--text-white);
       margin-bottom: 16px;
-      cursor: pointer;
-      /* Trigger for easter egg */
     }
 
     .info-panel p {
@@ -151,8 +128,7 @@
     }
 
     .feature-icon {
-      width: 24px;
-      height: 24px;
+      width: 24px; height: 24px;
       border-radius: 8px;
       background: rgba(139, 92, 246, 0.1);
       display: flex;
@@ -171,8 +147,6 @@
       box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
       opacity: 0;
       animation: slideIn 0.8s cubic-bezier(0.2, 0.8, 0.2, 1) 0.4s forwards;
-      display: flex;
-      flex-direction: column;
     }
 
     .login-header {
@@ -191,6 +165,59 @@
     .login-header p {
       font-size: 13px;
       color: var(--text-muted);
+    }
+
+    .login-tabs {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 24px;
+    }
+
+    .login-tab {
+      flex: 1;
+      padding: 10px;
+      background: rgba(255, 255, 255, 0.03);
+      border: 1px solid var(--glass-border);
+      border-radius: 10px;
+      color: var(--text-muted);
+      font-size: 12px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.3s;
+      text-align: center;
+    }
+
+    .login-tab:hover {
+      background: rgba(255, 255, 255, 0.06);
+      color: var(--text-white);
+    }
+
+    .login-tab.active {
+      background: var(--theme-primary);
+      border-color: var(--theme-primary);
+      color: white;
+    }
+
+    .login-tab.admin-tab.active {
+      background: var(--lux-cyan);
+      border-color: var(--lux-cyan);
+    }
+
+    .login-tab.super-admin-tab {
+      background: linear-gradient(135deg, var(--lux-gold), var(--lux-rose));
+      border-color: var(--lux-gold);
+      color: white;
+      display: none;
+    }
+
+    .login-tab.super-admin-tab.visible {
+      display: block;
+      animation: fadeIn 0.5s ease;
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: scale(0.9); }
+      to { opacity: 1; transform: scale(1); }
     }
 
     .form-group {
@@ -225,6 +252,16 @@
       box-shadow: 0 0 0 3px var(--theme-glow);
     }
 
+    .form-input.admin-focus:focus {
+      border-color: var(--lux-cyan);
+      box-shadow: 0 0 0 3px rgba(6, 182, 212, 0.2);
+    }
+
+    .form-input.super-admin-focus:focus {
+      border-color: var(--lux-gold);
+      box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.2);
+    }
+
     .login-btn {
       width: 100%;
       padding: 14px;
@@ -246,6 +283,28 @@
       box-shadow: 0 8px 24px var(--theme-glow);
     }
 
+    .login-btn:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+      transform: none;
+    }
+
+    .login-btn.admin-btn {
+      background: var(--lux-cyan);
+    }
+
+    .login-btn.admin-btn:hover {
+      box-shadow: 0 8px 24px rgba(6, 182, 212, 0.3);
+    }
+
+    .login-btn.super-admin-btn {
+      background: linear-gradient(135deg, var(--lux-gold), var(--lux-rose));
+    }
+
+    .login-btn.super-admin-btn:hover {
+      box-shadow: 0 8px 24px rgba(245, 158, 11, 0.3);
+    }
+
     .error {
       margin-top: 16px;
       padding: 12px;
@@ -258,9 +317,7 @@
       display: none;
     }
 
-    .error.show {
-      display: block;
-    }
+    .error.show { display: block; }
 
     .footer-mark {
       margin-top: 24px;
@@ -269,102 +326,40 @@
       opacity: 0.6;
       letter-spacing: 0.05em;
       text-align: center;
+      cursor: pointer;
+      user-select: none;
+      transition: opacity 0.3s;
     }
 
-    /* Easter Egg Modal */
-    .easter-modal {
+    .footer-mark:hover { opacity: 1; }
+
+    .easter-toast {
       position: fixed;
-      inset: 0;
-      background: rgba(0, 0, 0, 0.9);
+      bottom: 30px;
+      left: 50%;
+      transform: translateX(-50%) translateY(100px);
+      background: rgba(10, 10, 10, 0.9);
       backdrop-filter: blur(20px);
-      z-index: 100;
-      display: flex;
-      align-items: center;
-      justify-content: center;
+      border: 1px solid var(--glass-border);
+      border-radius: 12px;
+      padding: 12px 24px;
+      color: var(--text-muted);
+      font-size: 13px;
       opacity: 0;
       pointer-events: none;
-      transition: opacity 0.5s ease;
+      transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+      z-index: 100;
     }
 
-    .easter-modal.active {
+    .easter-toast.show {
       opacity: 1;
-      pointer-events: auto;
-    }
-
-    .easter-content {
-      text-align: center;
-      max-width: 500px;
-      padding: 40px;
-      border: 1px solid var(--glass-border);
-      border-radius: 32px;
-      background: rgba(10, 10, 10, 0.8);
-      transform: scale(0.9);
-      transition: transform 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-    }
-
-    .easter-modal.active .easter-content {
-      transform: scale(1);
-    }
-
-    .easter-avatar {
-      width: 100px;
-      height: 100px;
-      border-radius: 50%;
-      background: linear-gradient(135deg, var(--lux-violet), var(--lux-cyan));
-      margin: 0 auto 24px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 40px;
-      font-weight: 700;
-      color: white;
-      box-shadow: 0 0 40px var(--theme-glow);
-    }
-
-    .easter-title {
-      font-family: var(--font-display);
-      font-size: 32px;
-      margin-bottom: 16px;
-      background: linear-gradient(to right, #fff, #9CA3AF);
-      -webkit-background-clip: text;
-      -webkit-text-fill-color: transparent;
-    }
-
-    .easter-text {
-      font-size: 16px;
-      line-height: 1.6;
-      color: var(--text-muted);
-      margin-bottom: 32px;
-    }
-
-    .close-easter {
-      padding: 10px 24px;
-      background: rgba(255, 255, 255, 0.1);
-      border: 1px solid rgba(255, 255, 255, 0.1);
-      border-radius: 100px;
-      color: white;
-      cursor: pointer;
-      transition: all 0.2s;
-    }
-
-    .close-easter:hover {
-      background: rgba(255, 255, 255, 0.2);
+      transform: translateX(-50%) translateY(0);
     }
 
     @media (max-width: 768px) {
-      .login-container {
-        flex-direction: column;
-        gap: 40px;
-      }
-
-      .info-panel h1 {
-        font-size: 36px;
-      }
-
-      .login-panel {
-        width: 100%;
-        max-width: 380px;
-      }
+      .login-container { flex-direction: column; gap: 40px; }
+      .info-panel h1 { font-size: 36px; }
+      .login-panel { width: 100%; max-width: 380px; }
     }
   </style>
 </head>
@@ -377,127 +372,186 @@
 
   <div class="login-container">
     <div class="info-panel">
-      <h1 id="easterTrigger">Interview Whisperer</h1>
+      <h1>Interview Whisperer</h1>
       <p>
         Your AI-powered interview companion. Real-time transcription, intelligent answer suggestions,
         and screen analysis—all working together to help you shine in every interview.
       </p>
-
       <div class="features">
-        <div class="feature">
-          <div class="feature-icon">✨</div>
-          <span>Real-time audio transcription</span>
-        </div>
-        <div class="feature">
-          <div class="feature-icon">🧠</div>
-          <span>AI-generated answer suggestions</span>
-        </div>
-        <div class="feature">
-          <div class="feature-icon">📸</div>
-          <span>Screen context analysis</span>
-        </div>
-        <div class="feature">
-          <div class="feature-icon">⚡</div>
-          <span>Instant response generation</span>
-        </div>
+        <div class="feature"><div class="feature-icon">✨</div><span>Real-time audio transcription</span></div>
+        <div class="feature"><div class="feature-icon">🧠</div><span>AI-generated answer suggestions</span></div>
+        <div class="feature"><div class="feature-icon">📸</div><span>Screen context analysis</span></div>
+        <div class="feature"><div class="feature-icon">⚡</div><span>Instant response generation</span></div>
       </div>
     </div>
 
     <div class="login-panel">
       <div class="login-header">
-        <h2>Sign In</h2>
-        <p>Access your interview assistant</p>
+        <h2 id="loginTitle">Sign In</h2>
+        <p id="loginSubtitle">Access your interview assistant</p>
+      </div>
+
+      <div class="login-tabs">
+        <button class="login-tab active" data-type="user" onclick="switchLoginType('user')">Candidate</button>
+        <button class="login-tab admin-tab" data-type="admin" onclick="switchLoginType('admin')">Business</button>
+        <button class="login-tab super-admin-tab" data-type="super-admin" onclick="switchLoginType('super-admin')">🔐 Admin</button>
       </div>
 
       <form id="loginForm">
         <div class="form-group">
-          <label class="form-label">Username</label>
-          <input type="text" class="form-input" id="username" placeholder="Enter username" required>
+          <label class="form-label" id="emailLabel">Email</label>
+          <input type="text" class="form-input" id="email" placeholder="Enter your email" required>
         </div>
-
         <div class="form-group">
           <label class="form-label">Password</label>
           <input type="password" class="form-input" id="password" placeholder="Enter password" required>
         </div>
-
-        <button type="submit" class="login-btn">Sign In</button>
-
+        <button type="submit" class="login-btn" id="loginBtn">Sign In</button>
         <div class="error" id="error"></div>
       </form>
 
-      <div class="footer-mark">
-        Made in Canada
-      </div>
+      <div class="footer-mark" id="aboutTrigger">About this tool</div>
     </div>
   </div>
 
-  <!-- Easter Egg Modal -->
-  <div class="easter-modal" id="easterModal">
-    <div class="easter-content">
-      <div class="easter-avatar">SO</div>
-      <h3 class="easter-title">Sam Oswald</h3>
-      <p class="easter-text">
-       A noob behind Interview Whisperer.
-       Building tools that empower people to achieve their potential.
-      </p>
-      <button class="close-easter"
-        onclick="document.getElementById('easterModal').classList.remove('active')">Close</button>
-    </div>
-  </div>
+  <div class="easter-toast" id="easterToast"></div>
 
   <script>
+    let currentLoginType = 'user';
+    let clickCount = 0;
+    let clickTimer = null;
+    let superAdminRevealed = false;
+
     const form = document.getElementById('loginForm');
     const errorEl = document.getElementById('error');
-    const easterTrigger = document.getElementById('easterTrigger');
-    const easterModal = document.getElementById('easterModal');
+    const emailInput = document.getElementById('email');
+    const passwordInput = document.getElementById('password');
+    const loginBtn = document.getElementById('loginBtn');
+    const loginTitle = document.getElementById('loginTitle');
+    const loginSubtitle = document.getElementById('loginSubtitle');
+    const emailLabel = document.getElementById('emailLabel');
+    const aboutTrigger = document.getElementById('aboutTrigger');
+    const easterToast = document.getElementById('easterToast');
+    const superAdminTab = document.querySelector('.super-admin-tab');
+    const tabs = document.querySelectorAll('.login-tab');
 
-    // Easter Egg Logic (5 clicks on title)
-    let clickCount = 0;
-    let clickTimer;
+    const easterMessages = [
+      "Nothing to see here 👀",
+      "Bro why are you tapping?",
+      "Appreciate your enthusiasm!",
+      "You sure you're supposed to be here?",
+      "Chill, it's just an About section 😎"
+    ];
 
-    easterTrigger.addEventListener('click', () => {
+    function showToast(message) {
+      easterToast.textContent = message;
+      easterToast.classList.add('show');
+      setTimeout(() => easterToast.classList.remove('show'), 2000);
+    }
+
+    aboutTrigger.addEventListener('click', () => {
       clickCount++;
-
-      // Reset count if too slow
-      clearTimeout(clickTimer);
-      clickTimer = setTimeout(() => {
-        clickCount = 0;
-      }, 1000);
-
-      if (clickCount === 5) {
-        easterModal.classList.add('active');
+      if (clickTimer) clearTimeout(clickTimer);
+      clickTimer = setTimeout(() => { clickCount = 0; }, 3000);
+      if (clickCount < 5) {
+        showToast(easterMessages[Math.floor(Math.random() * easterMessages.length)]);
+      }
+      if (clickCount === 5 && !superAdminRevealed) {
+        superAdminRevealed = true;
+        superAdminTab.classList.add('visible');
+        showToast("🔓 Super Admin unlocked!");
         clickCount = 0;
       }
     });
 
-    // Login Logic
+    function switchLoginType(type) {
+      currentLoginType = type;
+      tabs.forEach(tab => {
+        tab.classList.remove('active');
+        if (tab.dataset.type === type) tab.classList.add('active');
+      });
+      errorEl.classList.remove('show');
+      if (type === 'user') {
+        loginTitle.textContent = 'Candidate Sign In';
+        loginSubtitle.textContent = 'Access your interview assistant';
+        emailLabel.textContent = 'Email';
+        emailInput.placeholder = 'Enter your email';
+        loginBtn.textContent = 'Sign In';
+        loginBtn.className = 'login-btn';
+        emailInput.className = 'form-input';
+        passwordInput.className = 'form-input';
+      } else if (type === 'admin') {
+        loginTitle.textContent = 'Business Sign In';
+        loginSubtitle.textContent = 'Manage your candidates';
+        emailLabel.textContent = 'Business Email';
+        emailInput.placeholder = 'Enter business email';
+        loginBtn.textContent = 'Sign In as Business';
+        loginBtn.className = 'login-btn admin-btn';
+        emailInput.className = 'form-input admin-focus';
+        passwordInput.className = 'form-input admin-focus';
+      } else if (type === 'super-admin') {
+        loginTitle.textContent = 'System Admin';
+        loginSubtitle.textContent = 'Platform management access';
+        emailLabel.textContent = 'Admin Email';
+        emailInput.placeholder = 'Enter admin email';
+        loginBtn.textContent = 'Access Control Panel';
+        loginBtn.className = 'login-btn super-admin-btn';
+        emailInput.className = 'form-input super-admin-focus';
+        passwordInput.className = 'form-input super-admin-focus';
+      }
+    }
+
     form.addEventListener('submit', async (e) => {
       e.preventDefault();
+      errorEl.classList.remove('show');
+      loginBtn.disabled = true;
+      loginBtn.textContent = 'Signing in...';
 
-      const username = document.getElementById('username').value;
-      const password = document.getElementById('password').value;
+      const email = emailInput.value.trim();
+      const password = passwordInput.value;
 
       try {
-        const res = await fetch('/api/login', {
+        let endpoint = '/api/auth/user';
+        let redirectUrl = '/';
+
+        if (currentLoginType === 'admin') {
+          endpoint = '/api/auth/admin';
+          redirectUrl = '/admin-dashboard';
+        } else if (currentLoginType === 'super-admin') {
+          endpoint = '/api/auth/super-admin';
+          redirectUrl = '/super-admin';
+        }
+
+        const res = await fetch(endpoint, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ username, password })
+          body: JSON.stringify({ email, password })
         });
 
         const data = await res.json();
 
         if (data.ok) {
-          window.location.href = '/';
+          window.location.href = redirectUrl;
         } else {
           errorEl.textContent = data.error || 'Invalid credentials. Please try again.';
           errorEl.classList.add('show');
+          resetButton();
         }
       } catch (err) {
         errorEl.textContent = 'Connection error. Please try again.';
         errorEl.classList.add('show');
+        resetButton();
       }
     });
+
+    function resetButton() {
+      loginBtn.disabled = false;
+      if (currentLoginType === 'user') loginBtn.textContent = 'Sign In';
+      else if (currentLoginType === 'admin') loginBtn.textContent = 'Sign In as Business';
+      else loginBtn.textContent = 'Access Control Panel';
+    }
+
+    switchLoginType('user');
   </script>
 </body>
-
 </html>
