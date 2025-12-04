@@ -1,6 +1,7 @@
 /**
  * Super Admin API Routes
  * All routes require super_admin role
+ * ALL LOGINS USE USERNAME
  */
 
 import express from 'express';
@@ -72,7 +73,7 @@ router.get('/admins', async (req, res) => {
 
     const { data: admins, error } = await supabase
       .from('admins')
-      .select('id, name, username, email, credits, status, created_at, last_login')
+      .select('id, name, username, credits, status, created_at, last_login')
       .order('created_at', { ascending: false });
 
     if (error) throw error;
@@ -103,25 +104,19 @@ router.get('/admins', async (req, res) => {
 
 /**
  * POST /api/super-admin/admins
- * Create admin - can use username, email, or both
  */
 router.post('/admins', async (req, res) => {
   try {
     const { supabase } = req.app.locals;
-    const { name, username, email, password, credits = 0 } = req.body;
+    const { name, username, password, credits = 0 } = req.body;
 
-    if (!name || !password) {
-      return res.status(400).json({ error: 'name and password are required' });
-    }
-
-    if (!username && !email) {
-      return res.status(400).json({ error: 'Either username or email is required' });
+    if (!name || !username || !password) {
+      return res.status(400).json({ error: 'name, username, and password are required' });
     }
 
     const result = await createAdmin(supabase, {
       name,
       username,
-      email,
       password,
       credits,
       createdBy: req.session.supabaseId,
@@ -137,7 +132,7 @@ router.post('/admins', async (req, res) => {
       action: 'create_admin',
       targetType: 'admin',
       targetId: result.admin.id,
-      details: { name, username, email, credits },
+      details: { name, username, credits },
       ip: req.ip,
       userAgent: req.headers['user-agent'],
     });
@@ -190,7 +185,6 @@ router.post('/admins/:id/credits', async (req, res) => {
       return res.status(400).json({ error: 'amount must be a non-zero number' });
     }
 
-    // Get current credits
     const { data: admin, error: fetchError } = await supabase
       .from('admins')
       .select('credits')
@@ -205,14 +199,13 @@ router.post('/admins/:id/credits', async (req, res) => {
 
     await supabase.from('admins').update({ credits: newCredits }).eq('id', id);
 
-    // Log transaction
     await supabase.from('credit_transactions').insert({
       admin_id: id,
       super_admin_id: req.session.supabaseId,
       type: amount > 0 ? 'admin_refill' : 'admin_deduct',
       amount,
       balance_after: newCredits,
-      description: description || (amount > 0 ? 'Credits added by super admin' : 'Credits deducted by super admin'),
+      description: description || (amount > 0 ? 'Credits added' : 'Credits deducted'),
     });
 
     res.json({ ok: true, newCredits });
@@ -253,7 +246,7 @@ router.get('/sessions', async (req, res) => {
 
     const { data: sessions, error } = await supabase
       .from('sessions')
-      .select('*, users(username, email), admins(name)')
+      .select('*, users(username), admins(name)')
       .order('start_time', { ascending: false })
       .limit(limit);
 

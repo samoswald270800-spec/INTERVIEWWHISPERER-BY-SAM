@@ -1,6 +1,7 @@
 /**
  * Admin (Consultancy) API Routes
  * All routes require admin role
+ * ALL LOGINS USE USERNAME
  */
 
 import express from 'express';
@@ -126,20 +127,15 @@ router.get('/users', async (req, res) => {
 
 /**
  * POST /api/admin/users
- * Create user - can use username, email, or both
  */
 router.post('/users', async (req, res) => {
   try {
     const { supabase } = req.app.locals;
     const adminId = req.session.supabaseId;
-    const { username, email, password, credits = 0, permissions = { canExpand: true, canAnalyze: true } } = req.body;
+    const { username, password, credits = 0, permissions = { canExpand: true, canAnalyze: true } } = req.body;
 
-    if (!password) {
-      return res.status(400).json({ error: 'password is required' });
-    }
-
-    if (!username && !email) {
-      return res.status(400).json({ error: 'Either username or email is required' });
+    if (!username || !password) {
+      return res.status(400).json({ error: 'username and password are required' });
     }
 
     // Check admin has enough credits
@@ -155,7 +151,6 @@ router.post('/users', async (req, res) => {
 
     const result = await createUser(supabase, {
       username,
-      email,
       password,
       credits: 0,
       permissions,
@@ -168,13 +163,10 @@ router.post('/users', async (req, res) => {
 
     // Assign credits if requested
     if (credits > 0) {
-      // Deduct from admin
       await supabase.from('admins').update({ credits: admin.credits - credits }).eq('id', adminId);
-      // Add to user
       await supabase.from('users').update({ credits }).eq('id', result.user.id);
       result.user.credits = credits;
 
-      // Log transaction
       await supabase.from('credit_transactions').insert({
         user_id: result.user.id,
         admin_id: adminId,
@@ -191,7 +183,7 @@ router.post('/users', async (req, res) => {
       action: 'create_user',
       targetType: 'user',
       targetId: result.user.id,
-      details: { username, email, credits, permissions },
+      details: { username, credits, permissions },
       ip: req.ip,
       userAgent: req.headers['user-agent'],
     });
@@ -212,7 +204,6 @@ router.delete('/users/:id', async (req, res) => {
     const adminId = req.session.supabaseId;
     const { id } = req.params;
 
-    // Check user belongs to this admin
     const { data: user } = await supabase
       .from('users')
       .select('credits')
@@ -237,7 +228,6 @@ router.delete('/users/:id', async (req, res) => {
       });
     }
 
-    // Delete user
     const { error } = await supabase.from('users').delete().eq('id', id);
     if (error) throw error;
 
@@ -323,19 +313,16 @@ router.post('/users/:id/credits/assign', async (req, res) => {
       return res.status(400).json({ error: 'amount must be positive' });
     }
 
-    // Check admin has enough credits
     const { data: admin } = await supabase.from('admins').select('credits').eq('id', adminId).single();
     if (admin.credits < amount) {
       return res.status(400).json({ error: 'Insufficient credits' });
     }
 
-    // Check user belongs to admin
     const { data: user } = await supabase.from('users').select('credits').eq('id', id).eq('admin_id', adminId).single();
     if (!user) {
       return res.status(404).json({ error: 'User not found' });
     }
 
-    // Transfer credits
     const newAdminCredits = admin.credits - amount;
     const newUserCredits = user.credits + amount;
 
@@ -348,7 +335,7 @@ router.post('/users/:id/credits/assign', async (req, res) => {
       type: 'assign',
       amount,
       balance_after: newUserCredits,
-      description: description || 'Credits assigned by admin',
+      description: description || 'Credits assigned',
     });
 
     res.json({ ok: true, adminCredits: newAdminCredits, userCredits: newUserCredits });
@@ -396,7 +383,7 @@ router.post('/users/:id/credits/reclaim', async (req, res) => {
       type: 'reclaim',
       amount: -actualAmount,
       balance_after: newUserCredits,
-      description: description || 'Credits reclaimed by admin',
+      description: description || 'Credits reclaimed',
     });
 
     res.json({ ok: true, adminCredits: newAdminCredits, userCredits: newUserCredits, reclaimedAmount: actualAmount });
@@ -416,7 +403,7 @@ router.get('/sessions', async (req, res) => {
 
     const { data: sessions, error } = await supabase
       .from('sessions')
-      .select('*, users(username, email)')
+      .select('*, users(username)')
       .eq('admin_id', adminId)
       .order('start_time', { ascending: false })
       .limit(100);

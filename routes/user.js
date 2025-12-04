@@ -1,6 +1,7 @@
 /**
  * User (Candidate) API Routes
  * All routes require user role
+ * ALL LOGINS USE USERNAME
  */
 
 import express from 'express';
@@ -29,7 +30,7 @@ router.get('/me', async (req, res) => {
 
     const { data: user, error } = await supabase
       .from('users')
-      .select('id, username, email, credits, permissions, status, admins(id, name)')
+      .select('id, username, credits, permissions, status, admins(id, name)')
       .eq('id', userId)
       .single();
 
@@ -42,7 +43,6 @@ router.get('/me', async (req, res) => {
       user: {
         id: user.id,
         username: user.username,
-        email: user.email,
         credits: user.credits,
         permissions: user.permissions,
         status: user.status,

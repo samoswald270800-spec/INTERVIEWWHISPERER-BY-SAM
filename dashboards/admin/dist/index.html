@@ -25,8 +25,6 @@
       min-height: 100vh;
     }
     .container { max-width: 1400px; margin: 0 auto; padding: 24px; }
-    
-    /* Header */
     .header {
       display: flex;
       justify-content: space-between;
@@ -42,15 +40,8 @@
       -webkit-background-clip: text;
       -webkit-text-fill-color: transparent;
     }
-    .header-info {
-      display: flex;
-      align-items: center;
-      gap: 24px;
-    }
     .credit-badge {
-      display: flex;
-      align-items: center;
-      gap: 8px;
+      display: flex; align-items: center; gap: 8px;
       padding: 10px 16px;
       background: rgba(6, 182, 212, 0.1);
       border: 1px solid rgba(6, 182, 212, 0.3);
@@ -58,8 +49,6 @@
     }
     .credit-badge .label { color: var(--text-muted); font-size: 12px; }
     .credit-badge .value { color: var(--accent); font-weight: 700; font-size: 18px; }
-    
-    .header-actions { display: flex; gap: 12px; }
     .btn {
       padding: 10px 20px;
       border-radius: 8px;
@@ -69,31 +58,11 @@
       font-weight: 500;
       transition: all 0.2s;
     }
-    .btn-primary {
-      background: var(--accent);
-      color: white;
-    }
+    .btn-primary { background: var(--accent); color: white; }
     .btn-primary:hover { background: var(--accent-hover); }
-    .btn-secondary {
-      background: transparent;
-      color: var(--text-muted);
-      border: 1px solid var(--border);
-    }
-    .btn-secondary:hover {
-      background: rgba(255,255,255,0.05);
-      color: var(--text-white);
-    }
-    .btn-danger {
-      background: var(--danger);
-      color: white;
-    }
-    .btn-danger:hover { opacity: 0.9; }
-    .btn-success {
-      background: var(--success);
-      color: white;
-    }
-    
-    /* Stats Grid */
+    .btn-secondary { background: transparent; color: var(--text-muted); border: 1px solid var(--border); }
+    .btn-secondary:hover { background: rgba(255,255,255,0.05); color: var(--text-white); }
+    .btn-danger { background: var(--danger); color: white; }
     .stats-grid {
       display: grid;
       grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
@@ -106,22 +75,11 @@
       border-radius: 12px;
       padding: 20px;
     }
-    .stat-card .label {
-      font-size: 12px;
-      color: var(--text-muted);
-      text-transform: uppercase;
-      letter-spacing: 0.05em;
-      margin-bottom: 8px;
-    }
-    .stat-card .value {
-      font-size: 32px;
-      font-weight: 700;
-    }
+    .stat-card .label { font-size: 12px; color: var(--text-muted); text-transform: uppercase; margin-bottom: 8px; }
+    .stat-card .value { font-size: 32px; font-weight: 700; }
     .stat-card.cyan .value { color: var(--accent); }
     .stat-card.green .value { color: var(--success); }
     .stat-card.yellow .value { color: var(--warning); }
-    
-    /* Panel */
     .panel {
       background: var(--bg-card);
       border: 1px solid var(--border);
@@ -136,154 +94,55 @@
       padding: 16px 20px;
       border-bottom: 1px solid var(--border);
     }
-    .panel-header h2 {
-      font-size: 16px;
-      font-weight: 600;
-    }
-    
-    /* Table */
-    .table-wrapper { overflow-x: auto; }
-    table {
-      width: 100%;
-      border-collapse: collapse;
-    }
-    th, td {
-      padding: 14px 20px;
-      text-align: left;
-      border-bottom: 1px solid var(--border);
-    }
-    th {
-      font-size: 11px;
-      text-transform: uppercase;
-      letter-spacing: 0.05em;
-      color: var(--text-muted);
-      font-weight: 500;
-    }
+    .panel-header h2 { font-size: 16px; font-weight: 600; }
+    table { width: 100%; border-collapse: collapse; }
+    th, td { padding: 14px 20px; text-align: left; border-bottom: 1px solid var(--border); }
+    th { font-size: 11px; text-transform: uppercase; color: var(--text-muted); }
     td { font-size: 14px; }
     tr:hover { background: rgba(255,255,255,0.02); }
-    
-    /* Badge */
-    .badge {
-      display: inline-block;
-      padding: 4px 10px;
-      border-radius: 100px;
-      font-size: 11px;
-      font-weight: 500;
+    .badge { display: inline-block; padding: 4px 10px; border-radius: 100px; font-size: 11px; font-weight: 500; }
+    .badge-active { background: rgba(16, 185, 129, 0.15); color: var(--success); }
+    .badge-paused { background: rgba(245, 158, 11, 0.15); color: var(--warning); }
+    .perm-icons { display: flex; gap: 8px; }
+    .perm-icon {
+      width: 24px; height: 24px;
+      border-radius: 6px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 12px;
     }
-    .badge-active {
-      background: rgba(16, 185, 129, 0.15);
-      color: var(--success);
-    }
-    .badge-paused {
-      background: rgba(245, 158, 11, 0.15);
-      color: var(--warning);
-    }
-    .badge-expired {
-      background: rgba(239, 68, 68, 0.15);
-      color: var(--danger);
-    }
-    
-    /* Toggle */
-    .toggle {
-      position: relative;
-      width: 44px;
-      height: 24px;
-      background: var(--bg-dark);
-      border-radius: 100px;
-      cursor: pointer;
-      transition: background 0.2s;
-    }
-    .toggle.on { background: var(--success); }
-    .toggle::after {
-      content: '';
-      position: absolute;
-      top: 3px;
-      left: 3px;
-      width: 18px;
-      height: 18px;
-      background: white;
-      border-radius: 50%;
-      transition: transform 0.2s;
-    }
-    .toggle.on::after { transform: translateX(20px); }
-    
-    /* Modal */
+    .perm-icon.on { background: rgba(16, 185, 129, 0.2); color: var(--success); }
+    .perm-icon.off { background: rgba(239, 68, 68, 0.2); color: var(--danger); }
     .modal-overlay {
-      position: fixed;
-      top: 0; left: 0; right: 0; bottom: 0;
+      position: fixed; top: 0; left: 0; right: 0; bottom: 0;
       background: rgba(0,0,0,0.7);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      z-index: 1000;
-      opacity: 0;
-      visibility: hidden;
-      transition: all 0.2s;
+      display: flex; align-items: center; justify-content: center;
+      z-index: 1000; opacity: 0; visibility: hidden; transition: all 0.2s;
     }
-    .modal-overlay.active {
-      opacity: 1;
-      visibility: visible;
-    }
+    .modal-overlay.active { opacity: 1; visibility: visible; }
     .modal {
       background: var(--bg-card);
       border: 1px solid var(--border);
       border-radius: 16px;
       padding: 24px;
-      width: 100%;
-      max-width: 480px;
-      transform: translateY(20px);
-      transition: transform 0.2s;
+      width: 100%; max-width: 480px;
     }
-    .modal-overlay.active .modal {
-      transform: translateY(0);
-    }
-    .modal h3 {
-      font-size: 18px;
-      margin-bottom: 20px;
-    }
-    .form-group {
-      margin-bottom: 16px;
-    }
-    .form-group label {
-      display: block;
-      font-size: 13px;
-      color: var(--text-muted);
-      margin-bottom: 6px;
-    }
-    .form-group input {
-      width: 100%;
-      padding: 12px 14px;
+    .modal h3 { font-size: 18px; margin-bottom: 20px; }
+    .form-group { margin-bottom: 16px; }
+    .form-group label { display: block; font-size: 13px; color: var(--text-muted); margin-bottom: 6px; }
+    .form-group input, .form-group select {
+      width: 100%; padding: 12px 14px;
       background: var(--bg-dark);
       border: 1px solid var(--border);
       border-radius: 8px;
       color: var(--text-white);
       font-size: 14px;
     }
-    .form-group input:focus {
-      outline: none;
-      border-color: var(--accent);
-    }
-    .checkbox-group {
-      display: flex;
-      gap: 16px;
-    }
-    .checkbox-group label {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      cursor: pointer;
-    }
-    .modal-actions {
-      display: flex;
-      gap: 12px;
-      justify-content: flex-end;
-      margin-top: 24px;
-    }
-    
+    .form-group input:focus { outline: none; border-color: var(--accent); }
+    .checkbox-group { display: flex; gap: 16px; }
+    .checkbox-group label { display: flex; align-items: center; gap: 8px; cursor: pointer; }
+    .modal-actions { display: flex; gap: 12px; justify-content: flex-end; margin-top: 24px; }
     .toast {
-      position: fixed;
-      bottom: 24px;
-      right: 24px;
+      position: fixed; bottom: 24px; right: 24px;
       padding: 14px 20px;
       background: var(--bg-card);
       border: 1px solid var(--border);
@@ -294,171 +153,80 @@
       transition: all 0.3s;
       z-index: 1001;
     }
-    .toast.show {
-      transform: translateY(0);
-      opacity: 1;
-    }
+    .toast.show { transform: translateY(0); opacity: 1; }
     .toast.success { border-color: var(--success); }
     .toast.error { border-color: var(--danger); }
-    
-    .hidden { display: none !important; }
-    
-    .perm-icons { display: flex; gap: 8px; }
-    .perm-icon {
-      width: 24px;
-      height: 24px;
-      border-radius: 6px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 12px;
-    }
-    .perm-icon.on { background: rgba(16, 185, 129, 0.2); color: var(--success); }
-    .perm-icon.off { background: rgba(239, 68, 68, 0.2); color: var(--danger); }
   </style>
 </head>
 <body>
   <div class="container">
     <div class="header">
       <h1>📊 Admin Dashboard</h1>
-      <div class="header-info">
+      <div style="display:flex;align-items:center;gap:24px;">
         <div class="credit-badge">
           <span class="label">Your Credits</span>
           <span class="value" id="myCredits">-</span>
         </div>
-        <div class="header-actions">
-          <button class="btn btn-secondary" onclick="refreshData()">Refresh</button>
-          <button class="btn btn-danger" onclick="logout()">Logout</button>
-        </div>
+        <button class="btn btn-secondary" onclick="refreshData()">Refresh</button>
+        <button class="btn btn-danger" onclick="logout()">Logout</button>
       </div>
     </div>
     
     <div class="stats-grid">
-      <div class="stat-card cyan">
-        <div class="label">Total Users</div>
-        <div class="value" id="statUsers">-</div>
-      </div>
-      <div class="stat-card green">
-        <div class="label">Active Users</div>
-        <div class="value" id="statActive">-</div>
-      </div>
-      <div class="stat-card yellow">
-        <div class="label">Sessions Today</div>
-        <div class="value" id="statSessions">-</div>
-      </div>
-      <div class="stat-card">
-        <div class="label">Credits Used Today</div>
-        <div class="value" id="statCreditsUsed">-</div>
-      </div>
+      <div class="stat-card cyan"><div class="label">Total Users</div><div class="value" id="statUsers">-</div></div>
+      <div class="stat-card green"><div class="label">Active Users</div><div class="value" id="statActive">-</div></div>
+      <div class="stat-card yellow"><div class="label">Sessions Today</div><div class="value" id="statSessions">-</div></div>
+      <div class="stat-card"><div class="label">Credits Used Today</div><div class="value" id="statCreditsUsed">-</div></div>
     </div>
     
     <div class="panel">
       <div class="panel-header">
         <h2>Manage Users</h2>
-        <button class="btn btn-primary" onclick="showCreateUserModal()">+ Add User</button>
+        <button class="btn btn-primary" onclick="showModal('createUserModal')">+ Add User</button>
       </div>
-      <div class="table-wrapper">
-        <table>
-          <thead>
-            <tr>
-              <th>Email</th>
-              <th>Credits</th>
-              <th>Permissions</th>
-              <th>Sessions</th>
-              <th>Status</th>
-              <th>Created</th>
-              <th>Actions</th>
-            </tr>
-          </thead>
-          <tbody id="usersTable">
-            <tr><td colspan="7" style="text-align:center;color:var(--text-muted);padding:40px;">Loading...</td></tr>
-          </tbody>
-        </table>
-      </div>
-    </div>
-    
-    <div class="panel">
-      <div class="panel-header">
-        <h2>Recent Sessions</h2>
-      </div>
-      <div class="table-wrapper">
-        <table>
-          <thead>
-            <tr>
-              <th>User</th>
-              <th>Started</th>
-              <th>Duration</th>
-              <th>Credits Used</th>
-              <th>Status</th>
-            </tr>
-          </thead>
-          <tbody id="sessionsTable">
-            <tr><td colspan="5" style="text-align:center;color:var(--text-muted);padding:40px;">Loading...</td></tr>
-          </tbody>
-        </table>
-      </div>
+      <table>
+        <thead><tr><th>Username</th><th>Credits</th><th>Permissions</th><th>Sessions</th><th>Status</th><th>Actions</th></tr></thead>
+        <tbody id="usersTable"><tr><td colspan="6" style="text-align:center;padding:40px;color:var(--text-muted);">Loading...</td></tr></tbody>
+      </table>
     </div>
   </div>
   
-  <!-- Create User Modal -->
   <div class="modal-overlay" id="createUserModal">
     <div class="modal">
       <h3>Create New User</h3>
       <form id="createUserForm">
-        <div class="form-group">
-          <label>Email</label>
-          <input type="email" name="email" required placeholder="user@example.com">
-        </div>
-        <div class="form-group">
-          <label>Password</label>
-          <input type="password" name="password" required minlength="6" placeholder="••••••••">
-        </div>
-        <div class="form-group">
-          <label>Initial Credits</label>
-          <input type="number" name="credits" value="10" min="0">
-        </div>
+        <div class="form-group"><label>Username</label><input type="text" name="username" required placeholder="john_doe"></div>
+        <div class="form-group"><label>Password</label><input type="password" name="password" required minlength="6" placeholder="••••••••"></div>
+        <div class="form-group"><label>Initial Credits</label><input type="number" name="credits" value="10" min="0"></div>
         <div class="form-group">
           <label>Permissions</label>
           <div class="checkbox-group">
-            <label>
-              <input type="checkbox" name="canExpand" checked>
-              Expand Answers
-            </label>
-            <label>
-              <input type="checkbox" name="canAnalyze" checked>
-              Screen Analysis
-            </label>
+            <label><input type="checkbox" name="canExpand" checked> Expand Answers</label>
+            <label><input type="checkbox" name="canAnalyze" checked> Screen Analysis</label>
           </div>
         </div>
         <div class="modal-actions">
           <button type="button" class="btn btn-secondary" onclick="closeModal('createUserModal')">Cancel</button>
-          <button type="submit" class="btn btn-primary">Create User</button>
+          <button type="submit" class="btn btn-primary">Create</button>
         </div>
       </form>
     </div>
   </div>
   
-  <!-- Assign Credits Modal -->
   <div class="modal-overlay" id="creditsModal">
     <div class="modal">
       <h3>Manage User Credits</h3>
       <form id="creditsForm">
         <input type="hidden" name="userId" id="creditsUserId">
-        <div class="form-group">
-          <label>User: <span id="creditsUserEmail"></span></label>
-          <label>Current Credits: <span id="creditsUserBalance"></span></label>
-        </div>
+        <div class="form-group"><label>User: <span id="creditsUserName"></span> (Balance: <span id="creditsUserBalance"></span>)</label></div>
         <div class="form-group">
           <label>Action</label>
-          <select name="action" id="creditsAction" style="width:100%;padding:12px;background:var(--bg-dark);border:1px solid var(--border);border-radius:8px;color:var(--text-white);">
+          <select name="action">
             <option value="assign">Assign Credits</option>
             <option value="reclaim">Reclaim Credits</option>
           </select>
         </div>
-        <div class="form-group">
-          <label>Amount</label>
-          <input type="number" name="amount" required min="1" placeholder="10">
-        </div>
+        <div class="form-group"><label>Amount</label><input type="number" name="amount" required min="1" placeholder="10"></div>
         <div class="modal-actions">
           <button type="button" class="btn btn-secondary" onclick="closeModal('creditsModal')">Cancel</button>
           <button type="submit" class="btn btn-primary">Update</button>
@@ -470,24 +238,16 @@
   <div class="toast" id="toast"></div>
 
   <script>
-    // State
-    let usersData = [];
-
-    // API Helper
     async function api(endpoint, options = {}) {
       const res = await fetch(`/api/admin${endpoint}`, {
         ...options,
-        headers: {
-          'Content-Type': 'application/json',
-          ...options.headers
-        }
+        headers: { 'Content-Type': 'application/json', ...options.headers }
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'API Error');
       return data;
     }
 
-    // Toast
     function showToast(message, type = 'success') {
       const toast = document.getElementById('toast');
       toast.textContent = message;
@@ -495,26 +255,16 @@
       setTimeout(() => toast.classList.remove('show'), 3000);
     }
 
-    // Modal
-    function showModal(id) {
-      document.getElementById(id).classList.add('active');
-    }
-    function closeModal(id) {
-      document.getElementById(id).classList.remove('active');
-    }
-    function showCreateUserModal() {
-      document.getElementById('createUserForm').reset();
-      showModal('createUserModal');
-    }
-    function showCreditsModal(userId, email, credits) {
+    function showModal(id) { document.getElementById(id).classList.add('active'); }
+    function closeModal(id) { document.getElementById(id).classList.remove('active'); }
+    
+    function showCreditsModal(userId, username, credits) {
       document.getElementById('creditsUserId').value = userId;
-      document.getElementById('creditsUserEmail').textContent = email;
+      document.getElementById('creditsUserName').textContent = username;
       document.getElementById('creditsUserBalance').textContent = credits;
-      document.getElementById('creditsForm').reset();
       showModal('creditsModal');
     }
 
-    // Load Stats
     async function loadStats() {
       try {
         const { stats } = await api('/stats');
@@ -523,28 +273,22 @@
         document.getElementById('statActive').textContent = stats.activeUsers;
         document.getElementById('statSessions').textContent = stats.sessionsToday;
         document.getElementById('statCreditsUsed').textContent = stats.creditsUsedToday;
-      } catch (e) {
-        console.error('Failed to load stats:', e);
-      }
+      } catch (e) { console.error(e); }
     }
 
-    // Load Users
     async function loadUsers() {
       try {
         const { users } = await api('/users');
-        usersData = users;
         const tbody = document.getElementById('usersTable');
-        
         if (!users.length) {
-          tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;color:var(--text-muted);padding:40px;">No users yet. Create one to get started!</td></tr>';
+          tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:40px;color:var(--text-muted);">No users yet</td></tr>';
           return;
         }
-        
         tbody.innerHTML = users.map(u => {
           const p = u.permissions || {};
           return `
           <tr>
-            <td><strong>${u.email}</strong></td>
+            <td><strong>${u.username}</strong></td>
             <td>${u.credits}</td>
             <td>
               <div class="perm-icons">
@@ -554,95 +298,57 @@
             </td>
             <td>${u.sessionCount || 0}</td>
             <td><span class="badge badge-${u.status || 'active'}">${u.status || 'active'}</span></td>
-            <td>${new Date(u.created_at).toLocaleDateString()}</td>
             <td>
-              <button class="btn btn-secondary" style="padding:6px 10px;font-size:11px;" onclick="showCreditsModal('${u.id}', '${u.email}', ${u.credits})">Credits</button>
-              <button class="btn btn-secondary" style="padding:6px 10px;font-size:11px;" onclick="togglePermission('${u.id}', 'canExpand', ${!p.canExpand})">E</button>
-              <button class="btn btn-secondary" style="padding:6px 10px;font-size:11px;" onclick="togglePermission('${u.id}', 'canAnalyze', ${!p.canAnalyze})">A</button>
-              <button class="btn btn-danger" style="padding:6px 10px;font-size:11px;" onclick="deleteUser('${u.id}', '${u.email}')">×</button>
+              <button class="btn btn-secondary" style="padding:6px 10px;font-size:11px;" onclick="showCreditsModal('${u.id}', '${u.username}', ${u.credits})">Credits</button>
+              <button class="btn btn-secondary" style="padding:6px 10px;font-size:11px;" onclick="togglePerm('${u.id}', 'canExpand', ${!p.canExpand})">E</button>
+              <button class="btn btn-secondary" style="padding:6px 10px;font-size:11px;" onclick="togglePerm('${u.id}', 'canAnalyze', ${!p.canAnalyze})">A</button>
+              <button class="btn btn-danger" style="padding:6px 10px;font-size:11px;" onclick="deleteUser('${u.id}', '${u.username}')">×</button>
             </td>
           </tr>
         `}).join('');
       } catch (e) {
-        console.error('Failed to load users:', e);
-        document.getElementById('usersTable').innerHTML = '<tr><td colspan="7" style="color:var(--danger);">Failed to load</td></tr>';
+        console.error(e);
+        document.getElementById('usersTable').innerHTML = '<tr><td colspan="6" style="color:var(--danger);">Failed to load</td></tr>';
       }
     }
 
-    // Load Sessions
-    async function loadSessions() {
-      try {
-        const { sessions } = await api('/sessions');
-        const tbody = document.getElementById('sessionsTable');
-        
-        if (!sessions.length) {
-          tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;color:var(--text-muted);padding:40px;">No sessions yet</td></tr>';
-          return;
-        }
-        
-        tbody.innerHTML = sessions.slice(0, 10).map(s => `
-          <tr>
-            <td>${s.users?.email || '-'}</td>
-            <td>${new Date(s.start_time).toLocaleString()}</td>
-            <td>${s.total_seconds ? Math.floor(s.total_seconds / 60) + 'm' : '-'}</td>
-            <td>${s.credits_used || '-'}</td>
-            <td><span class="badge badge-${s.status === 'active' ? 'active' : 'paused'}">${s.status}</span></td>
-          </tr>
-        `).join('');
-      } catch (e) {
-        console.error('Failed to load sessions:', e);
-      }
-    }
-
-    // Create User
     document.getElementById('createUserForm').addEventListener('submit', async (e) => {
       e.preventDefault();
       const form = e.target;
-      const data = {
-        email: form.email.value,
-        password: form.password.value,
-        credits: parseInt(form.credits.value) || 0,
-        permissions: {
-          canExpand: form.canExpand.checked,
-          canAnalyze: form.canAnalyze.checked
-        }
-      };
-      
       try {
-        await api('/users', { method: 'POST', body: JSON.stringify(data) });
+        await api('/users', {
+          method: 'POST',
+          body: JSON.stringify({
+            username: form.username.value,
+            password: form.password.value,
+            credits: parseInt(form.credits.value) || 0,
+            permissions: { canExpand: form.canExpand.checked, canAnalyze: form.canAnalyze.checked }
+          })
+        });
         closeModal('createUserModal');
-        showToast('User created successfully!');
+        form.reset();
+        showToast('User created!');
         loadStats();
         loadUsers();
-      } catch (e) {
-        showToast(e.message, 'error');
-      }
+      } catch (e) { showToast(e.message, 'error'); }
     });
 
-    // Credits Form
     document.getElementById('creditsForm').addEventListener('submit', async (e) => {
       e.preventDefault();
       const form = e.target;
-      const userId = form.userId.value;
-      const action = form.action.value;
-      const amount = parseInt(form.amount.value);
-      
       try {
-        await api(`/users/${userId}/credits/${action}`, {
+        await api(`/users/${form.userId.value}/credits/${form.action.value}`, {
           method: 'POST',
-          body: JSON.stringify({ amount })
+          body: JSON.stringify({ amount: parseInt(form.amount.value) })
         });
         closeModal('creditsModal');
         showToast('Credits updated!');
         loadStats();
         loadUsers();
-      } catch (e) {
-        showToast(e.message, 'error');
-      }
+      } catch (e) { showToast(e.message, 'error'); }
     });
 
-    // Toggle Permission
-    async function togglePermission(userId, perm, value) {
+    async function togglePerm(userId, perm, value) {
       try {
         await api(`/users/${userId}/permissions`, {
           method: 'PATCH',
@@ -650,44 +356,24 @@
         });
         showToast(`${perm} ${value ? 'enabled' : 'disabled'}`);
         loadUsers();
-      } catch (e) {
-        showToast(e.message, 'error');
-      }
+      } catch (e) { showToast(e.message, 'error'); }
     }
 
-    // Delete User
-    async function deleteUser(id, email) {
-      if (!confirm(`Delete user "${email}"? Their remaining credits will be returned to you.`)) return;
-      
+    async function deleteUser(id, username) {
+      if (!confirm(`Delete "${username}"? Credits will be returned.`)) return;
       try {
         const { creditsReturned } = await api(`/users/${id}`, { method: 'DELETE' });
         showToast(`User deleted. ${creditsReturned} credits returned.`);
         loadStats();
         loadUsers();
-      } catch (e) {
-        showToast(e.message, 'error');
-      }
+      } catch (e) { showToast(e.message, 'error'); }
     }
 
-    // Refresh
-    function refreshData() {
-      loadStats();
-      loadUsers();
-      loadSessions();
-      showToast('Data refreshed');
-    }
+    function refreshData() { loadStats(); loadUsers(); showToast('Refreshed'); }
+    async function logout() { await fetch('/api/logout', { method: 'POST' }); window.location.href = '/login'; }
 
-    // Logout
-    async function logout() {
-      await fetch('/api/logout', { method: 'POST' });
-      window.location.href = '/login';
-    }
-
-    // Init
     loadStats();
     loadUsers();
-    loadSessions();
   </script>
 </body>
 </html>
-

@@ -1,8 +1,6 @@
 /**
  * Authentication Service
- * Handles authentication for multi-tenant system
- * - Super Admins: use USERNAME
- * - Admins & Users: can use USERNAME or EMAIL
+ * ALL LOGINS USE USERNAME (not email)
  */
 
 import bcrypt from 'bcrypt';
@@ -25,7 +23,6 @@ export async function verifyPassword(password, hash) {
 
 /**
  * Seed Super Admin on first boot
- * Uses: SUPER_ADMIN_USERNAME, SUPER_ADMIN_PASSWORD
  */
 export async function seedSuperAdmin(supabase) {
   const username = process.env.SUPER_ADMIN_USERNAME;
@@ -69,13 +66,13 @@ export async function seedSuperAdmin(supabase) {
 }
 
 /**
- * Authenticate Super Admin (by username only)
+ * Authenticate Super Admin
  */
-export async function authenticateSuperAdmin(supabase, identifier, password) {
+export async function authenticateSuperAdmin(supabase, username, password) {
   const { data: admin, error } = await supabase
     .from('super_admins')
     .select('*')
-    .eq('username', identifier)
+    .eq('username', username)
     .eq('is_active', true)
     .single();
 
@@ -105,35 +102,16 @@ export async function authenticateSuperAdmin(supabase, identifier, password) {
 }
 
 /**
- * Authenticate Admin (Consultancy) - by username OR email
+ * Authenticate Admin (Consultancy)
  */
-export async function authenticateAdmin(supabase, identifier, password) {
-  // Try to find by username first, then by email
-  let admin = null;
-  
-  // Try username
-  const { data: byUsername } = await supabase
+export async function authenticateAdmin(supabase, username, password) {
+  const { data: admin, error } = await supabase
     .from('admins')
     .select('*')
-    .eq('username', identifier)
+    .eq('username', username)
     .single();
-  
-  if (byUsername) {
-    admin = byUsername;
-  } else {
-    // Try email
-    const { data: byEmail } = await supabase
-      .from('admins')
-      .select('*')
-      .eq('email', identifier)
-      .single();
-    
-    if (byEmail) {
-      admin = byEmail;
-    }
-  }
 
-  if (!admin) {
+  if (error || !admin) {
     return { success: false, error: 'Invalid credentials' };
   }
 
@@ -156,7 +134,6 @@ export async function authenticateAdmin(supabase, identifier, password) {
     user: {
       id: admin.id,
       username: admin.username,
-      email: admin.email,
       name: admin.name,
       credits: admin.credits,
       role: 'admin',
@@ -165,43 +142,21 @@ export async function authenticateAdmin(supabase, identifier, password) {
 }
 
 /**
- * Authenticate User (Candidate) - by username OR email
+ * Authenticate User (Candidate)
  */
-export async function authenticateUser(supabase, identifier, password, adminId = null) {
-  // Build query to search by username OR email
-  let users = [];
-  
-  // Try username first
+export async function authenticateUser(supabase, username, password, adminId = null) {
   let query = supabase
     .from('users')
     .select('*, admins!inner(id, name, status)')
-    .eq('username', identifier);
-  
+    .eq('username', username);
+
   if (adminId) {
     query = query.eq('admin_id', adminId);
   }
-  
-  const { data: byUsername } = await query;
-  if (byUsername && byUsername.length > 0) {
-    users = byUsername;
-  } else {
-    // Try email
-    let emailQuery = supabase
-      .from('users')
-      .select('*, admins!inner(id, name, status)')
-      .eq('email', identifier);
-    
-    if (adminId) {
-      emailQuery = emailQuery.eq('admin_id', adminId);
-    }
-    
-    const { data: byEmail } = await emailQuery;
-    if (byEmail && byEmail.length > 0) {
-      users = byEmail;
-    }
-  }
 
-  if (users.length === 0) {
+  const { data: users, error } = await query;
+
+  if (error || !users || users.length === 0) {
     return { success: false, error: 'Invalid credentials' };
   }
 
@@ -221,7 +176,6 @@ export async function authenticateUser(supabase, identifier, password, adminId =
         user: {
           id: user.id,
           username: user.username,
-          email: user.email,
           adminId: user.admin_id,
           adminName: user.admins.name,
           credits: user.credits,
@@ -237,21 +191,15 @@ export async function authenticateUser(supabase, identifier, password, adminId =
 
 /**
  * Create Admin (by Super Admin)
- * Can provide username, email, or both
  */
-export async function createAdmin(supabase, { name, username, email, password, credits = 0, createdBy }) {
-  if (!username && !email) {
-    return { success: false, error: 'Either username or email is required' };
-  }
-
+export async function createAdmin(supabase, { name, username, password, credits = 0, createdBy }) {
   const passwordHash = await hashPassword(password);
 
   const { data, error } = await supabase
     .from('admins')
     .insert({
       name,
-      username: username || null,
-      email: email || null,
+      username,
       password_hash: passwordHash,
       credits,
       status: 'active',
@@ -262,7 +210,7 @@ export async function createAdmin(supabase, { name, username, email, password, c
 
   if (error) {
     if (error.code === '23505') {
-      return { success: false, error: 'Username or email already exists' };
+      return { success: false, error: 'Username already exists' };
     }
     return { success: false, error: error.message };
   }
@@ -272,20 +220,14 @@ export async function createAdmin(supabase, { name, username, email, password, c
 
 /**
  * Create User (by Admin)
- * Can provide username, email, or both
  */
-export async function createUser(supabase, { username, email, password, credits = 0, permissions = {}, adminId }) {
-  if (!username && !email) {
-    return { success: false, error: 'Either username or email is required' };
-  }
-
+export async function createUser(supabase, { username, password, credits = 0, permissions = {}, adminId }) {
   const passwordHash = await hashPassword(password);
 
   const { data, error } = await supabase
     .from('users')
     .insert({
-      username: username || null,
-      email: email || null,
+      username,
       password_hash: passwordHash,
       admin_id: adminId,
       credits,
@@ -297,7 +239,7 @@ export async function createUser(supabase, { username, email, password, credits 
 
   if (error) {
     if (error.code === '23505') {
-      return { success: false, error: 'Username or email already exists for this organization' };
+      return { success: false, error: 'Username already exists for this organization' };
     }
     return { success: false, error: error.message };
   }
