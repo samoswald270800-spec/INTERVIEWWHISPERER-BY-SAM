@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>User Dashboard</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #0f172a; color: #e2e8f0; min-height: 100vh; }
+    .container { max-width: 1000px; margin: 0 auto; padding: 2rem; }
+    header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem; padding-bottom: 1rem; border-bottom: 1px solid #334155; }
+    h1 { font-size: 1.75rem; color: #f1f5f9; }
+    .btn { padding: 0.5rem 1rem; border: none; border-radius: 0.5rem; cursor: pointer; font-weight: 500; transition: all 0.2s; }
+    .btn-danger { background: #ef4444; color: white; }
+    .btn-danger:hover { background: #dc2626; }
+    .btn-secondary { background: #475569; color: white; }
+    .btn-secondary:hover { background: #64748b; }
+    .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem; margin-bottom: 2rem; }
+    .stat-card { background: #1e293b; padding: 1.5rem; border-radius: 0.75rem; }
+    .stat-card h3 { color: #94a3b8; font-size: 0.875rem; margin-bottom: 0.5rem; }
+    .stat-card .value { font-size: 2rem; font-weight: 700; color: #f1f5f9; }
+    .card { background: #1e293b; border-radius: 0.75rem; padding: 1.5rem; margin-bottom: 1.5rem; }
+    .card h2 { margin-bottom: 1rem; font-size: 1.25rem; }
+    table { width: 100%; border-collapse: collapse; }
+    th, td { padding: 0.75rem; text-align: left; border-bottom: 1px solid #334155; }
+    th { color: #94a3b8; font-weight: 500; }
+    .info { padding: 1rem; background: #1e3a5f; border-radius: 0.5rem; margin-bottom: 1rem; }
+    .info p { margin: 0.25rem 0; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>👤 User Dashboard</h1>
+      <div>
+        <a href="/" class="btn btn-secondary">← Back to Tool</a>
+        <button onclick="logout()" class="btn btn-danger" style="margin-left: 0.5rem;">Logout</button>
+      </div>
+    </header>
+
+    <div class="stats">
+      <div class="stat-card"><h3>Your Credits</h3><div class="value" id="stat-credits">-</div></div>
+      <div class="stat-card"><h3>Min Session Cost</h3><div class="value" id="stat-min">-</div></div>
+      <div class="stat-card"><h3>Screen Analysis Cost</h3><div class="value" id="stat-analysis">-</div></div>
+    </div>
+
+    <div class="card">
+      <h2>Account Info</h2>
+      <div class="info">
+        <p><strong>Username:</strong> <span id="info-username">-</span></p>
+        <p><strong>Organization:</strong> <span id="info-org">-</span></p>
+        <p><strong>Permissions:</strong> <span id="info-perms">-</span></p>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Recent Sessions</h2>
+      <table>
+        <thead><tr><th>Date</th><th>Duration</th><th>Credits Used</th><th>Status</th></tr></thead>
+        <tbody id="sessions-body"></tbody>
+      </table>
+    </div>
+
+    <div class="card">
+      <h2>Credit History</h2>
+      <table>
+        <thead><tr><th>Date</th><th>Type</th><th>Amount</th><th>Balance</th><th>Description</th></tr></thead>
+        <tbody id="history-body"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <script>
+    async function api(path) {
+      const res = await fetch('/api/user' + path);
+      return res.json();
+    }
+
+    async function loadInfo() {
+      const data = await api('/me');
+      if (data.ok) {
+        document.getElementById('stat-credits').textContent = data.user.credits;
+        document.getElementById('stat-min').textContent = data.creditInfo.minSessionCost + ' tokens';
+        document.getElementById('stat-analysis').textContent = data.creditInfo.screenAnalysisCost + ' token';
+        document.getElementById('info-username').textContent = data.user.username;
+        document.getElementById('info-org').textContent = data.user.adminName || '-';
+        const perms = data.user.permissions || {};
+        const permList = [];
+        if (perms.canExpand) permList.push('Expand');
+        if (perms.canAnalyze) permList.push('Screen Analysis');
+        document.getElementById('info-perms').textContent = permList.join(', ') || 'None';
+      }
+    }
+
+    async function loadSessions() {
+      const data = await api('/sessions');
+      const tbody = document.getElementById('sessions-body');
+      tbody.innerHTML = '';
+      if (data.ok && data.sessions) {
+        data.sessions.slice(0, 10).forEach(s => {
+          const row = document.createElement('tr');
+          const date = new Date(s.start_time).toLocaleString();
+          const mins = s.total_seconds ? Math.round(s.total_seconds / 60) : '-';
+          row.innerHTML = `<td>${date}</td><td>${mins} min</td><td>${s.credits_used || '-'}</td><td>${s.status}</td>`;
+          tbody.appendChild(row);
+        });
+      }
+    }
+
+    async function loadHistory() {
+      const data = await api('/credit-history');
+      const tbody = document.getElementById('history-body');
+      tbody.innerHTML = '';
+      if (data.ok && data.transactions) {
+        data.transactions.slice(0, 10).forEach(t => {
+          const row = document.createElement('tr');
+          const date = new Date(t.created_at).toLocaleString();
+          const amtClass = t.amount >= 0 ? 'color:#22c55e' : 'color:#ef4444';
+          row.innerHTML = `<td>${date}</td><td>${t.type}</td><td style="${amtClass}">${t.amount > 0 ? '+' : ''}${t.amount}</td><td>${t.balance_after}</td><td>${t.description || '-'}</td>`;
+          tbody.appendChild(row);
+        });
+      }
+    }
+
+    function logout() {
+      fetch('/api/logout', { method: 'POST' }).then(() => location.href = '/login');
+    }
+
+    loadInfo();
+    loadSessions();
+    loadHistory();
+  </script>
+</body>
+</html>
+
