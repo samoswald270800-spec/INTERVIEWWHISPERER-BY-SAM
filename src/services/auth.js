@@ -5,6 +5,7 @@
  */
 
 import bcrypt from 'bcrypt';
+import config from '../config/index.js';
 
 const SALT_ROUNDS = 12;
 
@@ -27,8 +28,8 @@ export async function verifyPassword(password, hash) {
  * Easter egg login - checks SUPER_ADMIN_USERNAME and SUPER_ADMIN_PASSWORD env vars
  */
 export async function authenticateSuperAdmin(username, password) {
-  const validUsername = process.env.SUPER_ADMIN_USERNAME;
-  const validPassword = process.env.SUPER_ADMIN_PASSWORD;
+  const validUsername = config.SUPER_ADMIN_USERNAME;
+  const validPassword = config.SUPER_ADMIN_PASSWORD;
 
   if (!validUsername || !validPassword) {
     return { success: false, error: 'Super Admin not configured' };
@@ -98,7 +99,6 @@ export async function authenticateUser(supabase, username, password, adminId = n
     .select('*, admins!inner(id, name, status)')
     .eq('username', username);
 
-  // If adminId provided, scope to that admin's users
   if (adminId) {
     query = query.eq('admin_id', adminId);
   }
@@ -109,14 +109,12 @@ export async function authenticateUser(supabase, username, password, adminId = n
     return { success: false, error: 'Invalid credentials' };
   }
 
-  // Find a user with matching password (could be same username under different admins)
   for (const user of users) {
     if (user.status !== 'active') continue;
     if (user.admins.status !== 'active') continue;
 
     const valid = await verifyPassword(password, user.password_hash);
     if (valid) {
-      // Update last login
       await supabase
         .from('users')
         .update({ last_login: new Date().toISOString() })
@@ -238,3 +236,16 @@ export async function logAudit(supabase, { actorType, actorId, action, targetTyp
     console.error('Failed to log audit:', error.message);
   }
 }
+
+export default {
+  hashPassword,
+  verifyPassword,
+  authenticateSuperAdmin,
+  authenticateAdmin,
+  authenticateUser,
+  createAdmin,
+  createUser,
+  updateUserPermissions,
+  logAudit,
+};
+

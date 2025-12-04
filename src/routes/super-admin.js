@@ -5,9 +5,9 @@
  */
 
 import express from 'express';
+import { requireSuperAdmin } from '../middleware/auth.js';
 import {
   createAdmin,
-  hashPassword,
   logAudit,
 } from '../services/auth.js';
 import {
@@ -16,16 +16,6 @@ import {
 } from '../services/credits.js';
 
 const router = express.Router();
-
-/**
- * Middleware: Require Super Admin
- */
-function requireSuperAdmin(req, res, next) {
-  if (req.session?.role !== 'super_admin') {
-    return res.status(403).json({ error: 'Super Admin access required' });
-  }
-  next();
-}
 
 router.use(requireSuperAdmin);
 
@@ -82,7 +72,6 @@ router.get('/admins', async (req, res) => {
 
     if (error) throw error;
 
-    // Get user counts
     const adminIds = admins.map(a => a.id);
     const { data: userCounts } = await supabase
       .from('users')
@@ -108,7 +97,6 @@ router.get('/admins', async (req, res) => {
 
 /**
  * GET /api/super-admin/admins/:id/users
- * Get all users under a specific admin (expandable view)
  */
 router.get('/admins/:id/users', async (req, res) => {
   try {
@@ -142,12 +130,7 @@ router.post('/admins', async (req, res) => {
       return res.status(400).json({ error: 'name, username, and password are required' });
     }
 
-    const result = await createAdmin(supabase, {
-      name,
-      username,
-      password,
-      credits,
-    });
+    const result = await createAdmin(supabase, { name, username, password, credits });
 
     if (!result.success) {
       return res.status(400).json({ error: result.error });
@@ -173,20 +156,15 @@ router.post('/admins', async (req, res) => {
 
 /**
  * DELETE /api/super-admin/admins/:id
- * Delete admin and force logout all their users
  */
 router.delete('/admins/:id', async (req, res) => {
   try {
     const { supabase, forceLogoutAdmin, forceLogoutAllUsersUnderAdmin } = req.app.locals;
     const { id } = req.params;
 
-    // Force logout the admin
     await forceLogoutAdmin(id);
-
-    // Force logout all users under this admin
     await forceLogoutAllUsersUnderAdmin(supabase, id);
 
-    // Delete admin (cascade deletes users)
     const { error } = await supabase.from('admins').delete().eq('id', id);
     if (error) throw error;
 
@@ -209,7 +187,6 @@ router.delete('/admins/:id', async (req, res) => {
 
 /**
  * PATCH /api/super-admin/admins/:id/status
- * Update admin status (active/suspended)
  */
 router.patch('/admins/:id/status', async (req, res) => {
   try {
@@ -221,14 +198,9 @@ router.patch('/admins/:id/status', async (req, res) => {
       return res.status(400).json({ error: 'status must be active or suspended' });
     }
 
-    const { error } = await supabase
-      .from('admins')
-      .update({ status })
-      .eq('id', id);
-
+    const { error } = await supabase.from('admins').update({ status }).eq('id', id);
     if (error) throw error;
 
-    // If suspended, force logout admin and all their users
     if (status === 'suspended') {
       await forceLogoutAdmin(id);
       await forceLogoutAllUsersUnderAdmin(supabase, id);
@@ -254,7 +226,6 @@ router.patch('/admins/:id/status', async (req, res) => {
 
 /**
  * POST /api/super-admin/admins/:id/force-logout
- * Force logout an admin
  */
 router.post('/admins/:id/force-logout', async (req, res) => {
   try {
@@ -272,7 +243,6 @@ router.post('/admins/:id/force-logout', async (req, res) => {
 
 /**
  * POST /api/super-admin/users/:id/force-logout
- * Force logout a user (Super Admin can logout any user)
  */
 router.post('/users/:id/force-logout', async (req, res) => {
   try {
@@ -290,7 +260,6 @@ router.post('/users/:id/force-logout', async (req, res) => {
 
 /**
  * PATCH /api/super-admin/users/:id/permissions
- * Update user permissions (Super Admin can update any user)
  */
 router.patch('/users/:id/permissions', async (req, res) => {
   try {
@@ -427,3 +396,4 @@ router.get('/audit-logs', async (req, res) => {
 });
 
 export default router;
+

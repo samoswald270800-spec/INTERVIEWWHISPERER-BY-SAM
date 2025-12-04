@@ -7,11 +7,7 @@
  * - Screen Analysis: 1 token per analysis
  */
 
-// Credit rates
-const TOKENS_PER_HOUR = 10;           // 10 tokens = 1 hour (1 token = 6 mins)
-const MIN_CHARGE_MINUTES = 15;        // Minimum 15 minutes charge
-const MIN_CHARGE_TOKENS = 3;          // 15 mins = 3 tokens (rounded up)
-const SCREEN_ANALYSIS_COST = 1;       // 1 token per screen analysis
+import config from '../config/index.js';
 
 /**
  * Start a new interview session
@@ -19,15 +15,17 @@ const SCREEN_ANALYSIS_COST = 1;       // 1 token per screen analysis
 export async function startSession(supabase, userId, adminId) {
   if (!supabase) return { success: false, error: 'Supabase not configured' };
   
-  // Check if user has minimum credits
   const { data: user } = await supabase
     .from('users')
     .select('credits')
     .eq('id', userId)
     .single();
   
-  if (!user || user.credits < MIN_CHARGE_TOKENS) {
-    return { success: false, error: `Insufficient credits. Minimum ${MIN_CHARGE_TOKENS} tokens required (${MIN_CHARGE_MINUTES} minutes).` };
+  if (!user || user.credits < config.MIN_CHARGE_TOKENS) {
+    return { 
+      success: false, 
+      error: `Insufficient credits. Minimum ${config.MIN_CHARGE_TOKENS} tokens required (${config.MIN_CHARGE_MINUTES} minutes).` 
+    };
   }
   
   const { data, error } = await supabase
@@ -71,7 +69,7 @@ export async function endSession(supabase, sessionId) {
   // Calculate credits: 1 token = 6 minutes = 360 seconds
   // Minimum: 15 minutes = 3 tokens
   let creditsUsed = Math.ceil(totalSeconds / 360);
-  if (creditsUsed < MIN_CHARGE_TOKENS) creditsUsed = MIN_CHARGE_TOKENS;
+  if (creditsUsed < config.MIN_CHARGE_TOKENS) creditsUsed = config.MIN_CHARGE_TOKENS;
 
   const { data, error } = await supabase
     .from('sessions')
@@ -145,11 +143,11 @@ export async function chargeScreenAnalysis(supabase, userId, adminId) {
     .eq('id', userId)
     .single();
   
-  if (!user || user.credits < SCREEN_ANALYSIS_COST) {
+  if (!user || user.credits < config.SCREEN_ANALYSIS_COST) {
     return { success: false, error: 'Insufficient credits for screen analysis' };
   }
   
-  const newCredits = user.credits - SCREEN_ANALYSIS_COST;
+  const newCredits = user.credits - config.SCREEN_ANALYSIS_COST;
   
   await supabase
     .from('users')
@@ -162,26 +160,26 @@ export async function chargeScreenAnalysis(supabase, userId, adminId) {
       user_id: userId,
       admin_id: adminId,
       type: 'screen_analysis',
-      amount: -SCREEN_ANALYSIS_COST,
+      amount: -config.SCREEN_ANALYSIS_COST,
       balance_after: newCredits,
       description: 'Screen analysis'
     });
 
-  return { success: true, charged: SCREEN_ANALYSIS_COST, newBalance: newCredits };
+  return { success: true, charged: config.SCREEN_ANALYSIS_COST, newBalance: newCredits };
 }
 
 /**
  * Get minimum charge tokens
  */
 export function getMinimumChargeTokens() {
-  return MIN_CHARGE_TOKENS;
+  return config.MIN_CHARGE_TOKENS;
 }
 
 /**
  * Get screen analysis cost
  */
 export function getScreenAnalysisCost() {
-  return SCREEN_ANALYSIS_COST;
+  return config.SCREEN_ANALYSIS_COST;
 }
 
 /**
@@ -379,3 +377,21 @@ export async function getAdminSessionHistory(supabase, adminId, limit = 100) {
   if (error) return { success: false, error: error.message };
   return { success: true, sessions: data };
 }
+
+export default {
+  startSession,
+  endSession,
+  getActiveSession,
+  chargeScreenAnalysis,
+  getMinimumChargeTokens,
+  getScreenAnalysisCost,
+  assignCreditsToUser,
+  reclaimCreditsFromUser,
+  addCreditsToAdmin,
+  deductCreditsFromAdmin,
+  getUserCreditHistory,
+  getAdminCreditHistory,
+  getUserSessionHistory,
+  getAdminSessionHistory,
+};
+

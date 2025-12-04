@@ -5,10 +5,10 @@
  */
 
 import express from 'express';
+import { requireConsultancyAdmin } from '../middleware/auth.js';
 import {
   createUser,
   updateUserPermissions,
-  hashPassword,
   logAudit,
 } from '../services/auth.js';
 import {
@@ -20,17 +20,7 @@ import {
 
 const router = express.Router();
 
-/**
- * Middleware: Require Admin
- */
-function requireAdmin(req, res, next) {
-  if (req.session?.role !== 'admin') {
-    return res.status(403).json({ error: 'Admin access required' });
-  }
-  next();
-}
-
-router.use(requireAdmin);
+router.use(requireConsultancyAdmin);
 
 /**
  * GET /api/admin/stats
@@ -106,7 +96,6 @@ router.get('/users', async (req, res) => {
 
     if (error) throw error;
 
-    // Get session counts
     const userIds = users.map(u => u.id);
     const { data: sessionCounts } = await supabase
       .from('sessions')
@@ -144,7 +133,6 @@ router.post('/users', async (req, res) => {
       return res.status(400).json({ error: 'username and password are required' });
     }
 
-    // Check admin has enough credits
     const { data: admin } = await supabase
       .from('admins')
       .select('credits')
@@ -167,7 +155,6 @@ router.post('/users', async (req, res) => {
       return res.status(400).json({ error: result.error });
     }
 
-    // Assign credits if requested
     if (credits > 0) {
       await assignCreditsToUser(supabase, {
         userId: result.user.id,
@@ -216,10 +203,8 @@ router.delete('/users/:id', async (req, res) => {
       return res.status(404).json({ error: 'User not found' });
     }
 
-    // Force logout the user
     await forceLogoutUser(id);
 
-    // Return credits to admin
     if (user.credits > 0) {
       await reclaimCreditsFromUser(supabase, {
         userId: id,
@@ -252,7 +237,6 @@ router.delete('/users/:id', async (req, res) => {
 
 /**
  * PATCH /api/admin/users/:id/status
- * Update user status (active/suspended)
  */
 router.patch('/users/:id/status', async (req, res) => {
   try {
@@ -265,7 +249,6 @@ router.patch('/users/:id/status', async (req, res) => {
       return res.status(400).json({ error: 'status must be active or suspended' });
     }
 
-    // Verify user belongs to this admin
     const { data: user } = await supabase
       .from('users')
       .select('id')
@@ -277,14 +260,9 @@ router.patch('/users/:id/status', async (req, res) => {
       return res.status(404).json({ error: 'User not found' });
     }
 
-    const { error } = await supabase
-      .from('users')
-      .update({ status })
-      .eq('id', id);
-
+    const { error } = await supabase.from('users').update({ status }).eq('id', id);
     if (error) throw error;
 
-    // If suspended, force logout user
     if (status === 'suspended') {
       await forceLogoutUser(id);
     }
@@ -309,7 +287,6 @@ router.patch('/users/:id/status', async (req, res) => {
 
 /**
  * POST /api/admin/users/:id/force-logout
- * Force logout a user
  */
 router.post('/users/:id/force-logout', async (req, res) => {
   try {
@@ -317,7 +294,6 @@ router.post('/users/:id/force-logout', async (req, res) => {
     const adminId = req.session.supabaseId;
     const { id } = req.params;
 
-    // Verify user belongs to this admin
     const { data: user } = await supabase
       .from('users')
       .select('id')
@@ -402,12 +378,7 @@ router.post('/users/:id/credits/assign', async (req, res) => {
       return res.status(400).json({ error: 'amount must be positive' });
     }
 
-    const result = await assignCreditsToUser(supabase, {
-      userId: id,
-      adminId,
-      amount,
-      description,
-    });
+    const result = await assignCreditsToUser(supabase, { userId: id, adminId, amount, description });
 
     if (!result.success) {
       return res.status(400).json({ error: result.error });
@@ -434,12 +405,7 @@ router.post('/users/:id/credits/reclaim', async (req, res) => {
       return res.status(400).json({ error: 'amount must be positive' });
     }
 
-    const result = await reclaimCreditsFromUser(supabase, {
-      userId: id,
-      adminId,
-      amount,
-      description,
-    });
+    const result = await reclaimCreditsFromUser(supabase, { userId: id, adminId, amount, description });
 
     if (!result.success) {
       return res.status(400).json({ error: result.error });
@@ -495,3 +461,4 @@ router.get('/credit-history', async (req, res) => {
 });
 
 export default router;
+

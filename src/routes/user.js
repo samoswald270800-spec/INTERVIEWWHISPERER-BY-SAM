@@ -5,11 +5,8 @@
  */
 
 import express from 'express';
+import { requireUser } from '../middleware/auth.js';
 import {
-  startSession,
-  endSession,
-  getActiveSession,
-  chargeScreenAnalysis,
   getUserCreditHistory,
   getUserSessionHistory,
   getMinimumChargeTokens,
@@ -17,16 +14,6 @@ import {
 } from '../services/credits.js';
 
 const router = express.Router();
-
-/**
- * Middleware: Require User
- */
-function requireUser(req, res, next) {
-  if (req.session?.role !== 'user') {
-    return res.status(403).json({ error: 'User access required' });
-  }
-  next();
-}
 
 router.use(requireUser);
 
@@ -142,3 +129,4 @@ router.get('/sessions', async (req, res) => {
 });
 
 export default router;
+
