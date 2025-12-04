@@ -359,18 +359,18 @@ app.post("/api/auth/super-admin", async (req, res) => {
       return res.status(503).json({ error: "Multi-tenant system not configured" });
     }
 
-    const { email, password } = req.body || {};
-    if (!email || !password) {
+    const { username, password } = req.body || {};
+    if (!username || !password) {
       return res.status(400).json({ error: "Username and password are required" });
     }
 
-    const result = await authenticateSuperAdmin(supabase, email, password);
+    const result = await authenticateSuperAdmin(username, password);
     if (!result.success) {
       return res.status(401).json({ error: result.error });
     }
 
     // Create session
-    req.session.userId = result.user.email;
+    req.session.userId = result.user.username;
     req.session.supabaseId = result.user.id;
     req.session.role = "super_admin";
     req.session.ip = req.headers["x-forwarded-for"] || req.ip;
@@ -409,18 +409,18 @@ app.post("/api/auth/admin", async (req, res) => {
       return res.status(503).json({ error: "Multi-tenant system not configured" });
     }
 
-    const { email, password } = req.body || {};
-    if (!email || !password) {
+    const { username, password } = req.body || {};
+    if (!username || !password) {
       return res.status(400).json({ error: "Username and password are required" });
     }
 
-    const result = await authenticateAdmin(supabase, email, password);
+    const result = await authenticateAdmin(supabase, username, password);
     if (!result.success) {
       return res.status(401).json({ error: result.error });
     }
 
     // Create session
-    req.session.userId = result.user.email;
+    req.session.userId = result.user.username;
     req.session.supabaseId = result.user.id;
     req.session.role = "admin";
     req.session.credits = result.user.credits;
@@ -461,12 +461,12 @@ app.post("/api/auth/user", async (req, res) => {
       return res.status(503).json({ error: "Multi-tenant system not configured" });
     }
 
-    const { email, password } = req.body || {};
-    if (!email || !password) {
+    const { username, password } = req.body || {};
+    if (!username || !password) {
       return res.status(400).json({ error: "Username and password are required" });
     }
 
-    const result = await authenticateUser(supabase, email, password);
+    const result = await authenticateUser(supabase, username, password);
     if (!result.success) {
       return res.status(401).json({ error: result.error });
     }
@@ -511,7 +511,7 @@ app.post("/api/auth/user", async (req, res) => {
         return res.status(500).json({ error: "Login failed (session error)" });
       }
 
-      req.session.userId = result.user.email;
+      req.session.userId = result.user.username;
       req.session.supabaseId = result.user.id;
       req.session.role = "user";
       req.session.adminId = result.user.adminId;
