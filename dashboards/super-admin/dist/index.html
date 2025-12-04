@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Super Admin</title>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Manrope:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    *{box-sizing:border-box;margin:0;padding:0}
+    body{font-family:'Manrope',sans-serif;background:#030306;color:#f8fafc;min-height:100vh}
+    body::before{content:"";position:fixed;inset:0;background:radial-gradient(ellipse at 20% 0%,rgba(139,92,246,.2),transparent 50%),radial-gradient(ellipse at 80% 100%,rgba(6,182,212,.15),transparent 50%);pointer-events:none}
+    .wrap{max-width:1320px;margin:0 auto;padding:40px 24px;position:relative}
+    header{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:center;gap:20px;margin-bottom:32px;padding-bottom:24px;border-bottom:1px solid rgba(255,255,255,.08)}
+    h1{font-family:'Space Grotesk',sans-serif;font-size:28px;background:linear-gradient(135deg,#f59e0b,#f43f5e);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+    .hdr-right{display:flex;gap:12px;flex-wrap:wrap}
+    .btn{border:none;border-radius:14px;padding:12px 20px;font-weight:600;font-size:14px;cursor:pointer;transition:all .25s;display:inline-flex;align-items:center;gap:8px}
+    .btn-primary{background:linear-gradient(135deg,#8b5cf6,#7c3aed);color:#fff;box-shadow:0 10px 30px rgba(124,58,237,.3)}
+    .btn-ghost{background:rgba(255,255,255,.05);color:#94a3b8;border:1px solid rgba(255,255,255,.1)}
+    .btn:hover{transform:translateY(-2px)}
+    .stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:18px;margin-bottom:28px}
+    .stat{background:rgba(12,14,20,.7);border:1px solid rgba(255,255,255,.08);border-radius:20px;padding:22px;backdrop-filter:blur(12px)}
+    .stat-label{color:#64748b;font-size:12px;text-transform:uppercase;letter-spacing:.08em}
+    .stat-value{font-family:'Space Grotesk',sans-serif;font-size:32px;margin-top:6px}
+    .grid{display:grid;grid-template-columns:1fr 340px;gap:24px}
+    @media(max-width:1024px){.grid{grid-template-columns:1fr}}
+    .panel{background:rgba(12,14,20,.65);border:1px solid rgba(255,255,255,.08);border-radius:24px;padding:24px;backdrop-filter:blur(16px)}
+    .panel h2{font-family:'Space Grotesk',sans-serif;font-size:18px;margin-bottom:18px}
+    .list{display:flex;flex-direction:column;gap:14px}
+    .card{background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.08);border-radius:18px;padding:18px;display:grid;grid-template-columns:auto 1fr auto;gap:14px;align-items:center;transition:border .2s}
+    .card:hover{border-color:rgba(255,255,255,.18)}
+    .avatar{width:48px;height:48px;border-radius:14px;background:linear-gradient(135deg,#06b6d4,#8b5cf6);display:flex;align-items:center;justify-content:center;font-weight:700}
+    .meta{color:#64748b;font-size:13px}
+    .pill{display:inline-block;padding:4px 10px;border-radius:999px;font-size:11px;text-transform:uppercase;letter-spacing:.06em}
+    .pill.active{background:rgba(16,185,129,.18);color:#34d399}
+    .pill.suspended{background:rgba(244,63,94,.18);color:#f43f5e}
+    .credits{font-weight:700;color:#f59e0b}
+    .actions{display:flex;gap:8px}
+    .icon-btn{width:38px;height:38px;border-radius:12px;border:1px solid rgba(255,255,255,.1);background:rgba(255,255,255,.04);color:#f8fafc;cursor:pointer;transition:background .2s}
+    .icon-btn:hover{background:rgba(255,255,255,.1)}
+    .icon-btn.danger:hover{background:rgba(244,63,94,.2);color:#f43f5e}
+    .qa{display:flex;flex-direction:column;gap:12px}
+    .qa-item{padding:16px;border-radius:16px;border:1px solid rgba(255,255,255,.08);background:rgba(255,255,255,.02);display:flex;gap:14px;align-items:center;cursor:pointer;transition:transform .2s,border .2s}
+    .qa-item:hover{transform:translateX(4px);border-color:rgba(255,255,255,.15)}
+    .qa-icon{width:42px;height:42px;border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:18px}
+    .qa-icon.violet{background:rgba(139,92,246,.18)}
+    .qa-icon.cyan{background:rgba(6,182,212,.18)}
+    .qa-icon.rose{background:rgba(244,63,94,.18)}
+    dialog{border:none;background:transparent;padding:0}
+    dialog::backdrop{background:rgba(0,0,0,.7);backdrop-filter:blur(4px)}
+    .modal{width:min(420px,90vw);background:rgba(10,12,18,.97);border:1px solid rgba(255,255,255,.1);border-radius:24px;padding:28px}
+    .modal h3{font-family:'Space Grotesk',sans-serif;margin-bottom:18px}
+    .field{margin-bottom:16px}
+    .field label{display:block;margin-bottom:6px;font-size:12px;color:#64748b;text-transform:uppercase;letter-spacing:.08em}
+    .field input{width:100%;padding:14px;border-radius:12px;border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.04);color:#f8fafc;font-family:inherit}
+    .field input:focus{outline:none;border-color:#8b5cf6;box-shadow:0 0 0 3px rgba(139,92,246,.2)}
+    .modal-actions{display:flex;gap:12px;margin-top:8px}
+    .toast{position:fixed;bottom:28px;right:28px;padding:14px 22px;background:rgba(10,12,18,.95);border:1px solid rgba(255,255,255,.1);border-radius:14px;opacity:0;transform:translateY(16px);transition:all .3s}
+    .toast.show{opacity:1;transform:translateY(0)}
+    .empty{padding:50px 20px;text-align:center;color:#64748b;border:1px dashed rgba(255,255,255,.1);border-radius:18px}
+  </style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div><h1>🔐 Super Admin</h1><p style="color:#64748b;margin-top:4px">Platform Control Center</p></div>
+    <div class="hdr-right">
+      <button class="btn btn-ghost" onclick="location.href='/'">← Back to Tool</button>
+      <button class="btn btn-primary" onclick="openModal()">+ New Admin</button>
+    </div>
+  </header>
+  <section class="stats">
+    <div class="stat"><div class="stat-label">Total Admins</div><div class="stat-value" id="sAdmins">—</div></div>
+    <div class="stat"><div class="stat-label">Total Users</div><div class="stat-value" id="sUsers">—</div></div>
+    <div class="stat"><div class="stat-label">Active Today</div><div class="stat-value" id="sActive">—</div></div>
+    <div class="stat"><div class="stat-label">Credits Pool</div><div class="stat-value" id="sCredits">—</div></div>
+  </section>
+  <div class="grid">
+    <div class="panel"><h2>Admins</h2><div id="adminList" class="list"><div class="empty">Loading...</div></div></div>
+    <div class="panel"><h2>Quick Actions</h2>
+      <div class="qa">
+        <div class="qa-item" onclick="openModal()"><div class="qa-icon violet">+</div><div><strong>Add Admin</strong><p style="margin:2px 0 0;color:#64748b;font-size:13px">Create new business</p></div></div>
+        <div class="qa-item" onclick="loadAll()"><div class="qa-icon cyan">↻</div><div><strong>Refresh</strong><p style="margin:2px 0 0;color:#64748b;font-size:13px">Reload data</p></div></div>
+        <div class="qa-item" onclick="logout()"><div class="qa-icon rose">⏻</div><div><strong>Logout</strong><p style="margin:2px 0 0;color:#64748b;font-size:13px">End session</p></div></div>
+      </div>
+    </div>
+  </div>
+</div>
+<dialog id="dlg">
+  <div class="modal">
+    <h3>Create Admin</h3>
+    <form id="frm">
+      <div class="field"><label>Business Name</label><input id="fName" required placeholder="Acme Corp"></div>
+      <div class="field"><label>Username</label><input id="fUser" required placeholder="acme"></div>
+      <div class="field"><label>Password</label><input id="fPass" type="password" required placeholder="Strong password"></div>
+      <div class="field"><label>Credits</label><input id="fCred" type="number" value="100"></div>
+      <div class="modal-actions">
+        <button type="button" class="btn btn-ghost" onclick="closeModal()">Cancel</button>
+        <button type="submit" class="btn btn-primary">Create</button>
+      </div>
+    </form>
+  </div>
+</dialog>
+<div class="toast" id="toast"></div>
+<script>
+const listEl=document.getElementById('adminList'),toastEl=document.getElementById('toast');
+document.getElementById('frm').onsubmit=async e=>{e.preventDefault();try{const r=await fetch('/api/super-admin/admins',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:document.getElementById('fName').value,username:document.getElementById('fUser').value,password:document.getElementById('fPass').value,credits:+document.getElementById('fCred').value||0})});if(!r.ok)throw new Error();toast('Admin created');closeModal();e.target.reset();loadAll()}catch(_){toast('Failed',1)}};
+function openModal(){document.getElementById('dlg').showModal()}
+function closeModal(){document.getElementById('dlg').close()}
+async function loadAll(){await Promise.all([loadStats(),loadAdmins()])}
+async function loadStats(){try{const r=await fetch('/api/super-admin/stats');if(!r.ok)return;const d=await r.json();document.getElementById('sAdmins').textContent=d.totalAdmins||0;document.getElementById('sUsers').textContent=d.totalUsers||0;document.getElementById('sActive').textContent=d.activeToday||0;document.getElementById('sCredits').textContent=d.totalCredits||0}catch(_){}}
+async function loadAdmins(){listEl.innerHTML='<div class="empty">Loading...</div>';try{const r=await fetch('/api/super-admin/admins');if(!r.ok)throw 0;const d=await r.json();render(d.admins||[])}catch(_){listEl.innerHTML='<div class="empty">Failed to load</div>'}}
+function render(arr){if(!arr.length){listEl.innerHTML='<div class="empty">No admins yet</div>';return}listEl.innerHTML=arr.map(a=>`<div class="card"><div class="avatar">${(a.name||a.username||'?').slice(0,2).toUpperCase()}</div><div><div style="font-weight:600">${a.name||a.username}</div><div class="meta">@${a.username}</div></div><div style="text-align:right"><span class="pill ${a.status==='active'?'active':'suspended'}">${a.status}</span><div class="credits" style="margin-top:6px">⚡ ${a.credits||0}</div><div class="actions" style="margin-top:8px"><button class="icon-btn" onclick="addCred('${a.id}')" title="Credits">💳</button><button class="icon-btn" onclick="toggleSt('${a.id}','${a.status}')" title="Status">⏯</button><button class="icon-btn" onclick="forceOut('${a.id}')" title="Logout">⏏</button><button class="icon-btn danger" onclick="delAdmin('${a.id}')" title="Delete">🗑</button></div></div></div>`).join('')}
+async function addCred(id){const a=prompt('Credits to add:');if(!a)return;try{await fetch(`/api/super-admin/admins/${id}/credits`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({amount:+a})});toast('Done');loadAll()}catch(_){toast('Failed',1)}}
+async function toggleSt(id,cur){try{await fetch(`/api/super-admin/admins/${id}/status`,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({status:cur==='active'?'suspended':'active'})});toast('Updated');loadAll()}catch(_){toast('Failed',1)}}
+async function forceOut(id){if(!confirm('Force logout?'))return;try{await fetch(`/api/super-admin/admins/${id}/force-logout`,{method:'POST'});toast('Logged out')}catch(_){toast('Failed',1)}}
+async function delAdmin(id){if(!confirm('Delete admin?'))return;try{await fetch(`/api/super-admin/admins/${id}`,{method:'DELETE'});toast('Deleted');loadAll()}catch(_){toast('Failed',1)}}
+async function logout(){await fetch('/api/logout',{method:'POST'});location.href='/login'}
+function toast(m,err){toastEl.textContent=m;toastEl.style.borderColor=err?'rgba(244,63,94,.4)':'rgba(16,185,129,.3)';toastEl.classList.add('show');clearTimeout(toast.t);toast.t=setTimeout(()=>toastEl.classList.remove('show'),2500)}
+loadAll();
+</script>
+</body>
+</html>
