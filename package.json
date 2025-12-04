@@ -12,6 +12,7 @@
   },
   "dependencies": {
     "@ai-sdk/anthropic": "^2.0.50",
+    "@supabase/supabase-js": "^2.86.0",
     "ai": "^5.0.104",
     "connect-redis": "^8.0.0",
     "dotenv": "^16.4.5",

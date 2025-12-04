@@ -22,6 +22,22 @@ const anthropic = createAnthropic({
   apiKey: process.env.ANTHROPIC_API_KEY || "",
 });
 
+/* =======================================================================
+   Supabase client (optional, ready for future use)
+   ======================================================================= */
+import { createClient as createSupabaseClient } from '@supabase/supabase-js';
+
+let supabase = null;
+if (process.env.SUPABASE_URL && process.env.SUPABASE_KEY) {
+  supabase = createSupabaseClient(
+    process.env.SUPABASE_URL,
+    process.env.SUPABASE_KEY
+  );
+  console.log("✅ Supabase client initialized");
+} else {
+  console.log("ℹ️  Supabase not configured (optional)");
+}
+
 console.log("🚀 Server starting... (Version: Unified Login Handler)");
 
 // Trust proxy for Render so secure cookies work
