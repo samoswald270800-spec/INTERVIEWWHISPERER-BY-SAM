@@ -361,7 +361,7 @@ app.post("/api/auth/super-admin", async (req, res) => {
 
     const { email, password } = req.body || {};
     if (!email || !password) {
-      return res.status(400).json({ error: "Email and password are required" });
+      return res.status(400).json({ error: "Username and password are required" });
     }
 
     const result = await authenticateSuperAdmin(supabase, email, password);
@@ -411,7 +411,7 @@ app.post("/api/auth/admin", async (req, res) => {
 
     const { email, password } = req.body || {};
     if (!email || !password) {
-      return res.status(400).json({ error: "Email and password are required" });
+      return res.status(400).json({ error: "Username and password are required" });
     }
 
     const result = await authenticateAdmin(supabase, email, password);
@@ -463,7 +463,7 @@ app.post("/api/auth/user", async (req, res) => {
 
     const { email, password } = req.body || {};
     if (!email || !password) {
-      return res.status(400).json({ error: "Email and password are required" });
+      return res.status(400).json({ error: "Username and password are required" });
     }
 
     const result = await authenticateUser(supabase, email, password);
