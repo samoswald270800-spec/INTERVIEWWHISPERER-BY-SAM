@@ -202,3 +202,71 @@ input[type=range]::-webkit-slider-runnable-track {
     letter-spacing: 0.3px;
     text-align: center;
 }
+
+/* Divider */
+.settings-divider {
+    height: 1px;
+    background: rgba(255, 255, 255, 0.08);
+    margin-bottom: 16px;
+}
+
+/* Dashboard & Logout Buttons */
+.dashboard-btn,
+.logout-btn {
+    width: 100%;
+    padding: 12px 16px;
+    border: none;
+    border-radius: 10px;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.dashboard-btn {
+    background: linear-gradient(135deg, rgba(139, 92, 246, 0.2), rgba(59, 130, 246, 0.2));
+    border: 1px solid rgba(139, 92, 246, 0.3);
+    color: #a78bfa;
+}
+
+.dashboard-btn:hover {
+    background: linear-gradient(135deg, rgba(139, 92, 246, 0.3), rgba(59, 130, 246, 0.3));
+    transform: translateY(-2px);
+    box-shadow: 0 4px 15px rgba(139, 92, 246, 0.2);
+}
+
+.dashboard-btn-text {
+    flex: 1;
+    text-align: left;
+}
+
+.dashboard-btn-arrow {
+    opacity: 0.7;
+    transition: transform 0.2s ease;
+}
+
+.dashboard-btn:hover .dashboard-btn-arrow {
+    transform: translateX(3px);
+    opacity: 1;
+}
+
+.logout-group {
+    margin-top: 8px;
+    padding-top: 16px;
+    border-top: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.logout-btn {
+    background: rgba(239, 68, 68, 0.1);
+    border: 1px solid rgba(239, 68, 68, 0.2);
+    color: #f87171;
+    justify-content: center;
+}
+
+.logout-btn:hover {
+    background: rgba(239, 68, 68, 0.2);
+    transform: translateY(-1px);
+}

@@ -251,6 +251,63 @@ router.delete('/users/:id', async (req, res) => {
 });
 
 /**
+ * PATCH /api/admin/users/:id/status
+ * Update user status (active/suspended)
+ */
+router.patch('/users/:id/status', async (req, res) => {
+  try {
+    const { supabase, forceLogoutUser } = req.app.locals;
+    const adminId = req.session.supabaseId;
+    const { id } = req.params;
+    const { status } = req.body;
+
+    if (!['active', 'suspended'].includes(status)) {
+      return res.status(400).json({ error: 'status must be active or suspended' });
+    }
+
+    // Verify user belongs to this admin
+    const { data: user } = await supabase
+      .from('users')
+      .select('id')
+      .eq('id', id)
+      .eq('admin_id', adminId)
+      .single();
+
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    const { error } = await supabase
+      .from('users')
+      .update({ status })
+      .eq('id', id);
+
+    if (error) throw error;
+
+    // If suspended, force logout user
+    if (status === 'suspended') {
+      await forceLogoutUser(id);
+    }
+
+    await logAudit(supabase, {
+      actorType: 'admin',
+      actorId: adminId,
+      action: 'update_user_status',
+      targetType: 'user',
+      targetId: id,
+      details: { status },
+      ip: req.ip,
+      userAgent: req.headers['user-agent'],
+    });
+
+    res.json({ ok: true, status });
+  } catch (e) {
+    console.error('[Admin Update User Status]', e);
+    res.status(500).json({ error: 'Failed to update status' });
+  }
+});
+
+/**
  * POST /api/admin/users/:id/force-logout
  * Force logout a user
  */

@@ -706,169 +706,7 @@ function requireUserRole(req, res, next) {
   return res.status(403).json({ error: "User only" });
 }
 
-async function createTempUser(username, password, ttlHours = 24, permissions = {}) {
-  const ttlSeconds = ttlHours * 3600;
-  const now = Date.now();
-  const payload = {
-    password,
-    permissions, // Store permissions
-    createdAt: now,
-    expiresAt: now + ttlSeconds * 1000
-  };
-  await redisClient.set(`tempuser:${username}`, JSON.stringify(payload), { EX: ttlSeconds });
-}
-
-async function getTempUser(username) {
-  const raw = await redisClient.get(`tempuser:${username}`);
-  return raw ? JSON.parse(raw) : null;
-}
-
-async function deleteTempUser(username) {
-  await redisClient.del(`tempuser:${username}`);
-}
-
-
-
-// API endpoints
-app.post("/admin/api/users", requireAdmin, async (req, res) => {
-  const { username, password, hours = 24, permissions = {} } = req.body || {};
-
-  // basic validation to avoid writing unusable temp accounts
-  if (!username || !password) {
-    return res.status(400).json({ error: "username and password are required" });
-  }
-
-  const ttlHours = Number(hours);
-  if (!Number.isFinite(ttlHours) || ttlHours <= 0) {
-    return res.status(400).json({ error: "hours must be a positive number" });
-  }
-
-  await createTempUser(username, password, ttlHours, permissions);
-  return res.json({ ok: true });
-});
-
-app.get("/admin/api/users", requireAdmin, async (_req, res) => {
-  const users = [];
-  for await (const key of redisClient.scanIterator({ MATCH: "tempuser:*" })) {
-    const username = key.replace("tempuser:", "");
-    const data = await getTempUser(username);
-    const ttl = await redisClient.ttl(key);
-    users.push({
-      username,
-      ttlSeconds: ttl,
-      expiresAt: data.expiresAt,
-      permissions: data.permissions || { canExpand: true, canAnalyze: true }
-    });
-  }
-  return res.json({ ok: true, users });
-});
-
-app.delete("/admin/api/users/:username", requireAdmin, async (req, res) => {
-  await deleteTempUser(req.params.username);
-  res.json({ ok: true });
-});
-
-/* ---------- Admin: session management endpoints ---------- */
-/* Return list of active sessions (sessionId, userId, ip, loginAt, ttlSeconds) */
-app.get("/admin/api/sessions", requireAdmin, async (_req, res) => {
-  try {
-    const sessions = [];
-
-    // The session keys stored by connect-redis use the prefix we configured ("sess:")
-    for await (const key of redisClient.scanIterator({ MATCH: "sess:*" })) {
-      try {
-        const raw = await redisClient.get(key);
-        if (!raw) continue;
-
-        // Some session stores store JSON; parse it
-        let parsed;
-        try {
-          parsed = JSON.parse(raw);
-        } catch {
-          // If not JSON, skip
-          continue;
-        }
-
-        // sessionId is key without prefix
-        const sessionId = key.replace(/^sess:/, "");
-        const userId = parsed.userId || parsed.user || null;
-        const ip = parsed.ip || (parsed?.cookie?.ip) || null;
-        const loginAt = parsed.loginAt ? Number(parsed.loginAt) : null;
-
-        // TTL (seconds) - optional but useful
-        let ttlSeconds = null;
-        try {
-          const ttl = await redisClient.ttl(key);
-          ttlSeconds = typeof ttl === "number" ? ttl : null;
-        } catch {
-          ttlSeconds = null;
-        }
-
-        sessions.push({
-          sessionId,
-          userId,
-          ip,
-          loginAt,
-          ttlSeconds,
-        });
-      } catch (e) {
-        console.error("Error reading session key", key, e);
-      }
-    }
-
-    return res.json({ ok: true, sessions });
-  } catch (e) {
-    console.error("Failed to list sessions:", e);
-    return res.status(500).json({ error: "Failed to list sessions" });
-  }
-});
-
-/* Force-logout (destroy) a single session by sessionId */
-app.post("/admin/api/sessions/:sessionId/logout", requireAdmin, async (req, res) => {
-  try {
-    const { sessionId } = req.params;
-    if (!sessionId) return res.status(400).json({ error: "Missing sessionId" });
-
-    const key = `sess:${sessionId}`;
-
-    // Check existence
-    const exists = await redisClient.exists(key);
-    if (!exists) {
-      return res.status(404).json({ error: "Session not found" });
-    }
-
-    // Remove the session key (destroy session)
-    await redisClient.del(key);
-
-    // Optionally, if you prefer to use the store API:
-    // if (store && typeof store.destroy === 'function') {
-    //   await new Promise((resolve, reject) => store.destroy(sessionId, (err) => (err ? reject(err) : resolve())));
-    // }
-
-    return res.json({ ok: true, sessionId });
-  } catch (e) {
-    console.error("Failed to logout session:", e);
-    return res.status(500).json({ error: "Failed to logout session" });
-  }
-});
-
-// ...existing code continues (static serving etc.)...
-// Serve the Admin UI (React SPA build)
-
-
-/* ---------- Static & Admin SPA (order matters) ---------- */
-
-// React Admin build (protected) - Legacy admin console
-app.use(
-  "/admin",
-  requireAdmin,
-  express.static(path.join(__dirname, "admin", "dist"))
-);
-
-// SPA fallback for any nested admin routes
-app.get("/admin/*", requireAdmin, (req, res) => {
-  res.sendFile(path.join(__dirname, "admin", "dist", "index.html"));
-});
+/* ---------- Static serving ---------- */
 
 /* ---------- New Multi-Tenant Dashboard SPAs ---------- */
 
@@ -1121,6 +959,708 @@ ${modeText}
 /* Tailoring instructions (JD + Resume + Assignment) — highest priority content follows */
 You MUST prioritize:
 1) JOB DESCRIPTION (highest priority)
+2) RESUME (second priority for examples)
+3) ASSIGNMENT (use if relevant)
+
+JOB DESCRIPTION (highest priority):
+${JOB_DESC || "(JD not provided — give a strong general answer for the role based on resume)"}
+
+RESUME (second priority for concrete evidence and examples):
+${resume || "(no resume provided)"}
+
+ASSIGNMENT (use if relevant):
+${assignment || "(no assignment provided)"}
+
+${screenAnalysisContext ? `${screenAnalysisContext}` : ""}
+`.trim();
+
+    // Optionally record mode in session for admin visibility (non-critical)
+    if (req.session) req.session.mode = mode;
+
+    const r = await fetch("https://api.openai.com/v1/realtime/sessions", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        model: "gpt-4o-realtime-preview",
+
+        // audio in, text out
+        modalities: ["text"],
+
+        // Ensure PCM16 audio framing and server-side speech detection.
+        input_audio_format: "pcm16",
+        turn_detection: {
+          type: "server_vad",
+          threshold: 0.5,
+          prefix_padding_ms: 300,
+          silence_duration_ms: 1200,
+          create_response: true,
+          interrupt_response: true,
+        },
+
+        // Realtime transcription - English only
+        input_audio_transcription: {
+          model: "gpt-4o-transcribe",
+          language: "en"
+        },
+
+        // Dynamic instructions include GLOBAL rules + mode-specific behavior + JD/resume/assignment
+        instructions: fullInstructions,
+      }),
+    });
+
+    const session = await r.json();
+    res.json(session);
+  } catch (e) {
+    console.error("Session error:", e);
+    res.status(500).json({ error: String(e) });
+  }
+});
+
+/**
+ * POST /analyze-screen
+ * Auth: requireAuth
+ * Body: { image: dataURL/base64, transcript:[{q,a}], mode:'smart'|'god' }
+ * Returns: { analysis, mode, answer }
+ */
+app.post("/analyze-screen", requireAuth, async (req, res) => {
+  try {
+    // Check permissions & Rate Limit (skip for admin)
+    if (req.session.role !== "admin") {
+      const perms = req.session.permissions || { canAnalyze: true };
+      if (!perms.canAnalyze) {
+        return res.status(403).json({ error: "Screen analysis is disabled for your account." });
+      }
+
+      const limitCheck = await checkAnalyzeRateLimit(req.session.userId);
+      if (!limitCheck.allowed) {
+        return res.status(429).json({ error: limitCheck.error });
+      }
+    }
+
+    const {
+      screenshotBase64,         // new shape
+      sessionTranscript,        // new shape
+      image,                    // legacy shape
+      transcript,               // legacy shape (array or string)
+      preferredModel            // 'openai' | 'anthropic'
+    } = req.body || {};
+
+    // Normalize screenshot (required)
+    let screenshot = "";
+    if (typeof screenshotBase64 === "string" && screenshotBase64.trim()) {
+      screenshot = screenshotBase64.trim();
+    } else if (typeof image === "string" && image.trim()) {
+      screenshot = image.trim();
+    }
+    if (!screenshot) {
+      return res.status(400).json({ error: "screenshotBase64 (or image) is required" });
+    }
+    let imageDataUrl = screenshot.startsWith("data:")
+      ? screenshot
+      : `data:image/png;base64,${screenshot}`;
+
+    // Max size 25MB
+    if (imageDataUrl.length > 26_214_400) {
+      return res.status(413).json({ error: "Screenshot too large (max 25MB)" });
+    }
+
+    // Normalize transcript (optional)
+    let transcriptStr = "";
+    if (typeof sessionTranscript === "string") {
+      transcriptStr = sessionTranscript;
+    } else if (typeof transcript === "string") {
+      transcriptStr = transcript;
+    } else if (Array.isArray(transcript)) {
+      // Legacy array of {q,a} → flatten to readable string
+      transcriptStr = transcript
+        .map((t) => {
+          const q = (t?.q || "").toString().trim();
+          const a = (t?.a || "").toString().trim();
+          return [q && `Q: ${q}`, a && `A: ${a}`].filter(Boolean).join("\n");
+        })
+        .filter(Boolean)
+        .join("\n\n");
+    }
+    // Pull the most recent transcript (if any) from Redis so we send the full conversation
+    let redisTranscript = "";
+    if (req.sessionID) {
+      try {
+        redisTranscript = (await redisClient.get(`transcript:${req.sessionID}`)) || "";
+      } catch (err) {
+        console.warn("[analyze-screen] failed to read redis transcript", err);
+      }
+    }
+
+    // Combine Redis + incoming transcript and persist for future calls
+    const combinedTranscript = [redisTranscript, transcriptStr]
+      .filter(Boolean)
+      .join("\n\n")
+      .trim()
+      .slice(0, 50000);
+
+    if (req.sessionID && combinedTranscript) {
+      try {
+        await redisClient.set(`transcript:${req.sessionID}`, combinedTranscript, {
+          EX: 60 * 60 * 24,
+        });
+      } catch (err) {
+        console.warn("[analyze-screen] failed to persist redis transcript", err);
+      }
+    }
+
+    // Server-authored instructions (exact user-provided format)
+    const visionPrompt = `
+--------------------------------------------------------------------------------
+You are assisting a candidate in a live job interview.
+
+Your job is to analyze the screenshot with MAXIMUM detail, accuracy, and depth.  
+This analysis will be injected into a realtime model that answers interview questions, so it MUST be:
+- extremely detailed
+- extremely precise
+- business-focused
+- technically rigorous
+- fully structured
+- written in clean English
+- free of fluff
+- optimized to explain EVERYTHING on the screen digitally
+
+You MUST output ONLY a JSON object with exactly these required fields:
+
+{
+  "analysis": "...",
+  "key_points": "...",
+  "answer_guidance": "..."
+}
+
+REQUIREMENTS FOR EACH FIELD:
+
+1. "analysis":
+   - extremely detailed breakdown of everything visible in the screenshot
+   - describe charts, tables, metrics, UI elements, values, categories, patterns, anomalies
+   - include exact numbers and labels if readable
+   - infer the business meaning of each metric (conversion, retention, revenue, CAC, ROAS, etc.)
+   - connect visuals to possible user behavior, funnel stages, product performance
+   - describe what is healthy vs. concerning in the data
+
+2. "key_points":
+   - extract 6–20 bullet points summarizing the MOST important insights
+   - each bullet must contain a business implication
+   - do not repeat sentences
+   - must be short, sharp, high-signal bullets
+
+3. "answer_guidance":
+   - This is the MOST IMPORTANT PART.
+   - Explain EXACTLY how to answer ANY question the interviewer may ask based on this screen.
+   - Include:
+     • what the data *means*
+     • what insights matter most
+     • what actions a senior analyst/PM/marketer would recommend
+     • how to explain trends
+     • how to estimate root causes
+     • how to communicate this clearly in an interview
+   - This section must be 400–800 words minimum.
+
+GLOBAL RULES:
+- English only
+- First-person voice NOT needed here (the realtime model handles tone)
+- Do NOT mention screenshots, images, or that you are analyzing an image
+- Do NOT talk about AI, prompts, or instructions
+- Do NOT speculate about unreadable text (say “unreadable label” instead)
+- Everything must be factual, structured, and extremely high signal
+
+OUTPUT:
+Return ONLY the JSON. No explanations or text outside the JSON.
+--------------------------------------------------------------------------------
+`.trim();
+
+    // Helper: Timeout wrapper
+    const timeout = (prom, ms) => Promise.race([prom, new Promise((_, reject) => setTimeout(() => reject(new Error("Timeout")), ms))]);
+
+    // Helper: OpenAI Call
+    const callOpenAI = async () => {
+      const content = [];
+      if (combinedTranscript) {
+        content.push({ type: "text", text: `FULL TRANSCRIPT (from Redis):\n${combinedTranscript}` });
+      }
+      content.push({ type: "text", text: visionPrompt });
+      content.push({ type: "image_url", image_url: { url: imageDataUrl } });
+
+      const response = await openai.chat.completions.create({
+        model: "gpt-4o",
+        messages: [{ role: "user", content }],
+        temperature: 0.4,
+        max_tokens: 3000,
+        response_format: { type: "json_object" }
+      });
+      return JSON.parse(response.choices[0].message.content);
+    };
+
+    // Helper: Anthropic Call
+    const callAnthropic = async () => {
+      const base64Data = imageDataUrl.split(',')[1];
+      let promptText = visionPrompt;
+      if (combinedTranscript) {
+        promptText = `FULL TRANSCRIPT (from Redis):\n${combinedTranscript}\n\n${visionPrompt}`;
+      }
+
+      // Using Vercel AI SDK (Claude 3.5 Sonnet - using alias instead of version)
+      const { text } = await generateText({
+        model: anthropic('claude-3-5-sonnet'),
+        messages: [
+          {
+            role: 'user',
+            content: [
+              { type: 'text', text: promptText },
+              { type: 'image', image: base64Data }
+            ]
+          }
+        ],
+        maxTokens: 3000,
+        temperature: 0.4,
+      });
+
+      // Robust JSON extraction
+      const s = text.indexOf("{");
+      const e = text.lastIndexOf("}");
+      if (s !== -1 && e !== -1) return JSON.parse(text.slice(s, e + 1));
+      return JSON.parse(text);
+    };
+
+    let parsed;
+    const primary = preferredModel === 'anthropic' ? callAnthropic : callOpenAI;
+    const secondary = preferredModel === 'anthropic' ? callOpenAI : callAnthropic;
+    const primaryName = preferredModel === 'anthropic' ? 'Anthropic' : 'OpenAI';
+    const secondaryName = preferredModel === 'anthropic' ? 'OpenAI' : 'Anthropic';
+
+    try {
+      console.log(`[analyze-screen] Trying ${primaryName}...`);
+      parsed = await timeout(primary(), 30000); // 30s timeout
+    } catch (err) {
+      console.warn(`[analyze-screen] ${primaryName} failed/timeout:`, err.message);
+      console.warn(`[analyze-screen] Full error:`, err);
+      console.log(`[analyze-screen] Falling back to ${secondaryName}...`);
+      try {
+        parsed = await secondary();
+        console.log(`[analyze-screen] ${secondaryName} fallback succeeded`);
+      } catch (err2) {
+        console.error(`[analyze-screen] Both models failed.`);
+        console.error(`[analyze-screen] Primary error:`, err);
+        console.error(`[analyze-screen] Secondary error:`, err2);
+        return res.status(502).json({ error: "Analysis failed on both models." });
+      }
+    }
+
+    if (!parsed || typeof parsed !== "object") {
+      return res.status(502).json({ error: "bad_model_output", raw: "Invalid JSON" });
+    }
+
+    const analysis = String(parsed.analysis || "").trim();
+    const keyPoints = String(parsed.key_points || "").trim();
+    const answerGuidance = String(parsed.answer_guidance || "").trim();
+
+    const screenAnalysisContext =
+      analysis && answerGuidance
+        ? `<SCREEN_ANALYSIS>\n${analysis}\n\n${answerGuidance}\n</SCREEN_ANALYSIS>`
+        : "";
+
+    if (req.session && screenAnalysisContext) {
+      req.session.screenAnalysisContext = screenAnalysisContext;
+      try {
+        await new Promise((resolve, reject) =>
+          req.session.save((err) => (err ? reject(err) : resolve()))
+        );
+      } catch (err) {
+        console.warn("[analyze-screen] session save failed", err);
+      }
+    }
+
+    if (req.sessionID && screenAnalysisContext) {
+      try {
+        await redisClient.set(
+          `screen-analysis:${req.sessionID}`,
+          screenAnalysisContext,
+          { EX: 60 * 60 * 6 }
+        );
+      } catch (err) {
+        console.warn("[analyze-screen] failed to persist screen analysis", err);
+      }
+    }
+
+    return res.json({
+      analysis,
+      key_points: keyPoints,
+      answer_guidance: answerGuidance,
+      screen_analysis_context: screenAnalysisContext,
+    });
+  } catch (err) {
+    console.error("[analyze-screen] error:", err);
+    return res.status(500).json({ error: "internal_error" });
+  }
+});
+
+/* ---------- Start the server (Render-safe) ---------- */
+const PORT = process.env.PORT || 3000;
+const HOST = "0.0.0.0";
+
+app.listen(PORT, HOST, () => {
+  console.log(`✅ Server listening on http://${HOST}:${PORT}`);
+  console.log("   Paste a JD in the UI (Save JD) to tailor answers.");
+});
+
+2) RESUME (second priority for examples)
+3) ASSIGNMENT (use if relevant)
+
+JOB DESCRIPTION (highest priority):
+${JOB_DESC || "(JD not provided — give a strong general answer for the role based on resume)"}
+
+RESUME (second priority for concrete evidence and examples):
+${resume || "(no resume provided)"}
+
+ASSIGNMENT (use if relevant):
+${assignment || "(no assignment provided)"}
+
+${screenAnalysisContext ? `${screenAnalysisContext}` : ""}
+`.trim();
+
+    // Optionally record mode in session for admin visibility (non-critical)
+    if (req.session) req.session.mode = mode;
+
+    const r = await fetch("https://api.openai.com/v1/realtime/sessions", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        model: "gpt-4o-realtime-preview",
+
+        // audio in, text out
+        modalities: ["text"],
+
+        // Ensure PCM16 audio framing and server-side speech detection.
+        input_audio_format: "pcm16",
+        turn_detection: {
+          type: "server_vad",
+          threshold: 0.5,
+          prefix_padding_ms: 300,
+          silence_duration_ms: 1200,
+          create_response: true,
+          interrupt_response: true,
+        },
+
+        // Realtime transcription - English only
+        input_audio_transcription: {
+          model: "gpt-4o-transcribe",
+          language: "en"
+        },
+
+        // Dynamic instructions include GLOBAL rules + mode-specific behavior + JD/resume/assignment
+        instructions: fullInstructions,
+      }),
+    });
+
+    const session = await r.json();
+    res.json(session);
+  } catch (e) {
+    console.error("Session error:", e);
+    res.status(500).json({ error: String(e) });
+  }
+});
+
+/**
+ * POST /analyze-screen
+ * Auth: requireAuth
+ * Body: { image: dataURL/base64, transcript:[{q,a}], mode:'smart'|'god' }
+ * Returns: { analysis, mode, answer }
+ */
+app.post("/analyze-screen", requireAuth, async (req, res) => {
+  try {
+    // Check permissions & Rate Limit (skip for admin)
+    if (req.session.role !== "admin") {
+      const perms = req.session.permissions || { canAnalyze: true };
+      if (!perms.canAnalyze) {
+        return res.status(403).json({ error: "Screen analysis is disabled for your account." });
+      }
+
+      const limitCheck = await checkAnalyzeRateLimit(req.session.userId);
+      if (!limitCheck.allowed) {
+        return res.status(429).json({ error: limitCheck.error });
+      }
+    }
+
+    const {
+      screenshotBase64,         // new shape
+      sessionTranscript,        // new shape
+      image,                    // legacy shape
+      transcript,               // legacy shape (array or string)
+      preferredModel            // 'openai' | 'anthropic'
+    } = req.body || {};
+
+    // Normalize screenshot (required)
+    let screenshot = "";
+    if (typeof screenshotBase64 === "string" && screenshotBase64.trim()) {
+      screenshot = screenshotBase64.trim();
+    } else if (typeof image === "string" && image.trim()) {
+      screenshot = image.trim();
+    }
+    if (!screenshot) {
+      return res.status(400).json({ error: "screenshotBase64 (or image) is required" });
+    }
+    let imageDataUrl = screenshot.startsWith("data:")
+      ? screenshot
+      : `data:image/png;base64,${screenshot}`;
+
+    // Max size 25MB
+    if (imageDataUrl.length > 26_214_400) {
+      return res.status(413).json({ error: "Screenshot too large (max 25MB)" });
+    }
+
+    // Normalize transcript (optional)
+    let transcriptStr = "";
+    if (typeof sessionTranscript === "string") {
+      transcriptStr = sessionTranscript;
+    } else if (typeof transcript === "string") {
+      transcriptStr = transcript;
+    } else if (Array.isArray(transcript)) {
+      // Legacy array of {q,a} → flatten to readable string
+      transcriptStr = transcript
+        .map((t) => {
+          const q = (t?.q || "").toString().trim();
+          const a = (t?.a || "").toString().trim();
+          return [q && `Q: ${q}`, a && `A: ${a}`].filter(Boolean).join("\n");
+        })
+        .filter(Boolean)
+        .join("\n\n");
+    }
+    // Pull the most recent transcript (if any) from Redis so we send the full conversation
+    let redisTranscript = "";
+    if (req.sessionID) {
+      try {
+        redisTranscript = (await redisClient.get(`transcript:${req.sessionID}`)) || "";
+      } catch (err) {
+        console.warn("[analyze-screen] failed to read redis transcript", err);
+      }
+    }
+
+    // Combine Redis + incoming transcript and persist for future calls
+    const combinedTranscript = [redisTranscript, transcriptStr]
+      .filter(Boolean)
+      .join("\n\n")
+      .trim()
+      .slice(0, 50000);
+
+    if (req.sessionID && combinedTranscript) {
+      try {
+        await redisClient.set(`transcript:${req.sessionID}`, combinedTranscript, {
+          EX: 60 * 60 * 24,
+        });
+      } catch (err) {
+        console.warn("[analyze-screen] failed to persist redis transcript", err);
+      }
+    }
+
+    // Server-authored instructions (exact user-provided format)
+    const visionPrompt = `
+--------------------------------------------------------------------------------
+You are assisting a candidate in a live job interview.
+
+Your job is to analyze the screenshot with MAXIMUM detail, accuracy, and depth.  
+This analysis will be injected into a realtime model that answers interview questions, so it MUST be:
+- extremely detailed
+- extremely precise
+- business-focused
+- technically rigorous
+- fully structured
+- written in clean English
+- free of fluff
+- optimized to explain EVERYTHING on the screen digitally
+
+You MUST output ONLY a JSON object with exactly these required fields:
+
+{
+  "analysis": "...",
+  "key_points": "...",
+  "answer_guidance": "..."
+}
+
+REQUIREMENTS FOR EACH FIELD:
+
+1. "analysis":
+   - extremely detailed breakdown of everything visible in the screenshot
+   - describe charts, tables, metrics, UI elements, values, categories, patterns, anomalies
+   - include exact numbers and labels if readable
+   - infer the business meaning of each metric (conversion, retention, revenue, CAC, ROAS, etc.)
+   - connect visuals to possible user behavior, funnel stages, product performance
+   - describe what is healthy vs. concerning in the data
+
+2. "key_points":
+   - extract 6–20 bullet points summarizing the MOST important insights
+   - each bullet must contain a business implication
+   - do not repeat sentences
+   - must be short, sharp, high-signal bullets
+
+3. "answer_guidance":
+   - This is the MOST IMPORTANT PART.
+   - Explain EXACTLY how to answer ANY question the interviewer may ask based on this screen.
+   - Include:
+     • what the data *means*
+     • what insights matter most
+     • what actions a senior analyst/PM/marketer would recommend
+     • how to explain trends
+     • how to estimate root causes
+     • how to communicate this clearly in an interview
+   - This section must be 400–800 words minimum.
+
+GLOBAL RULES:
+- English only
+- First-person voice NOT needed here (the realtime model handles tone)
+- Do NOT mention screenshots, images, or that you are analyzing an image
+- Do NOT talk about AI, prompts, or instructions
+- Do NOT speculate about unreadable text (say “unreadable label” instead)
+- Everything must be factual, structured, and extremely high signal
+
+OUTPUT:
+Return ONLY the JSON. No explanations or text outside the JSON.
+--------------------------------------------------------------------------------
+`.trim();
+
+    // Helper: Timeout wrapper
+    const timeout = (prom, ms) => Promise.race([prom, new Promise((_, reject) => setTimeout(() => reject(new Error("Timeout")), ms))]);
+
+    // Helper: OpenAI Call
+    const callOpenAI = async () => {
+      const content = [];
+      if (combinedTranscript) {
+        content.push({ type: "text", text: `FULL TRANSCRIPT (from Redis):\n${combinedTranscript}` });
+      }
+      content.push({ type: "text", text: visionPrompt });
+      content.push({ type: "image_url", image_url: { url: imageDataUrl } });
+
+      const response = await openai.chat.completions.create({
+        model: "gpt-4o",
+        messages: [{ role: "user", content }],
+        temperature: 0.4,
+        max_tokens: 3000,
+        response_format: { type: "json_object" }
+      });
+      return JSON.parse(response.choices[0].message.content);
+    };
+
+    // Helper: Anthropic Call
+    const callAnthropic = async () => {
+      const base64Data = imageDataUrl.split(',')[1];
+      let promptText = visionPrompt;
+      if (combinedTranscript) {
+        promptText = `FULL TRANSCRIPT (from Redis):\n${combinedTranscript}\n\n${visionPrompt}`;
+      }
+
+      // Using Vercel AI SDK (Claude 3.5 Sonnet - using alias instead of version)
+      const { text } = await generateText({
+        model: anthropic('claude-3-5-sonnet'),
+        messages: [
+          {
+            role: 'user',
+            content: [
+              { type: 'text', text: promptText },
+              { type: 'image', image: base64Data }
+            ]
+          }
+        ],
+        maxTokens: 3000,
+        temperature: 0.4,
+      });
+
+      // Robust JSON extraction
+      const s = text.indexOf("{");
+      const e = text.lastIndexOf("}");
+      if (s !== -1 && e !== -1) return JSON.parse(text.slice(s, e + 1));
+      return JSON.parse(text);
+    };
+
+    let parsed;
+    const primary = preferredModel === 'anthropic' ? callAnthropic : callOpenAI;
+    const secondary = preferredModel === 'anthropic' ? callOpenAI : callAnthropic;
+    const primaryName = preferredModel === 'anthropic' ? 'Anthropic' : 'OpenAI';
+    const secondaryName = preferredModel === 'anthropic' ? 'OpenAI' : 'Anthropic';
+
+    try {
+      console.log(`[analyze-screen] Trying ${primaryName}...`);
+      parsed = await timeout(primary(), 30000); // 30s timeout
+    } catch (err) {
+      console.warn(`[analyze-screen] ${primaryName} failed/timeout:`, err.message);
+      console.warn(`[analyze-screen] Full error:`, err);
+      console.log(`[analyze-screen] Falling back to ${secondaryName}...`);
+      try {
+        parsed = await secondary();
+        console.log(`[analyze-screen] ${secondaryName} fallback succeeded`);
+      } catch (err2) {
+        console.error(`[analyze-screen] Both models failed.`);
+        console.error(`[analyze-screen] Primary error:`, err);
+        console.error(`[analyze-screen] Secondary error:`, err2);
+        return res.status(502).json({ error: "Analysis failed on both models." });
+      }
+    }
+
+    if (!parsed || typeof parsed !== "object") {
+      return res.status(502).json({ error: "bad_model_output", raw: "Invalid JSON" });
+    }
+
+    const analysis = String(parsed.analysis || "").trim();
+    const keyPoints = String(parsed.key_points || "").trim();
+    const answerGuidance = String(parsed.answer_guidance || "").trim();
+
+    const screenAnalysisContext =
+      analysis && answerGuidance
+        ? `<SCREEN_ANALYSIS>\n${analysis}\n\n${answerGuidance}\n</SCREEN_ANALYSIS>`
+        : "";
+
+    if (req.session && screenAnalysisContext) {
+      req.session.screenAnalysisContext = screenAnalysisContext;
+      try {
+        await new Promise((resolve, reject) =>
+          req.session.save((err) => (err ? reject(err) : resolve()))
+        );
+      } catch (err) {
+        console.warn("[analyze-screen] session save failed", err);
+      }
+    }
+
+    if (req.sessionID && screenAnalysisContext) {
+      try {
+        await redisClient.set(
+          `screen-analysis:${req.sessionID}`,
+          screenAnalysisContext,
+          { EX: 60 * 60 * 6 }
+        );
+      } catch (err) {
+        console.warn("[analyze-screen] failed to persist screen analysis", err);
+      }
+    }
+
+    return res.json({
+      analysis,
+      key_points: keyPoints,
+      answer_guidance: answerGuidance,
+      screen_analysis_context: screenAnalysisContext,
+    });
+  } catch (err) {
+    console.error("[analyze-screen] error:", err);
+    return res.status(500).json({ error: "internal_error" });
+  }
+});
+
+/* ---------- Start the server (Render-safe) ---------- */
+const PORT = process.env.PORT || 3000;
+const HOST = "0.0.0.0";
+
+app.listen(PORT, HOST, () => {
+  console.log(`✅ Server listening on http://${HOST}:${PORT}`);
+  console.log("   Paste a JD in the UI (Save JD) to tailor answers.");
+});
+
 2) RESUME (second priority for examples)
 3) ASSIGNMENT (use if relevant)
 

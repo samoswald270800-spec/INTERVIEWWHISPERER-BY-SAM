@@ -18,6 +18,9 @@
     .btn-primary{background:linear-gradient(135deg,#06b6d4,#0284c7);color:#fff;box-shadow:0 10px 30px rgba(2,132,199,.3)}
     .btn-ghost{background:rgba(255,255,255,.05);color:#94a3b8;border:1px solid rgba(255,255,255,.1)}
     .btn:hover{transform:translateY(-2px)}
+    .btn-sm{padding:8px 14px;font-size:12px;border-radius:10px}
+    .btn-danger{background:rgba(244,63,94,.15);color:#f43f5e;border:1px solid rgba(244,63,94,.3)}
+    .btn-danger:hover{background:rgba(244,63,94,.25)}
     .stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:18px;margin-bottom:28px}
     .stat{background:rgba(12,14,20,.7);border:1px solid rgba(255,255,255,.08);border-radius:20px;padding:20px;backdrop-filter:blur(12px)}
     .stat-label{color:#64748b;font-size:12px;text-transform:uppercase;letter-spacing:.08em}
@@ -26,7 +29,7 @@
     @media(max-width:1024px){.grid{grid-template-columns:1fr}}
     .panel{background:rgba(12,14,20,.65);border:1px solid rgba(255,255,255,.08);border-radius:24px;padding:24px;backdrop-filter:blur(16px)}
     .panel h2{font-family:'Space Grotesk',sans-serif;font-size:18px;margin-bottom:18px}
-    .list{display:flex;flex-direction:column;gap:14px}
+    .list{display:flex;flex-direction:column;gap:14px;max-height:500px;overflow-y:auto}
     .card{background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.08);border-radius:18px;padding:18px;display:grid;grid-template-columns:auto 1fr auto;gap:14px;align-items:center;transition:border .2s}
     .card:hover{border-color:rgba(255,255,255,.18)}
     .avatar{width:46px;height:46px;border-radius:14px;background:linear-gradient(135deg,#06b6d4,#f97316);display:flex;align-items:center;justify-content:center;font-weight:700}
@@ -34,17 +37,14 @@
     .pill{display:inline-block;padding:4px 10px;border-radius:999px;font-size:11px;text-transform:uppercase;letter-spacing:.06em}
     .pill.active{background:rgba(16,185,129,.18);color:#34d399}
     .pill.suspended{background:rgba(244,63,94,.18);color:#f43f5e}
-    .actions{display:flex;gap:8px}
-    .icon-btn{width:36px;height:36px;border-radius:10px;border:1px solid rgba(255,255,255,.1);background:rgba(255,255,255,.04);color:#f8fafc;cursor:pointer;transition:background .2s}
-    .icon-btn:hover{background:rgba(255,255,255,.1)}
-    .icon-btn.danger:hover{background:rgba(244,63,94,.2);color:#f43f5e}
+    .actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
     .qa{display:flex;flex-direction:column;gap:12px}
     .qa-item{padding:16px;border-radius:16px;border:1px solid rgba(255,255,255,.08);background:rgba(255,255,255,.02);display:flex;gap:14px;align-items:center;cursor:pointer;transition:transform .2s,border .2s}
     .qa-item:hover{transform:translateX(4px);border-color:rgba(255,255,255,.15)}
-    .qa-icon{width:42px;height:42px;border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:18px}
-    .qa-icon.cyan{background:rgba(6,182,212,.18)}
-    .qa-icon.orange{background:rgba(249,115,22,.18)}
-    .qa-icon.rose{background:rgba(244,63,94,.18)}
+    .qa-icon{width:42px;height:42px;border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:700}
+    .qa-icon.cyan{background:rgba(6,182,212,.18);color:#22d3ee}
+    .qa-icon.orange{background:rgba(249,115,22,.18);color:#fb923c}
+    .qa-icon.rose{background:rgba(244,63,94,.18);color:#fb7185}
     dialog{border:none;background:transparent;padding:0}
     dialog::backdrop{background:rgba(0,0,0,.7);backdrop-filter:blur(4px)}
     .modal{width:min(420px,90vw);background:rgba(10,12,18,.97);border:1px solid rgba(255,255,255,.1);border-radius:24px;padding:28px}
@@ -65,10 +65,10 @@
 <body>
 <div class="wrap">
   <header>
-    <div><h1>📊 Admin Dashboard</h1><p style="color:#64748b;margin-top:4px">Manage your users</p></div>
+    <div><h1>Admin Dashboard</h1><p style="color:#64748b;margin-top:4px">Manage your users</p></div>
     <div class="hdr-right">
-      <div class="credit-chip">⚡ <span id="myCred">—</span></div>
-      <button class="btn btn-ghost" onclick="location.href='/'">← Back</button>
+      <div class="credit-chip">Credits: <span id="myCred">—</span></div>
+      <button class="btn btn-ghost" onclick="location.href='/'">Back to Tool</button>
       <button class="btn btn-primary" onclick="openModal()">+ New User</button>
     </div>
   </header>
@@ -83,8 +83,8 @@
     <div class="panel"><h2>Quick Actions</h2>
       <div class="qa">
         <div class="qa-item" onclick="openModal()"><div class="qa-icon cyan">+</div><div><strong>Add User</strong><p style="margin:2px 0 0;color:#64748b;font-size:13px">Create candidate</p></div></div>
-        <div class="qa-item" onclick="loadAll()"><div class="qa-icon orange">↻</div><div><strong>Refresh</strong><p style="margin:2px 0 0;color:#64748b;font-size:13px">Reload data</p></div></div>
-        <div class="qa-item" onclick="logout()"><div class="qa-icon rose">⏻</div><div><strong>Logout</strong><p style="margin:2px 0 0;color:#64748b;font-size:13px">End session</p></div></div>
+        <div class="qa-item" onclick="loadAll()"><div class="qa-icon orange">R</div><div><strong>Refresh</strong><p style="margin:2px 0 0;color:#64748b;font-size:13px">Reload data</p></div></div>
+        <div class="qa-item" onclick="logout()"><div class="qa-icon rose">X</div><div><strong>Logout</strong><p style="margin:2px 0 0;color:#64748b;font-size:13px">End session</p></div></div>
       </div>
     </div>
   </div>
@@ -113,18 +113,18 @@
 <div class="toast" id="toast"></div>
 <script>
 const listEl=document.getElementById('userList'),toastEl=document.getElementById('toast');
-document.getElementById('frm').onsubmit=async e=>{e.preventDefault();try{const r=await fetch('/api/admin/users',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username:document.getElementById('fUser').value,password:document.getElementById('fPass').value,credits:+document.getElementById('fCred').value||0,permissions:{canExpand:document.getElementById('pExp').checked,canAnalyze:document.getElementById('pAna').checked}})});if(!r.ok)throw new Error();toast('User created');closeModal();e.target.reset();document.getElementById('pExp').checked=true;document.getElementById('pAna').checked=true;loadAll()}catch(_){toast('Failed',1)}};
+document.getElementById('frm').onsubmit=async e=>{e.preventDefault();try{const r=await fetch('/api/admin/users',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username:document.getElementById('fUser').value,password:document.getElementById('fPass').value,credits:+document.getElementById('fCred').value||0,permissions:{canExpand:document.getElementById('pExp').checked,canAnalyze:document.getElementById('pAna').checked}})});if(!r.ok){const d=await r.json();throw new Error(d.error||'Failed')}toast('User created');closeModal();e.target.reset();document.getElementById('pExp').checked=true;document.getElementById('pAna').checked=true;loadAll()}catch(err){toast(err.message||'Failed',1)}};
 function openModal(){document.getElementById('dlg').showModal()}
 function closeModal(){document.getElementById('dlg').close()}
 async function loadAll(){await Promise.all([loadMe(),loadStats(),loadUsers()])}
 async function loadMe(){try{const r=await fetch('/api/me');if(!r.ok)return;const d=await r.json();document.getElementById('myCred').textContent=d.credits||0}catch(_){}}
-async function loadStats(){try{const r=await fetch('/api/admin/stats');if(!r.ok)return;const d=await r.json();document.getElementById('sUsers').textContent=d.totalUsers||0;document.getElementById('sActive').textContent=d.activeUsers||0;document.getElementById('sAssigned').textContent=d.creditsAssigned||0;document.getElementById('sSessions').textContent=d.sessionsToday||0}catch(_){}}
+async function loadStats(){try{const r=await fetch('/api/admin/stats');if(!r.ok)return;const d=await r.json();const s=d.stats||d;document.getElementById('sUsers').textContent=s.totalUsers||0;document.getElementById('sActive').textContent=s.activeUsers||0;document.getElementById('sAssigned').textContent=s.creditsUsedToday||0;document.getElementById('sSessions').textContent=s.sessionsToday||0;document.getElementById('myCred').textContent=s.credits||0}catch(_){}}
 async function loadUsers(){listEl.innerHTML='<div class="empty">Loading...</div>';try{const r=await fetch('/api/admin/users');if(!r.ok)throw 0;const d=await r.json();render(d.users||[])}catch(_){listEl.innerHTML='<div class="empty">Failed to load</div>'}}
-function render(arr){if(!arr.length){listEl.innerHTML='<div class="empty">No users yet</div>';return}listEl.innerHTML=arr.map(u=>`<div class="card"><div class="avatar">${(u.username||'?').slice(0,2).toUpperCase()}</div><div><div style="font-weight:600">${u.username}</div><div class="meta">Credits: ${u.credits||0}</div><div style="margin-top:4px"><span class="pill ${u.status==='active'?'active':'suspended'}">${u.status}</span></div></div><div class="actions"><button class="icon-btn" onclick="addCred('${u.id}')" title="Credits">💳</button><button class="icon-btn" onclick="toggleSt('${u.id}','${u.status}')" title="Status">⏯</button><button class="icon-btn" onclick="forceOut('${u.id}')" title="Logout">⏏</button><button class="icon-btn danger" onclick="delUser('${u.id}')" title="Delete">🗑</button></div></div>`).join('')}
-async function addCred(id){const a=prompt('Credits to add:');if(!a)return;try{await fetch(`/api/admin/users/${id}/credits`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({amount:+a})});toast('Done');loadAll()}catch(_){toast('Failed',1)}}
-async function toggleSt(id,cur){try{await fetch(`/api/admin/users/${id}/status`,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({status:cur==='active'?'suspended':'active'})});toast('Updated');loadAll()}catch(_){toast('Failed',1)}}
-async function forceOut(id){if(!confirm('Force logout?'))return;try{await fetch(`/api/admin/users/${id}/force-logout`,{method:'POST'});toast('Logged out')}catch(_){toast('Failed',1)}}
-async function delUser(id){if(!confirm('Delete user?'))return;try{await fetch(`/api/admin/users/${id}`,{method:'DELETE'});toast('Deleted');loadAll()}catch(_){toast('Failed',1)}}
+function render(arr){if(!arr.length){listEl.innerHTML='<div class="empty">No users yet</div>';return}listEl.innerHTML=arr.map(u=>`<div class="card"><div class="avatar">${(u.username||'?').slice(0,2).toUpperCase()}</div><div><div style="font-weight:600">${u.username}</div><div class="meta">Credits: ${u.credits||0}</div><span class="pill ${u.status==='active'?'active':'suspended'}">${u.status}</span></div><div><div class="actions"><button class="btn btn-sm btn-ghost" onclick="addCred('${u.id}')">Add Credits</button><button class="btn btn-sm btn-ghost" onclick="toggleSt('${u.id}','${u.status}')">${u.status==='active'?'Suspend':'Activate'}</button><button class="btn btn-sm btn-ghost" onclick="forceOut('${u.id}')">Force Logout</button><button class="btn btn-sm btn-danger" onclick="delUser('${u.id}')">Delete</button></div></div></div>`).join('')}
+async function addCred(id){const a=prompt('Credits to add:');if(!a)return;try{const r=await fetch(`/api/admin/users/${id}/credits/assign`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({amount:+a,description:'Admin credit assignment'})});if(!r.ok)throw 0;toast('Credits added');loadAll()}catch(_){toast('Failed',1)}}
+async function toggleSt(id,cur){try{const r=await fetch(`/api/admin/users/${id}/status`,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({status:cur==='active'?'suspended':'active'})});if(!r.ok)throw 0;toast('Status updated');loadAll()}catch(_){toast('Failed',1)}}
+async function forceOut(id){if(!confirm('Force logout this user?'))return;try{const r=await fetch(`/api/admin/users/${id}/force-logout`,{method:'POST'});if(!r.ok)throw 0;toast('User logged out')}catch(_){toast('Failed',1)}}
+async function delUser(id){if(!confirm('DELETE this user permanently?'))return;try{const r=await fetch(`/api/admin/users/${id}`,{method:'DELETE'});if(!r.ok)throw 0;toast('User deleted');loadAll()}catch(_){toast('Delete failed',1)}}
 async function logout(){await fetch('/api/logout',{method:'POST'});location.href='/login'}
 function toast(m,err){toastEl.textContent=m;toastEl.style.borderColor=err?'rgba(244,63,94,.4)':'rgba(6,182,212,.3)';toastEl.classList.add('show');clearTimeout(toast.t);toast.t=setTimeout(()=>toastEl.classList.remove('show'),2500)}
 loadAll();

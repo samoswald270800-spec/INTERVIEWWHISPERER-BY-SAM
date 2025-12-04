@@ -208,6 +208,51 @@ router.delete('/admins/:id', async (req, res) => {
 });
 
 /**
+ * PATCH /api/super-admin/admins/:id/status
+ * Update admin status (active/suspended)
+ */
+router.patch('/admins/:id/status', async (req, res) => {
+  try {
+    const { supabase, forceLogoutAdmin, forceLogoutAllUsersUnderAdmin } = req.app.locals;
+    const { id } = req.params;
+    const { status } = req.body;
+
+    if (!['active', 'suspended'].includes(status)) {
+      return res.status(400).json({ error: 'status must be active or suspended' });
+    }
+
+    const { error } = await supabase
+      .from('admins')
+      .update({ status })
+      .eq('id', id);
+
+    if (error) throw error;
+
+    // If suspended, force logout admin and all their users
+    if (status === 'suspended') {
+      await forceLogoutAdmin(id);
+      await forceLogoutAllUsersUnderAdmin(supabase, id);
+    }
+
+    await logAudit(supabase, {
+      actorType: 'super_admin',
+      actorId: 'super-admin',
+      action: 'update_admin_status',
+      targetType: 'admin',
+      targetId: id,
+      details: { status },
+      ip: req.ip,
+      userAgent: req.headers['user-agent'],
+    });
+
+    res.json({ ok: true, status });
+  } catch (e) {
+    console.error('[Super Admin Update Admin Status]', e);
+    res.status(500).json({ error: 'Failed to update status' });
+  }
+});
+
+/**
  * POST /api/super-admin/admins/:id/force-logout
  * Force logout an admin
  */

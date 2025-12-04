@@ -17,6 +17,9 @@
     .btn-primary{background:linear-gradient(135deg,#8b5cf6,#7c3aed);color:#fff;box-shadow:0 10px 30px rgba(124,58,237,.3)}
     .btn-ghost{background:rgba(255,255,255,.05);color:#94a3b8;border:1px solid rgba(255,255,255,.1)}
     .btn:hover{transform:translateY(-2px)}
+    .btn-sm{padding:8px 14px;font-size:12px;border-radius:10px}
+    .btn-danger{background:rgba(244,63,94,.15);color:#f43f5e;border:1px solid rgba(244,63,94,.3)}
+    .btn-danger:hover{background:rgba(244,63,94,.25)}
     .stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:18px;margin-bottom:28px}
     .stat{background:rgba(12,14,20,.7);border:1px solid rgba(255,255,255,.08);border-radius:20px;padding:22px;backdrop-filter:blur(12px)}
     .stat-label{color:#64748b;font-size:12px;text-transform:uppercase;letter-spacing:.08em}
@@ -25,7 +28,7 @@
     @media(max-width:1024px){.grid{grid-template-columns:1fr}}
     .panel{background:rgba(12,14,20,.65);border:1px solid rgba(255,255,255,.08);border-radius:24px;padding:24px;backdrop-filter:blur(16px)}
     .panel h2{font-family:'Space Grotesk',sans-serif;font-size:18px;margin-bottom:18px}
-    .list{display:flex;flex-direction:column;gap:14px}
+    .list{display:flex;flex-direction:column;gap:14px;max-height:500px;overflow-y:auto}
     .card{background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.08);border-radius:18px;padding:18px;display:grid;grid-template-columns:auto 1fr auto;gap:14px;align-items:center;transition:border .2s}
     .card:hover{border-color:rgba(255,255,255,.18)}
     .avatar{width:48px;height:48px;border-radius:14px;background:linear-gradient(135deg,#06b6d4,#8b5cf6);display:flex;align-items:center;justify-content:center;font-weight:700}
@@ -34,17 +37,14 @@
     .pill.active{background:rgba(16,185,129,.18);color:#34d399}
     .pill.suspended{background:rgba(244,63,94,.18);color:#f43f5e}
     .credits{font-weight:700;color:#f59e0b}
-    .actions{display:flex;gap:8px}
-    .icon-btn{width:38px;height:38px;border-radius:12px;border:1px solid rgba(255,255,255,.1);background:rgba(255,255,255,.04);color:#f8fafc;cursor:pointer;transition:background .2s}
-    .icon-btn:hover{background:rgba(255,255,255,.1)}
-    .icon-btn.danger:hover{background:rgba(244,63,94,.2);color:#f43f5e}
+    .actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
     .qa{display:flex;flex-direction:column;gap:12px}
     .qa-item{padding:16px;border-radius:16px;border:1px solid rgba(255,255,255,.08);background:rgba(255,255,255,.02);display:flex;gap:14px;align-items:center;cursor:pointer;transition:transform .2s,border .2s}
     .qa-item:hover{transform:translateX(4px);border-color:rgba(255,255,255,.15)}
-    .qa-icon{width:42px;height:42px;border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:18px}
-    .qa-icon.violet{background:rgba(139,92,246,.18)}
-    .qa-icon.cyan{background:rgba(6,182,212,.18)}
-    .qa-icon.rose{background:rgba(244,63,94,.18)}
+    .qa-icon{width:42px;height:42px;border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:700}
+    .qa-icon.violet{background:rgba(139,92,246,.18);color:#a78bfa}
+    .qa-icon.cyan{background:rgba(6,182,212,.18);color:#22d3ee}
+    .qa-icon.rose{background:rgba(244,63,94,.18);color:#fb7185}
     dialog{border:none;background:transparent;padding:0}
     dialog::backdrop{background:rgba(0,0,0,.7);backdrop-filter:blur(4px)}
     .modal{width:min(420px,90vw);background:rgba(10,12,18,.97);border:1px solid rgba(255,255,255,.1);border-radius:24px;padding:28px}
@@ -62,9 +62,9 @@
 <body>
 <div class="wrap">
   <header>
-    <div><h1>🔐 Super Admin</h1><p style="color:#64748b;margin-top:4px">Platform Control Center</p></div>
+    <div><h1>Super Admin</h1><p style="color:#64748b;margin-top:4px">Platform Control Center</p></div>
     <div class="hdr-right">
-      <button class="btn btn-ghost" onclick="location.href='/'">← Back to Tool</button>
+      <button class="btn btn-ghost" onclick="location.href='/'">Back to Tool</button>
       <button class="btn btn-primary" onclick="openModal()">+ New Admin</button>
     </div>
   </header>
@@ -79,8 +79,8 @@
     <div class="panel"><h2>Quick Actions</h2>
       <div class="qa">
         <div class="qa-item" onclick="openModal()"><div class="qa-icon violet">+</div><div><strong>Add Admin</strong><p style="margin:2px 0 0;color:#64748b;font-size:13px">Create new business</p></div></div>
-        <div class="qa-item" onclick="loadAll()"><div class="qa-icon cyan">↻</div><div><strong>Refresh</strong><p style="margin:2px 0 0;color:#64748b;font-size:13px">Reload data</p></div></div>
-        <div class="qa-item" onclick="logout()"><div class="qa-icon rose">⏻</div><div><strong>Logout</strong><p style="margin:2px 0 0;color:#64748b;font-size:13px">End session</p></div></div>
+        <div class="qa-item" onclick="loadAll()"><div class="qa-icon cyan">R</div><div><strong>Refresh</strong><p style="margin:2px 0 0;color:#64748b;font-size:13px">Reload data</p></div></div>
+        <div class="qa-item" onclick="logout()"><div class="qa-icon rose">X</div><div><strong>Logout</strong><p style="margin:2px 0 0;color:#64748b;font-size:13px">End session</p></div></div>
       </div>
     </div>
   </div>
@@ -103,17 +103,17 @@
 <div class="toast" id="toast"></div>
 <script>
 const listEl=document.getElementById('adminList'),toastEl=document.getElementById('toast');
-document.getElementById('frm').onsubmit=async e=>{e.preventDefault();try{const r=await fetch('/api/super-admin/admins',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:document.getElementById('fName').value,username:document.getElementById('fUser').value,password:document.getElementById('fPass').value,credits:+document.getElementById('fCred').value||0})});if(!r.ok)throw new Error();toast('Admin created');closeModal();e.target.reset();loadAll()}catch(_){toast('Failed',1)}};
+document.getElementById('frm').onsubmit=async e=>{e.preventDefault();try{const r=await fetch('/api/super-admin/admins',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:document.getElementById('fName').value,username:document.getElementById('fUser').value,password:document.getElementById('fPass').value,credits:+document.getElementById('fCred').value||0})});if(!r.ok){const d=await r.json();throw new Error(d.error||'Failed')}toast('Admin created');closeModal();e.target.reset();loadAll()}catch(err){toast(err.message||'Failed',1)}};
 function openModal(){document.getElementById('dlg').showModal()}
 function closeModal(){document.getElementById('dlg').close()}
 async function loadAll(){await Promise.all([loadStats(),loadAdmins()])}
-async function loadStats(){try{const r=await fetch('/api/super-admin/stats');if(!r.ok)return;const d=await r.json();document.getElementById('sAdmins').textContent=d.totalAdmins||0;document.getElementById('sUsers').textContent=d.totalUsers||0;document.getElementById('sActive').textContent=d.activeToday||0;document.getElementById('sCredits').textContent=d.totalCredits||0}catch(_){}}
+async function loadStats(){try{const r=await fetch('/api/super-admin/stats');if(!r.ok)return;const d=await r.json();const s=d.stats||d;document.getElementById('sAdmins').textContent=s.totalAdmins||0;document.getElementById('sUsers').textContent=s.totalUsers||0;document.getElementById('sActive').textContent=s.sessionsToday||0;document.getElementById('sCredits').textContent=s.totalAdminCredits||0}catch(_){}}
 async function loadAdmins(){listEl.innerHTML='<div class="empty">Loading...</div>';try{const r=await fetch('/api/super-admin/admins');if(!r.ok)throw 0;const d=await r.json();render(d.admins||[])}catch(_){listEl.innerHTML='<div class="empty">Failed to load</div>'}}
-function render(arr){if(!arr.length){listEl.innerHTML='<div class="empty">No admins yet</div>';return}listEl.innerHTML=arr.map(a=>`<div class="card"><div class="avatar">${(a.name||a.username||'?').slice(0,2).toUpperCase()}</div><div><div style="font-weight:600">${a.name||a.username}</div><div class="meta">@${a.username}</div></div><div style="text-align:right"><span class="pill ${a.status==='active'?'active':'suspended'}">${a.status}</span><div class="credits" style="margin-top:6px">⚡ ${a.credits||0}</div><div class="actions" style="margin-top:8px"><button class="icon-btn" onclick="addCred('${a.id}')" title="Credits">💳</button><button class="icon-btn" onclick="toggleSt('${a.id}','${a.status}')" title="Status">⏯</button><button class="icon-btn" onclick="forceOut('${a.id}')" title="Logout">⏏</button><button class="icon-btn danger" onclick="delAdmin('${a.id}')" title="Delete">🗑</button></div></div></div>`).join('')}
-async function addCred(id){const a=prompt('Credits to add:');if(!a)return;try{await fetch(`/api/super-admin/admins/${id}/credits`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({amount:+a})});toast('Done');loadAll()}catch(_){toast('Failed',1)}}
-async function toggleSt(id,cur){try{await fetch(`/api/super-admin/admins/${id}/status`,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({status:cur==='active'?'suspended':'active'})});toast('Updated');loadAll()}catch(_){toast('Failed',1)}}
-async function forceOut(id){if(!confirm('Force logout?'))return;try{await fetch(`/api/super-admin/admins/${id}/force-logout`,{method:'POST'});toast('Logged out')}catch(_){toast('Failed',1)}}
-async function delAdmin(id){if(!confirm('Delete admin?'))return;try{await fetch(`/api/super-admin/admins/${id}`,{method:'DELETE'});toast('Deleted');loadAll()}catch(_){toast('Failed',1)}}
+function render(arr){if(!arr.length){listEl.innerHTML='<div class="empty">No admins yet</div>';return}listEl.innerHTML=arr.map(a=>`<div class="card"><div class="avatar">${(a.name||a.username||'?').slice(0,2).toUpperCase()}</div><div><div style="font-weight:600">${a.name||a.username}</div><div class="meta">@${a.username}</div><span class="pill ${a.status==='active'?'active':'suspended'}">${a.status}</span><div class="credits" style="margin-top:6px">Credits: ${a.credits||0}</div></div><div><div class="actions"><button class="btn btn-sm btn-ghost" onclick="addCred('${a.id}')">Add Credits</button><button class="btn btn-sm btn-ghost" onclick="toggleSt('${a.id}','${a.status}')">${a.status==='active'?'Suspend':'Activate'}</button><button class="btn btn-sm btn-ghost" onclick="forceOut('${a.id}')">Force Logout</button><button class="btn btn-sm btn-danger" onclick="delAdmin('${a.id}')">Delete</button></div></div></div>`).join('')}
+async function addCred(id){const a=prompt('Credits to add:');if(!a)return;try{const r=await fetch(`/api/super-admin/admins/${id}/credits`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({amount:+a})});if(!r.ok)throw 0;toast('Credits added');loadAll()}catch(_){toast('Failed',1)}}
+async function toggleSt(id,cur){try{const r=await fetch(`/api/super-admin/admins/${id}/status`,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({status:cur==='active'?'suspended':'active'})});if(!r.ok)throw 0;toast('Status updated');loadAll()}catch(_){toast('Failed',1)}}
+async function forceOut(id){if(!confirm('Force logout this admin?'))return;try{const r=await fetch(`/api/super-admin/admins/${id}/force-logout`,{method:'POST'});if(!r.ok)throw 0;toast('Admin logged out')}catch(_){toast('Failed',1)}}
+async function delAdmin(id){if(!confirm('DELETE this admin permanently? This will also remove all their users.'))return;try{const r=await fetch(`/api/super-admin/admins/${id}`,{method:'DELETE'});if(!r.ok)throw 0;toast('Admin deleted');loadAll()}catch(_){toast('Delete failed',1)}}
 async function logout(){await fetch('/api/logout',{method:'POST'});location.href='/login'}
 function toast(m,err){toastEl.textContent=m;toastEl.style.borderColor=err?'rgba(244,63,94,.4)':'rgba(16,185,129,.3)';toastEl.classList.add('show');clearTimeout(toast.t);toast.t=setTimeout(()=>toastEl.classList.remove('show'),2500)}
 loadAll();
