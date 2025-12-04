@@ -44,7 +44,6 @@ if (process.env.SUPABASE_URL && process.env.SUPABASE_KEY) {
    Auth & Credits Services
    ======================================================================= */
 import {
-  seedSuperAdmin,
   authenticateSuperAdmin,
   authenticateAdmin,
   authenticateUser,
@@ -139,12 +138,8 @@ app.use(
 app.locals.supabase = supabase;
 app.locals.redisClient = redisClient;
 
-// Seed Super Admin on startup (if configured)
-if (supabase) {
-  seedSuperAdmin(supabase).catch(err => {
-    console.error("❌ Super Admin seed error:", err);
-  });
-}
+// Super Admin auth is via env vars ONLY - no database seeding needed
+console.log("ℹ️  Super Admin auth via SUPER_ADMIN_USERNAME / SUPER_ADMIN_PASSWORD env vars");
 
 // Legacy temp user prefix (for backward compatibility during migration)
 const TEMP_USER_PREFIX = "tempuser:";
