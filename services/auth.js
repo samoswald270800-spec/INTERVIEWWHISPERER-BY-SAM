@@ -1,11 +1,7 @@
 /**
  * Authentication Service
- * Handles all authentication logic for multi-tenant system
- * - Super Admin (platform owner)
- * - Admin (consultancies)
- * - User (candidates)
- * 
- * NOTE: Uses 'username' as identifier (not email) for consistency
+ * Handles authentication for multi-tenant system
+ * Uses USERNAME as identifier (NOT email)
  */
 
 import bcrypt from 'bcrypt';
@@ -28,10 +24,10 @@ export async function verifyPassword(password, hash) {
 
 /**
  * Seed Super Admin on first boot
- * Uses environment variables: SUPER_ADMIN_USERNAME, SUPER_ADMIN_PASSWORD
+ * Uses: SUPER_ADMIN_USERNAME, SUPER_ADMIN_PASSWORD
  */
 export async function seedSuperAdmin(supabase) {
-  const username = process.env.SUPER_ADMIN_USERNAME || process.env.SUPER_ADMIN_EMAIL;
+  const username = process.env.SUPER_ADMIN_USERNAME;
   const password = process.env.SUPER_ADMIN_PASSWORD;
 
   if (!username || !password) {
@@ -108,7 +104,7 @@ export async function authenticateSuperAdmin(supabase, username, password) {
 }
 
 /**
- * Authenticate Admin (Consultancy)
+ * Authenticate Admin (Consultancy) - FOR FUTURE USE
  */
 export async function authenticateAdmin(supabase, username, password) {
   const { data: admin, error } = await supabase
@@ -122,7 +118,7 @@ export async function authenticateAdmin(supabase, username, password) {
   }
 
   if (admin.status !== 'active') {
-    return { success: false, error: 'Account is suspended or expired' };
+    return { success: false, error: 'Account is suspended' };
   }
 
   const valid = await verifyPassword(password, admin.password_hash);
@@ -130,7 +126,6 @@ export async function authenticateAdmin(supabase, username, password) {
     return { success: false, error: 'Invalid credentials' };
   }
 
-  // Update last login
   await supabase
     .from('admins')
     .update({ last_login: new Date().toISOString() })
@@ -149,7 +144,7 @@ export async function authenticateAdmin(supabase, username, password) {
 }
 
 /**
- * Authenticate User (Candidate)
+ * Authenticate User (Candidate) - FOR FUTURE USE
  */
 export async function authenticateUser(supabase, username, password, adminId = null) {
   let query = supabase
@@ -157,7 +152,6 @@ export async function authenticateUser(supabase, username, password, adminId = n
     .select('*, admins!inner(id, name, status)')
     .eq('username', username);
 
-  // If adminId provided, scope to that admin's users
   if (adminId) {
     query = query.eq('admin_id', adminId);
   }
@@ -168,14 +162,12 @@ export async function authenticateUser(supabase, username, password, adminId = n
     return { success: false, error: 'Invalid credentials' };
   }
 
-  // Find a user with matching password (could be same username under different admins)
   for (const user of users) {
     if (user.status !== 'active') continue;
     if (user.admins.status !== 'active') continue;
 
     const valid = await verifyPassword(password, user.password_hash);
     if (valid) {
-      // Update last login
       await supabase
         .from('users')
         .update({ last_login: new Date().toISOString() })
@@ -200,132 +192,6 @@ export async function authenticateUser(supabase, username, password, adminId = n
 }
 
 /**
- * Create Admin (by Super Admin)
- */
-export async function createAdmin(supabase, { name, username, password, credits = 0, createdBy }) {
-  const passwordHash = await hashPassword(password);
-
-  const { data, error } = await supabase
-    .from('admins')
-    .insert({
-      name,
-      username,
-      password_hash: passwordHash,
-      credits,
-      created_by: createdBy,
-    })
-    .select()
-    .single();
-
-  if (error) {
-    if (error.code === '23505') {
-      return { success: false, error: 'Username already exists' };
-    }
-    return { success: false, error: error.message };
-  }
-
-  return { success: true, admin: data };
-}
-
-/**
- * Create User (by Admin)
- */
-export async function createUser(supabase, { username, password, credits = 0, permissions = { canExpand: true, canAnalyze: true }, adminId }) {
-  const passwordHash = await hashPassword(password);
-
-  const { data, error } = await supabase
-    .from('users')
-    .insert({
-      username,
-      password_hash: passwordHash,
-      credits,
-      permissions,
-      admin_id: adminId,
-    })
-    .select()
-    .single();
-
-  if (error) {
-    if (error.code === '23505') {
-      return { success: false, error: 'User with this username already exists for your organization' };
-    }
-    return { success: false, error: error.message };
-  }
-
-  return { success: true, user: data };
-}
-
-/**
- * Update User Permissions
- */
-export async function updateUserPermissions(supabase, userId, permissions) {
-  const { data, error } = await supabase
-    .from('users')
-    .update({ permissions })
-    .eq('id', userId)
-    .select()
-    .single();
-
-  if (error) {
-    return { success: false, error: error.message };
-  }
-
-  return { success: true, user: data };
-}
-
-/**
- * Update User Credits
- */
-export async function updateUserCredits(supabase, userId, credits) {
-  const { data, error } = await supabase
-    .from('users')
-    .update({ credits })
-    .eq('id', userId)
-    .select()
-    .single();
-
-  if (error) {
-    return { success: false, error: error.message };
-  }
-
-  return { success: true, user: data };
-}
-
-/**
- * Get Admin by ID
- */
-export async function getAdminById(supabase, adminId) {
-  const { data, error } = await supabase
-    .from('admins')
-    .select('*')
-    .eq('id', adminId)
-    .single();
-
-  if (error) {
-    return null;
-  }
-
-  return data;
-}
-
-/**
- * Get User by ID
- */
-export async function getUserById(supabase, userId) {
-  const { data, error } = await supabase
-    .from('users')
-    .select('*, admins(id, name)')
-    .eq('id', userId)
-    .single();
-
-  if (error) {
-    return null;
-  }
-
-  return data;
-}
-
-/**
  * Log Audit Event
  */
 export async function logAudit(supabase, { actorType, actorId, action, targetType, targetId, details, ip, userAgent }) {
@@ -343,29 +209,6 @@ export async function logAudit(supabase, { actorType, actorId, action, targetTyp
     });
 
   if (error) {
-    console.error('Failed to log audit event:', error.message);
+    console.error('Failed to log audit:', error.message);
   }
 }
-
-/**
- * Log Credit Transaction
- */
-export async function logCreditTransaction(supabase, { adminId, userId, superAdminId, type, amount, balanceAfter, description, sessionId }) {
-  const { error } = await supabase
-    .from('credit_transactions')
-    .insert({
-      admin_id: adminId,
-      user_id: userId,
-      super_admin_id: superAdminId,
-      type,
-      amount,
-      balance_after: balanceAfter,
-      description,
-      session_id: sessionId,
-    });
-
-  if (error) {
-    console.error('Failed to log credit transaction:', error.message);
-  }
-}
-
