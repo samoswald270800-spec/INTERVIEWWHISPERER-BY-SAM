@@ -24,13 +24,12 @@
     .stat{background:rgba(12,14,20,.7);border:1px solid rgba(255,255,255,.08);border-radius:20px;padding:22px;backdrop-filter:blur(12px)}
     .stat-label{color:#64748b;font-size:12px;text-transform:uppercase;letter-spacing:.08em}
     .stat-value{font-family:'Space Grotesk',sans-serif;font-size:32px;margin-top:6px}
-    .grid{display:grid;grid-template-columns:1fr 340px;gap:24px}
-    @media(max-width:1024px){.grid{grid-template-columns:1fr}}
-    .panel{background:rgba(12,14,20,.65);border:1px solid rgba(255,255,255,.08);border-radius:24px;padding:24px;backdrop-filter:blur(16px)}
+    .panel{background:rgba(12,14,20,.65);border:1px solid rgba(255,255,255,.08);border-radius:24px;padding:24px;backdrop-filter:blur(16px);margin-bottom:24px}
     .panel h2{font-family:'Space Grotesk',sans-serif;font-size:18px;margin-bottom:18px}
-    .list{display:flex;flex-direction:column;gap:14px;max-height:500px;overflow-y:auto}
-    .card{background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.08);border-radius:18px;padding:18px;display:grid;grid-template-columns:auto 1fr auto;gap:14px;align-items:center;transition:border .2s}
-    .card:hover{border-color:rgba(255,255,255,.18)}
+    .list{display:flex;flex-direction:column;gap:14px}
+    .admin-card{background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.08);border-radius:18px;overflow:hidden;transition:border .2s}
+    .admin-card:hover{border-color:rgba(255,255,255,.18)}
+    .admin-header{padding:18px;display:grid;grid-template-columns:auto 1fr auto;gap:14px;align-items:center;cursor:pointer}
     .avatar{width:48px;height:48px;border-radius:14px;background:linear-gradient(135deg,#06b6d4,#8b5cf6);display:flex;align-items:center;justify-content:center;font-weight:700}
     .meta{color:#64748b;font-size:13px}
     .pill{display:inline-block;padding:4px 10px;border-radius:999px;font-size:11px;text-transform:uppercase;letter-spacing:.06em}
@@ -38,13 +37,21 @@
     .pill.suspended{background:rgba(244,63,94,.18);color:#f43f5e}
     .credits{font-weight:700;color:#f59e0b}
     .actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
-    .qa{display:flex;flex-direction:column;gap:12px}
-    .qa-item{padding:16px;border-radius:16px;border:1px solid rgba(255,255,255,.08);background:rgba(255,255,255,.02);display:flex;gap:14px;align-items:center;cursor:pointer;transition:transform .2s,border .2s}
-    .qa-item:hover{transform:translateX(4px);border-color:rgba(255,255,255,.15)}
-    .qa-icon{width:42px;height:42px;border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:700}
-    .qa-icon.violet{background:rgba(139,92,246,.18);color:#a78bfa}
-    .qa-icon.cyan{background:rgba(6,182,212,.18);color:#22d3ee}
-    .qa-icon.rose{background:rgba(244,63,94,.18);color:#fb7185}
+    .expand-icon{transition:transform .3s}
+    .admin-card.expanded .expand-icon{transform:rotate(180deg)}
+    .users-panel{max-height:0;overflow:hidden;transition:max-height .4s ease;background:rgba(0,0,0,.2);border-top:1px solid rgba(255,255,255,.05)}
+    .admin-card.expanded .users-panel{max-height:2000px}
+    .users-list{padding:16px;display:flex;flex-direction:column;gap:12px}
+    .user-card{background:rgba(255,255,255,.02);border:1px solid rgba(255,255,255,.06);border-radius:14px;overflow:hidden}
+    .user-header{padding:14px;display:grid;grid-template-columns:auto 1fr auto;gap:12px;align-items:center;cursor:pointer}
+    .user-avatar{width:36px;height:36px;border-radius:10px;background:linear-gradient(135deg,#f97316,#f43f5e);display:flex;align-items:center;justify-content:center;font-weight:600;font-size:13px}
+    .user-stats{max-height:0;overflow:hidden;transition:max-height .3s ease;background:rgba(0,0,0,.15);border-top:1px solid rgba(255,255,255,.04)}
+    .user-card.expanded .user-stats{max-height:500px}
+    .stats-grid{padding:14px;display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
+    .mini-stat{text-align:center;padding:12px;background:rgba(255,255,255,.02);border-radius:10px}
+    .mini-stat-value{font-family:'Space Grotesk',sans-serif;font-size:20px;color:#fff}
+    .mini-stat-label{font-size:10px;color:#64748b;text-transform:uppercase;margin-top:4px}
+    .no-users{padding:20px;text-align:center;color:#64748b;font-size:13px}
     dialog{border:none;background:transparent;padding:0}
     dialog::backdrop{background:rgba(0,0,0,.7);backdrop-filter:blur(4px)}
     .modal{width:min(420px,90vw);background:rgba(10,12,18,.97);border:1px solid rgba(255,255,255,.1);border-radius:24px;padding:28px}
@@ -57,6 +64,7 @@
     .toast{position:fixed;bottom:28px;right:28px;padding:14px 22px;background:rgba(10,12,18,.95);border:1px solid rgba(255,255,255,.1);border-radius:14px;opacity:0;transform:translateY(16px);transition:all .3s}
     .toast.show{opacity:1;transform:translateY(0)}
     .empty{padding:50px 20px;text-align:center;color:#64748b;border:1px dashed rgba(255,255,255,.1);border-radius:18px}
+    .user-actions{display:flex;gap:6px;flex-wrap:wrap;padding:0 14px 14px}
   </style>
 </head>
 <body>
@@ -71,18 +79,12 @@
   <section class="stats">
     <div class="stat"><div class="stat-label">Total Admins</div><div class="stat-value" id="sAdmins">—</div></div>
     <div class="stat"><div class="stat-label">Total Users</div><div class="stat-value" id="sUsers">—</div></div>
-    <div class="stat"><div class="stat-label">Active Today</div><div class="stat-value" id="sActive">—</div></div>
+    <div class="stat"><div class="stat-label">Sessions Today</div><div class="stat-value" id="sActive">—</div></div>
     <div class="stat"><div class="stat-label">Credits Pool</div><div class="stat-value" id="sCredits">—</div></div>
   </section>
-  <div class="grid">
-    <div class="panel"><h2>Admins</h2><div id="adminList" class="list"><div class="empty">Loading...</div></div></div>
-    <div class="panel"><h2>Quick Actions</h2>
-      <div class="qa">
-        <div class="qa-item" onclick="openModal()"><div class="qa-icon violet">+</div><div><strong>Add Admin</strong><p style="margin:2px 0 0;color:#64748b;font-size:13px">Create new business</p></div></div>
-        <div class="qa-item" onclick="loadAll()"><div class="qa-icon cyan">R</div><div><strong>Refresh</strong><p style="margin:2px 0 0;color:#64748b;font-size:13px">Reload data</p></div></div>
-        <div class="qa-item" onclick="logout()"><div class="qa-icon rose">X</div><div><strong>Logout</strong><p style="margin:2px 0 0;color:#64748b;font-size:13px">End session</p></div></div>
-      </div>
-    </div>
+  <div class="panel">
+    <h2>Admins (click to expand users)</h2>
+    <div id="adminList" class="list"><div class="empty">Loading...</div></div>
   </div>
 </div>
 <dialog id="dlg">
@@ -103,13 +105,95 @@
 <div class="toast" id="toast"></div>
 <script>
 const listEl=document.getElementById('adminList'),toastEl=document.getElementById('toast');
+let adminsData=[];
+
 document.getElementById('frm').onsubmit=async e=>{e.preventDefault();try{const r=await fetch('/api/super-admin/admins',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:document.getElementById('fName').value,username:document.getElementById('fUser').value,password:document.getElementById('fPass').value,credits:+document.getElementById('fCred').value||0})});if(!r.ok){const d=await r.json();throw new Error(d.error||'Failed')}toast('Admin created');closeModal();e.target.reset();loadAll()}catch(err){toast(err.message||'Failed',1)}};
 function openModal(){document.getElementById('dlg').showModal()}
 function closeModal(){document.getElementById('dlg').close()}
 async function loadAll(){await Promise.all([loadStats(),loadAdmins()])}
 async function loadStats(){try{const r=await fetch('/api/super-admin/stats');if(!r.ok)return;const d=await r.json();const s=d.stats||d;document.getElementById('sAdmins').textContent=s.totalAdmins||0;document.getElementById('sUsers').textContent=s.totalUsers||0;document.getElementById('sActive').textContent=s.sessionsToday||0;document.getElementById('sCredits').textContent=s.totalAdminCredits||0}catch(_){}}
-async function loadAdmins(){listEl.innerHTML='<div class="empty">Loading...</div>';try{const r=await fetch('/api/super-admin/admins');if(!r.ok)throw 0;const d=await r.json();render(d.admins||[])}catch(_){listEl.innerHTML='<div class="empty">Failed to load</div>'}}
-function render(arr){if(!arr.length){listEl.innerHTML='<div class="empty">No admins yet</div>';return}listEl.innerHTML=arr.map(a=>`<div class="card"><div class="avatar">${(a.name||a.username||'?').slice(0,2).toUpperCase()}</div><div><div style="font-weight:600">${a.name||a.username}</div><div class="meta">@${a.username}</div><span class="pill ${a.status==='active'?'active':'suspended'}">${a.status}</span><div class="credits" style="margin-top:6px">Credits: ${a.credits||0}</div></div><div><div class="actions"><button class="btn btn-sm btn-ghost" onclick="addCred('${a.id}')">Add Credits</button><button class="btn btn-sm btn-ghost" onclick="toggleSt('${a.id}','${a.status}')">${a.status==='active'?'Suspend':'Activate'}</button><button class="btn btn-sm btn-ghost" onclick="forceOut('${a.id}')">Force Logout</button><button class="btn btn-sm btn-danger" onclick="delAdmin('${a.id}')">Delete</button></div></div></div>`).join('')}
+async function loadAdmins(){listEl.innerHTML='<div class="empty">Loading...</div>';try{const r=await fetch('/api/super-admin/admins');if(!r.ok)throw 0;const d=await r.json();adminsData=d.admins||[];render()}catch(_){listEl.innerHTML='<div class="empty">Failed to load</div>'}}
+
+function render(){
+  if(!adminsData.length){listEl.innerHTML='<div class="empty">No admins yet</div>';return}
+  listEl.innerHTML=adminsData.map(a=>`
+    <div class="admin-card" id="admin-${a.id}">
+      <div class="admin-header" onclick="toggleAdmin('${a.id}')">
+        <div class="avatar">${(a.name||a.username||'?').slice(0,2).toUpperCase()}</div>
+        <div>
+          <div style="font-weight:600">${a.name||a.username}</div>
+          <div class="meta">@${a.username} · ${a.userCount||0} users</div>
+          <span class="pill ${a.status==='active'?'active':'suspended'}">${a.status}</span>
+          <span class="credits" style="margin-left:8px">Credits: ${a.credits||0}</span>
+        </div>
+        <div style="display:flex;align-items:center;gap:12px">
+          <svg class="expand-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg>
+        </div>
+      </div>
+      <div class="users-panel">
+        <div class="users-list" id="users-${a.id}"><div class="no-users">Loading users...</div></div>
+        <div style="padding:0 16px 16px;display:flex;gap:8px;flex-wrap:wrap">
+          <button class="btn btn-sm btn-ghost" onclick="event.stopPropagation();addCred('${a.id}')">Add Credits</button>
+          <button class="btn btn-sm btn-ghost" onclick="event.stopPropagation();toggleSt('${a.id}','${a.status}')">${a.status==='active'?'Suspend':'Activate'}</button>
+          <button class="btn btn-sm btn-ghost" onclick="event.stopPropagation();forceOut('${a.id}')">Force Logout</button>
+          <button class="btn btn-sm btn-danger" onclick="event.stopPropagation();delAdmin('${a.id}')">Delete</button>
+        </div>
+      </div>
+    </div>
+  `).join('');
+}
+
+async function toggleAdmin(id){
+  const card=document.getElementById('admin-'+id);
+  const wasExpanded=card.classList.contains('expanded');
+  document.querySelectorAll('.admin-card.expanded').forEach(c=>c.classList.remove('expanded'));
+  if(!wasExpanded){
+    card.classList.add('expanded');
+    loadUsersForAdmin(id);
+  }
+}
+
+async function loadUsersForAdmin(adminId){
+  const container=document.getElementById('users-'+adminId);
+  container.innerHTML='<div class="no-users">Loading users...</div>';
+  try{
+    const r=await fetch(`/api/super-admin/admins/${adminId}/users`);
+    if(!r.ok)throw 0;
+    const d=await r.json();
+    const users=d.users||[];
+    if(!users.length){container.innerHTML='<div class="no-users">No users under this admin</div>';return}
+    container.innerHTML=users.map(u=>`
+      <div class="user-card" id="user-${u.id}">
+        <div class="user-header" onclick="toggleUser('${u.id}','${adminId}')">
+          <div class="user-avatar">${(u.username||'?').slice(0,2).toUpperCase()}</div>
+          <div>
+            <div style="font-weight:500">${u.username}</div>
+            <span class="pill ${u.status==='active'?'active':'suspended'}" style="font-size:10px">${u.status}</span>
+            <span style="color:#64748b;font-size:12px;margin-left:6px">Credits: ${u.credits||0}</span>
+          </div>
+          <svg class="expand-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg>
+        </div>
+        <div class="user-stats" id="ustats-${u.id}">
+          <div class="stats-grid">
+            <div class="mini-stat"><div class="mini-stat-value">${u.credits||0}</div><div class="mini-stat-label">Credits</div></div>
+            <div class="mini-stat"><div class="mini-stat-value">${u.sessionCount||0}</div><div class="mini-stat-label">Sessions</div></div>
+            <div class="mini-stat"><div class="mini-stat-value">${u.permissions?.canAnalyze?'Yes':'No'}</div><div class="mini-stat-label">Can Analyze</div></div>
+          </div>
+          <div class="user-actions">
+            <button class="btn btn-sm btn-ghost" onclick="event.stopPropagation();forceOutUser('${u.id}')">Force Logout</button>
+          </div>
+        </div>
+      </div>
+    `).join('');
+  }catch(_){container.innerHTML='<div class="no-users">Failed to load users</div>'}
+}
+
+function toggleUser(userId,adminId){
+  const card=document.getElementById('user-'+userId);
+  card.classList.toggle('expanded');
+}
+
+async function forceOutUser(id){if(!confirm('Force logout this user?'))return;try{const r=await fetch(`/api/super-admin/users/${id}/force-logout`,{method:'POST'});if(!r.ok)throw 0;toast('User logged out')}catch(_){toast('Failed',1)}}
 async function addCred(id){const a=prompt('Credits to add:');if(!a)return;try{const r=await fetch(`/api/super-admin/admins/${id}/credits`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({amount:+a})});if(!r.ok)throw 0;toast('Credits added');loadAll()}catch(_){toast('Failed',1)}}
 async function toggleSt(id,cur){try{const r=await fetch(`/api/super-admin/admins/${id}/status`,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({status:cur==='active'?'suspended':'active'})});if(!r.ok)throw 0;toast('Status updated');loadAll()}catch(_){toast('Failed',1)}}
 async function forceOut(id){if(!confirm('Force logout this admin?'))return;try{const r=await fetch(`/api/super-admin/admins/${id}/force-logout`,{method:'POST'});if(!r.ok)throw 0;toast('Admin logged out')}catch(_){toast('Failed',1)}}
