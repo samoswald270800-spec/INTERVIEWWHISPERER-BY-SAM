@@ -142,6 +142,20 @@ export async function authenticateUser(supabase, username, password, adminId = n
  * Create Admin (by Super Admin) - uses USERNAME
  */
 export async function createAdmin(supabase, { name, username, password, credits = 0 }) {
+  const { data: existingAdmins, error: existingAdminError } = await supabase
+    .from('admins')
+    .select('id')
+    .eq('username', username)
+    .limit(1);
+
+  if (existingAdminError) {
+    return { success: false, error: existingAdminError.message };
+  }
+
+  if (existingAdmins && existingAdmins.length > 0) {
+    return { success: false, error: 'Username already exists' };
+  }
+
   const passwordHash = await hashPassword(password);
 
   const { data, error } = await supabase
@@ -170,6 +184,21 @@ export async function createAdmin(supabase, { name, username, password, credits 
  * Create User (by Admin) - uses USERNAME
  */
 export async function createUser(supabase, { username, password, credits = 0, permissions = {}, adminId }) {
+  const { data: existingUsers, error: existingUserError } = await supabase
+    .from('users')
+    .select('id')
+    .eq('username', username)
+    .eq('admin_id', adminId)
+    .limit(1);
+
+  if (existingUserError) {
+    return { success: false, error: existingUserError.message };
+  }
+
+  if (existingUsers && existingUsers.length > 0) {
+    return { success: false, error: 'Username already exists for this organization' };
+  }
+
   const passwordHash = await hashPassword(password);
 
   const { data, error } = await supabase
