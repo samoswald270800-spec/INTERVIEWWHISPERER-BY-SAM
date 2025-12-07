@@ -6,6 +6,7 @@
 
 import express from 'express';
 import { requireConsultancyAdmin } from '../middleware/auth.js';
+import { redisClient, removeActiveSession } from '../lib/redis.js';
 import {
   createUser,
   updateUserPermissions,
@@ -415,6 +416,48 @@ router.post('/users/:id/credits/reclaim', async (req, res) => {
   } catch (e) {
     console.error('[Admin Reclaim Credits]', e);
     res.status(500).json({ error: 'Failed to reclaim credits' });
+  }
+});
+
+/**
+ * POST /api/admin/sessions/:sessionId/logout
+ * Force logout a specific session
+ */
+router.post('/sessions/:sessionId/logout', async (req, res) => {
+  try {
+    const { sessionId } = req.params;
+    if (!sessionId) return res.status(400).json({ error: 'Missing sessionId' });
+
+    const key = `sess:${sessionId}`;
+
+    // FIX: Retrieve userId before deletion to clean up active_sessions
+    const raw = await redisClient.get(key);
+    let userId = null;
+    if (raw) {
+      try {
+        const data = JSON.parse(raw);
+        userId = data.userId || data.user;
+      } catch (e) {}
+    }
+
+    // Check existence
+    const exists = await redisClient.exists(key);
+    if (!exists) {
+      return res.status(404).json({ error: 'Session not found' });
+    }
+
+    // Remove the session key (destroy session)
+    await redisClient.del(key);
+
+    // FIX: Remove from active_sessions set
+    if (userId) {
+      await removeActiveSession(userId, sessionId);
+    }
+
+    res.json({ ok: true });
+  } catch (e) {
+    console.error('[Admin Force Logout Session]', e);
+    res.status(500).json({ error: 'Failed to logout session' });
   }
 });
 

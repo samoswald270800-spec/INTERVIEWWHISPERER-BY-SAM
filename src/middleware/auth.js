@@ -2,6 +2,8 @@
  * Authentication Middleware
  */
 
+import { redisClient } from '../lib/redis.js';
+
 /**
  * Require any authenticated user
  */
@@ -18,6 +20,12 @@ export function requireAuth(req, res, next) {
   }
 
   if (req.session?.userId) {
+    // FIX: Refresh active_sessions TTL to match session activity
+    // This prevents "Ghost Sessions" where the concurrency lock expires before the session does.
+    if (req.session.role !== 'admin' && req.session.role !== 'super_admin') {
+      const activeKey = `active_sessions:${req.session.userId}`;
+      redisClient.expire(activeKey, 6 * 3600).catch(() => {});
+    }
     return next();
   }
 
