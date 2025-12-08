@@ -26,6 +26,8 @@ function createWindow() {
             nodeIntegration: false,
             contextIsolation: true,
             preload: path.join(__dirname, 'electron-preload.js'),
+            devTools: true, // Enable DevTools
+            webSecurity: false, // TEMPORARY: Disable security to rule out CSP/CORS issues
         },
         // Advanced stealth configuration
         alwaysOnTop: true,           // Stays on top of other windows
@@ -51,6 +53,9 @@ function createWindow() {
 
     const loadUrl = RAILWAY_URL || 'http://localhost:3000';
     console.log(`🚀 Loading app from: ${loadUrl}`);
+
+    // Open DevTools immediately
+    mainWindow.webContents.openDevTools();
 
     if (isDev) {
         mainWindow.loadURL(`${loadUrl}/login.html`);
