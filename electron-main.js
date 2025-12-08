@@ -1,4 +1,4 @@
-import { app, BrowserWindow, globalShortcut, Tray, Menu } from 'electron';
+import { app, BrowserWindow, globalShortcut, Tray, Menu, desktopCapturer, session } from 'electron';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import fs from 'fs';
@@ -91,6 +91,34 @@ function toggleStealth() {
 }
 
 app.whenReady().then(() => {
+    // Handling media permissions (Video/Audio)
+    session.defaultSession.setPermissionRequestHandler((webContents, permission, callback) => {
+        const allowedPermissions = ['media', 'display-capture', 'mediaKeySystem', 'videoCapture', 'audioCapture'];
+        if (allowedPermissions.includes(permission)) {
+            callback(true);
+        } else {
+            console.warn(`Permission denied: ${permission}`);
+            callback(false);
+        }
+    });
+
+    // Handling Screen Capture Requests (getDisplayMedia)
+    session.defaultSession.setDisplayMediaRequestHandler((request, callback) => {
+        desktopCapturer.getSources({ types: ['screen'] }).then((sources) => {
+            if (sources.length > 0) {
+                // Auto-select the first screen (Primary Display)
+                // This enables 'loopback' (System Audio) capture on Windows
+                callback({ video: sources[0], audio: 'loopback' });
+            } else {
+                console.error('No screen sources found');
+                callback(null);
+            }
+        }).catch((err) => {
+            console.error('Error selecting media source:', err);
+            callback(null);
+        });
+    });
+
     createWindow();
 
     try {
