@@ -39,10 +39,18 @@ function createWindow() {
     const isDev = !app.isPackaged;
 
     // Use Railway URL if configured, otherwise localhost for dev
-    const RAILWAY_URL = process.env.RAILWAY_URL || 'http://localhost:3000';
+    const RAILWAY_URL = process.env.RAILWAY_URL;
+
+    if (!RAILWAY_URL) {
+        console.error('❌ RAILWAY_URL not set in .env file!');
+        console.error('Please create .env file with: RAILWAY_URL=https://your-app.up.railway.app');
+    }
+
+    const loadUrl = RAILWAY_URL || 'http://localhost:3000';
+    console.log(`🚀 Loading app from: ${loadUrl}`);
 
     if (isDev) {
-        mainWindow.loadURL(`${RAILWAY_URL}/login.html`);
+        mainWindow.loadURL(`${loadUrl}/login.html`);
     } else {
         // Check for login.html in build output
         const loginDistPath = path.join(__dirname, 'public/build/login.html');
