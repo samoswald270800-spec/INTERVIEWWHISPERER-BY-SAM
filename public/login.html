@@ -494,13 +494,27 @@
   <div class="easter-toast" id="easterToast"></div>
 
   <script>
+    // Detect Electron environment
+    const isElectron = navigator.userAgent.includes('Electron');
+
+    // API Base URL
+    const API_BASE = '';  // Empty for same origin
+
     // State
     let currentLoginType = 'user';
     let clickCount = 0;
+    let clickTimer = null;
+    let superAdminRevealed = false;
+
+    // DOM Elements
+    const form = document.getElementById('loginForm');
     const loginBtn = document.getElementById('loginBtn');
     const loginTitle = document.getElementById('loginTitle');
     const loginSubtitle = document.getElementById('loginSubtitle');
     const usernameLabel = document.getElementById('usernameLabel');
+    const usernameInput = document.getElementById('username');
+    const passwordInput = document.getElementById('password');
+    const errorEl = document.getElementById('error');
     const aboutTrigger = document.getElementById('aboutTrigger');
     const easterToast = document.getElementById('easterToast');
     const superAdminTab = document.querySelector('.super-admin-tab');
