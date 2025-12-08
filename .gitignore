@@ -8,6 +8,7 @@ public/build/
 admin/dist/
 dist/
 build/
+dist-electron/
 
 # Environment variables
 .env
