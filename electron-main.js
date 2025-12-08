@@ -7,6 +7,9 @@ import dotenv from 'dotenv';
 // Load environment variables
 dotenv.config();
 
+// FIX: Disable HTTP cache to prevent "Access Denied" errors and blank pages
+app.commandLine.appendSwitch('disable-http-cache');
+
 // Handle __dirname in ESM
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);

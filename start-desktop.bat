@@ -1,4 +1,5 @@
 @echo off
+cd /d "%~dp0"
 echo ============================================
 echo   Interview Whisperer - Desktop App
 echo   (Connecting to Railway)
