@@ -617,7 +617,12 @@
         const data = await res.json();
 
         if (data.ok) {
-          window.location.href = redirectUrl;
+          if (isElectron && redirectUrl.startsWith('/')) {
+            // Force absolute URL in Electron to ensure correct navigation
+            window.location.href = window.location.origin + redirectUrl;
+          } else {
+            window.location.href = redirectUrl;
+          }
         } else {
           errorEl.textContent = data.error || 'Invalid credentials. Please try again.';
           errorEl.classList.add('show');
