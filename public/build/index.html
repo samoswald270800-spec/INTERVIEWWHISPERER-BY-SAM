@@ -10,9 +10,23 @@
   <link
     href="https://fonts.googleapis.com/css2?family=Manrope:wght@300;400;500;600;700&family=Space+Grotesk:wght@300;400;500;600;700&display=swap"
     rel="stylesheet">
-  <script type="module" crossorigin src="/assets/index-C7Rrqds1.js"></script>
-  <link rel="stylesheet" crossorigin href="/assets/index-CWpxns9j.css">
+  <script type="module" crossorigin src="/assets/main-T9tmbqDw.js"></script>
+  <link rel="stylesheet" crossorigin href="/assets/main-CWpxns9j.css">
 </head>
+<script>
+  if (navigator.userAgent.includes('Electron')) {
+    const originalFetch = window.fetch;
+    window.fetch = function (input, init) {
+      if (typeof input === 'string' && input.startsWith('/')) {
+        // Only if not external
+        // Although starting with / means relative to root.
+        input = 'http://localhost:3000' + input;
+      }
+      return originalFetch(input, init);
+    };
+    console.log('Electron API Interceptor Active: Redirecting /api calls to localhost:3000');
+  }
+</script>
 
 <body>
   <div id="root"></div>

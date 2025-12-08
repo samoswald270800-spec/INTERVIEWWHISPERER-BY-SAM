@@ -1,14 +1,18 @@
 {
   "name": "interview-whisperer",
   "version": "2.0.0",
+  "description": "AI-powered interview companion desktop application",
+  "author": "Antigravity",
   "type": "module",
-  "main": "server.js",
+  "main": "electron-main.js",
   "scripts": {
     "start": "node server.js",
     "build": "cd public && npm install && npm run build",
     "postinstall": "cd public && npm install && npm run build && cd ../admin && npm install && npm run build",
     "dev": "node server.js",
-    "deploy": "npm run build && npm start"
+    "deploy": "npm run build && npm start",
+    "electron:dev": "concurrently \"npm run dev\" \"wait-on http://localhost:3000 && electron .\"",
+    "electron:build": "npm run build && electron-builder"
   },
   "dependencies": {
     "@ai-sdk/anthropic": "^2.0.50",
@@ -16,7 +20,7 @@
     "ai": "^5.0.104",
     "bcrypt": "^6.0.0",
     "connect-redis": "^8.0.0",
-    "dotenv": "^16.4.5",
+    "dotenv": "^16.6.1",
     "express": "^4.19.2",
     "express-session": "^1.17.3",
     "node-fetch": "^3.3.2",
@@ -26,5 +30,28 @@
   "engines": {
     "node": ">=20.0.0",
     "npm": ">=9.0.0"
+  },
+  "devDependencies": {
+    "concurrently": "^9.2.1",
+    "electron": "^39.2.6",
+    "electron-builder": "^26.0.12",
+    "wait-on": "^9.0.3"
+  },
+  "build": {
+    "appId": "com.interview.whisperer",
+    "productName": "Interview Whisperer",
+    "npmRebuild": false,
+    "files": [
+      "electron-main.js",
+      "electron-preload.js",
+      "public/build/**/*",
+      "package.json"
+    ],
+    "directories": {
+      "output": "dist-electron"
+    },
+    "win": {
+      "target": "nsis"
+    }
   }
 }

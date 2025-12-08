@@ -21,7 +21,7 @@ export default function App() {
     const [permissions, setPermissions] = useState({ canExpand: true, canAnalyze: true });
     const [visionModel, setVisionModel] = useState("openai");
     const [interviewMode, setInterviewMode] = useState("smart"); // 'smart' | 'hr' | 'technical' | 'vp'
-    
+
     // Credits & Session Timer
     const [credits, setCredits] = useState(null);
     const [sessionTime, setSessionTime] = useState(0);
@@ -97,7 +97,7 @@ export default function App() {
             })
             .catch(err => console.error("Failed to fetch user info:", err));
     }, []);
-    
+
     // Session timer
     useEffect(() => {
         if (isSessionActive) {
@@ -111,20 +111,20 @@ export default function App() {
                 sessionTimerRef.current = null;
             }
         }
-        
+
         return () => {
             if (sessionTimerRef.current) {
                 clearInterval(sessionTimerRef.current);
             }
         };
     }, [isSessionActive]);
-    
+
     // Format session time as HH:MM:SS
     const formatTime = (seconds) => {
         const h = Math.floor(seconds / 3600);
         const m = Math.floor((seconds % 3600) / 60);
         const s = seconds % 60;
-        
+
         if (h > 0) {
             return `${h}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
         }
@@ -387,10 +387,18 @@ export default function App() {
     const handleLogout = async () => {
         try {
             await fetch('/api/logout', { method: 'POST' });
-            window.location.href = '/login';
+            if (window.electron?.isElectron) {
+                window.location.href = 'login.html';
+            } else {
+                window.location.href = '/login';
+            }
         } catch (e) {
             console.error('Logout failed:', e);
-            window.location.href = '/login';
+            if (window.electron?.isElectron) {
+                window.location.href = 'login.html';
+            } else {
+                window.location.href = '/login';
+            }
         }
     };
 
@@ -408,7 +416,7 @@ export default function App() {
                     isProcessing={isProcessing}
                 />
             </div>
-            
+
             {/* Session Info Panel */}
             <div className="session-info">
                 {username && (

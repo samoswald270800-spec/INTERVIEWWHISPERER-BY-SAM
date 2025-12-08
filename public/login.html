@@ -7,7 +7,9 @@
   <title>Interview Whisperer — Sign In</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@300;400;500;600;700&family=Space+Grotesk:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <link
+    href="https://fonts.googleapis.com/css2?family=Manrope:wght@300;400;500;600;700&family=Space+Grotesk:wght@300;400;500;600;700&display=swap"
+    rel="stylesheet">
   <style>
     :root {
       --bg-void: #050505;
@@ -26,7 +28,12 @@
       --theme-glow: rgba(139, 92, 246, 0.2);
     }
 
-    * { margin: 0; padding: 0; box-sizing: border-box; outline: none; }
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+      outline: none;
+    }
 
     body {
       background-color: var(--bg-void);
@@ -42,15 +49,18 @@
 
     .void-bg {
       position: fixed;
-      top: 0; left: 0;
-      width: 100vw; height: 100vh;
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
       z-index: -2;
       background: radial-gradient(circle at 50% -20%, #1a1a2e, #050505 60%);
     }
 
     .aurora {
       position: absolute;
-      width: 100%; height: 100%;
+      width: 100%;
+      height: 100%;
       background:
         radial-gradient(circle at 0% 0%, rgba(139, 92, 246, 0.05), transparent 40%),
         radial-gradient(circle at 100% 0%, rgba(6, 182, 212, 0.05), transparent 40%);
@@ -59,14 +69,21 @@
     }
 
     @keyframes breathe {
-      0% { opacity: 0.5; }
-      100% { opacity: 1; }
+      0% {
+        opacity: 0.5;
+      }
+
+      100% {
+        opacity: 1;
+      }
     }
 
     .noise {
       position: fixed;
-      top: 0; left: 0;
-      width: 100%; height: 100%;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
       opacity: 0.03;
       pointer-events: none;
       z-index: -1;
@@ -90,8 +107,15 @@
     }
 
     @keyframes slideIn {
-      from { opacity: 0; transform: translateX(-20px); }
-      to { opacity: 1; transform: translateX(0); }
+      from {
+        opacity: 0;
+        transform: translateX(-20px);
+      }
+
+      to {
+        opacity: 1;
+        transform: translateX(0);
+      }
     }
 
     .info-panel h1 {
@@ -126,7 +150,8 @@
     }
 
     .feature-icon {
-      width: 24px; height: 24px;
+      width: 24px;
+      height: 24px;
       border-radius: 8px;
       background: rgba(139, 92, 246, 0.1);
       display: flex;
@@ -216,11 +241,20 @@
     }
 
     @keyframes fadeIn {
-      from { opacity: 0; transform: scale(0.9); }
-      to { opacity: 1; transform: scale(1); }
+      from {
+        opacity: 0;
+        transform: scale(0.9);
+      }
+
+      to {
+        opacity: 1;
+        transform: scale(1);
+      }
     }
 
-    .form-group { margin-bottom: 20px; }
+    .form-group {
+      margin-bottom: 20px;
+    }
 
     .form-label {
       display: block;
@@ -315,7 +349,9 @@
       display: none;
     }
 
-    .error.show { display: block; }
+    .error.show {
+      display: block;
+    }
 
     .footer-mark {
       margin-top: 24px;
@@ -329,7 +365,9 @@
       transition: opacity 0.3s;
     }
 
-    .footer-mark:hover { opacity: 1; }
+    .footer-mark:hover {
+      opacity: 1;
+    }
 
     .easter-toast {
       position: fixed;
@@ -355,11 +393,34 @@
     }
 
     @media (max-width: 768px) {
-      .login-container { flex-direction: column; gap: 40px; }
-      .info-panel h1 { font-size: 36px; }
-      .login-panel { width: 100%; max-width: 380px; }
+      .login-container {
+        flex-direction: column;
+        gap: 40px;
+      }
+
+      .info-panel h1 {
+        font-size: 36px;
+      }
+
+      .login-panel {
+        width: 100%;
+        max-width: 380px;
+      }
     }
   </style>
+  </style>
+  <script>
+    if (navigator.userAgent.includes('Electron')) {
+      const originalFetch = window.fetch;
+      window.fetch = function (input, init) {
+        if (typeof input === 'string' && input.startsWith('/')) {
+          input = 'http://localhost:3000' + input;
+        }
+        return originalFetch(input, init);
+      };
+      console.log('Electron API Interceptor Active in Login: Redirecting /api calls to localhost:3000');
+    }
+  </script>
 </head>
 
 <body>
@@ -406,7 +467,8 @@
       <div class="login-tabs">
         <button class="login-tab active" data-type="user" onclick="switchLoginType('user')">Candidate</button>
         <button class="login-tab admin-tab" data-type="admin" onclick="switchLoginType('admin')">Business</button>
-        <button class="login-tab super-admin-tab" data-type="super-admin" onclick="switchLoginType('super-admin')">🔐 Admin</button>
+        <button class="login-tab super-admin-tab" data-type="super-admin" onclick="switchLoginType('super-admin')">🔐
+          Admin</button>
       </div>
 
       <form id="loginForm">
@@ -436,14 +498,6 @@
     // State
     let currentLoginType = 'user';
     let clickCount = 0;
-    let clickTimer = null;
-    let superAdminRevealed = false;
-
-    // DOM Elements
-    const form = document.getElementById('loginForm');
-    const errorEl = document.getElementById('error');
-    const usernameInput = document.getElementById('username');
-    const passwordInput = document.getElementById('password');
     const loginBtn = document.getElementById('loginBtn');
     const loginTitle = document.getElementById('loginTitle');
     const loginSubtitle = document.getElementById('loginSubtitle');
@@ -551,11 +605,12 @@
           redirectUrl = '/super-admin';
         }
 
-        const res = await fetch(endpoint, {
+        const res = await fetch(`${API_BASE}${endpoint}`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ username, password })
         });
+
 
         const data = await res.json();
 
@@ -583,6 +638,20 @@
         loginBtn.textContent = 'Access Control Panel';
       }
     }
+
+    // Initialize
+    if (isElectron) {
+      // Hide other tabs
+      const adminTab = document.querySelector('.admin-tab');
+      if (adminTab) adminTab.style.display = 'none';
+
+      // Disable Easter Egg
+      const footerMark = document.querySelector('.footer-mark');
+      if (footerMark) footerMark.style.pointerEvents = 'none'; // effectively disable clicking
+
+      console.log('Running in Desktop Mode: Admin login disabled.');
+    }
+
 
     // Initialize
     switchLoginType('user');
