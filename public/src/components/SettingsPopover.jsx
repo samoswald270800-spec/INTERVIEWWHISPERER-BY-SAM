@@ -1,40 +1,12 @@
-import React, { useState, useEffect } from 'react';
+import React from 'react';
 import './SettingsPopover.css';
 
 export default function SettingsPopover({ isOpen, speed, setSpeed, visionModel, setVisionModel, interviewMode, setInterviewMode }) {
-    const [userRole, setUserRole] = useState(null);
-    const [dashboardUrl, setDashboardUrl] = useState(null);
-
-    useEffect(() => {
-        fetch('/api/me')
-            .then(res => res.json())
-            .then(data => {
-                setUserRole(data.role);
-                setDashboardUrl(data.dashboardUrl);
-            })
-            .catch(() => {});
-    }, []);
-
     const getSpeedLabel = () => {
         if (speed === 0) return "Instant";
         if (speed < 10) return "Blazing";
         if (speed < 25) return "Normal";
         return "Relaxed";
-    };
-
-    const handleLogout = async () => {
-        try {
-            await fetch('/api/logout', { method: 'POST' });
-            window.location.href = '/login';
-        } catch (e) {
-            window.location.href = '/login';
-        }
-    };
-
-    const goToDashboard = () => {
-        if (dashboardUrl) {
-            window.location.href = dashboardUrl;
-        }
     };
 
     return (
@@ -113,26 +85,6 @@ export default function SettingsPopover({ isOpen, speed, setSpeed, visionModel, 
                         <span className="mode-name">VP Level</span>
                     </button>
                 </div>
-            </div>
-
-            {/* Dashboard Link - Show for admin and super_admin */}
-            {dashboardUrl && (userRole === 'admin' || userRole === 'super_admin') && (
-                <div className="setting-group">
-                    <div className="settings-divider"></div>
-                    <button className="dashboard-btn" onClick={goToDashboard}>
-                        <span className="dashboard-btn-text">
-                            {userRole === 'super_admin' ? 'Super Admin Dashboard' : 'Admin Dashboard'}
-                        </span>
-                        <span className="dashboard-btn-arrow">→</span>
-                    </button>
-                </div>
-            )}
-
-            {/* Logout Button */}
-            <div className="setting-group logout-group">
-                <button className="logout-btn" onClick={handleLogout}>
-                    Sign Out
-                </button>
             </div>
         </div>
     );

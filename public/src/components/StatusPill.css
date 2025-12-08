@@ -1,67 +1,66 @@
+/* Status Pill Styling */
 .status-pill {
-    position: fixed;
-    top: 32px;
-    left: 50%;
-    transform: translateX(-50%);
-    z-index: 100;
-    background: var(--glass-frosted);
-    backdrop-filter: blur(16px);
-    -webkit-backdrop-filter: blur(16px);
-    border: 1px solid rgba(255, 255, 255, 0.05);
-    border-radius: 100px;
-    padding: 10px 24px;
     display: flex;
     align-items: center;
     gap: 12px;
-    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.05);
-    transition: background 0.3s, border-color 0.3s;
-}
-
-.status-pill:hover {
-    background: rgba(20, 20, 20, 0.8);
-    border-color: var(--glass-shine);
+    padding: 8px 16px;
+    background: rgba(10, 10, 10, 0.6);
+    backdrop-filter: blur(12px);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 999px;
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
 }
 
 .status-dot {
-    width: 6px;
-    height: 6px;
+    width: 8px;
+    height: 8px;
     border-radius: 50%;
-    background: var(--text-muted);
-    transition: all 0.3s;
+    background: #6B7280;
+    transition: all 0.3s ease;
 }
 
 .status-dot.active {
-    background: var(--lux-green);
-    box-shadow: 0 0 8px rgba(16, 185, 129, 0.6);
+    background: #10B981;
+    box-shadow: 0 0 10px #10B981;
+    animation: pulse 2s infinite;
 }
 
 .status-dot.processing {
-    background: var(--theme-primary);
-    animation: pulse 1.5s infinite;
+    background: #3B82F6;
+    box-shadow: 0 0 10px #3B82F6;
+    animation: spin 1s linear infinite;
+}
+
+.status-text {
+    font-family: 'Space Grotesk', sans-serif;
+    font-size: 12px;
+    font-weight: 600;
+    color: #E5E7EB;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    min-width: 100px;
+    text-align: center;
 }
 
 @keyframes pulse {
     0% {
-        opacity: 0.4;
-        transform: scale(1);
+        transform: scale(0.95);
+        opacity: 0.8;
     }
 
     50% {
+        transform: scale(1.1);
         opacity: 1;
-        transform: scale(1.2);
     }
 
     100% {
-        opacity: 0.4;
-        transform: scale(1);
+        transform: scale(0.95);
+        opacity: 0.8;
     }
 }
 
-.status-text {
-    font-family: var(--font-display);
-    font-size: 11px;
-    font-weight: 600;
-    color: var(--text-muted);
-    letter-spacing: 0.1em;
-    text-transform: uppercase;
+@keyframes spin {
+    to {
+        transform: rotate(360deg);
+    }
 }

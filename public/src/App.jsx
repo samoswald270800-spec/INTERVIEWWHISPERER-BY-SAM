@@ -22,12 +22,6 @@ export default function App() {
     const [visionModel, setVisionModel] = useState("openai");
     const [interviewMode, setInterviewMode] = useState("smart"); // 'smart' | 'hr' | 'technical' | 'vp'
 
-    // Credits & Session Timer
-    const [credits, setCredits] = useState(null);
-    const [sessionTime, setSessionTime] = useState(0);
-    const [username, setUsername] = useState("");
-    const sessionTimerRef = useRef(null);
-
 
     const pcRef = useRef(null);
     const dcRef = useRef(null);
@@ -80,7 +74,7 @@ export default function App() {
         }
     }, [speed, processTypeQueue]);
 
-    // Fetch user info on mount
+    // Fetch permissions on mount
     useEffect(() => {
         fetch('/api/me')
             .then(res => res.json())
@@ -88,48 +82,9 @@ export default function App() {
                 if (data.permissions) {
                     setPermissions(data.permissions);
                 }
-                if (data.credits !== undefined) {
-                    setCredits(data.credits);
-                }
-                if (data.userId) {
-                    setUsername(data.userId);
-                }
             })
-            .catch(err => console.error("Failed to fetch user info:", err));
+            .catch(err => console.error("Failed to fetch permissions:", err));
     }, []);
-
-    // Session timer
-    useEffect(() => {
-        if (isSessionActive) {
-            setSessionTime(0);
-            sessionTimerRef.current = setInterval(() => {
-                setSessionTime(prev => prev + 1);
-            }, 1000);
-        } else {
-            if (sessionTimerRef.current) {
-                clearInterval(sessionTimerRef.current);
-                sessionTimerRef.current = null;
-            }
-        }
-
-        return () => {
-            if (sessionTimerRef.current) {
-                clearInterval(sessionTimerRef.current);
-            }
-        };
-    }, [isSessionActive]);
-
-    // Format session time as HH:MM:SS
-    const formatTime = (seconds) => {
-        const h = Math.floor(seconds / 3600);
-        const m = Math.floor((seconds % 3600) / 60);
-        const s = seconds % 60;
-
-        if (h > 0) {
-            return `${h}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
-        }
-        return `${m}:${s.toString().padStart(2, '0')}`;
-    };
 
     const startRealtime = async () => {
         setStatus("CONNECTING...");
@@ -387,18 +342,10 @@ export default function App() {
     const handleLogout = async () => {
         try {
             await fetch('/api/logout', { method: 'POST' });
-            if (window.electron?.isElectron) {
-                window.location.href = 'login.html';
-            } else {
-                window.location.href = '/login';
-            }
+            window.location.href = '/login';
         } catch (e) {
             console.error('Logout failed:', e);
-            if (window.electron?.isElectron) {
-                window.location.href = 'login.html';
-            } else {
-                window.location.href = '/login';
-            }
+            window.location.href = '/login';
         }
     };
 
@@ -415,28 +362,6 @@ export default function App() {
                     isListening={isListening}
                     isProcessing={isProcessing}
                 />
-            </div>
-
-            {/* Session Info Panel */}
-            <div className="session-info">
-                {username && (
-                    <div className="session-user">
-                        <span className="label">User</span>
-                        <span className="value">{username}</span>
-                    </div>
-                )}
-                {credits !== null && (
-                    <div className="session-credits">
-                        <span className="label">Credits</span>
-                        <span className="value">{credits}</span>
-                    </div>
-                )}
-                {isSessionActive && (
-                    <div className="session-timer">
-                        <span className="label">Session</span>
-                        <span className="value timer">{formatTime(sessionTime)}</span>
-                    </div>
-                )}
             </div>
 
             <button className="power-btn" onClick={handleLogout} title="Sign Out">
