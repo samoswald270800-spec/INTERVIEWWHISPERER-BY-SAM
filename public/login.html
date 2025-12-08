@@ -408,18 +408,7 @@
       }
     }
   </style>
-  <script>
-    if (navigator.userAgent.includes('Electron')) {
-      const originalFetch = window.fetch;
-      window.fetch = function (input, init) {
-        if (typeof input === 'string' && input.startsWith('/')) {
-          input = 'http://localhost:3000' + input;
-        }
-        return originalFetch(input, init);
-      };
-      console.log('Electron API Interceptor Active in Login: Redirecting /api calls to localhost:3000');
-    }
-  </script>
+
 </head>
 
 <body>
