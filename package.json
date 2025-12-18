@@ -20,7 +20,6 @@
     "ai": "^5.0.104",
     "bcrypt": "^6.0.0",
     "connect-redis": "^8.0.0",
-    "dotenv": "^16.6.1",
     "express": "^4.19.2",
     "express-session": "^1.17.3",
     "node-fetch": "^3.3.2",
@@ -33,6 +32,7 @@
   },
   "devDependencies": {
     "concurrently": "^9.2.1",
+    "dotenv": "^17.2.3",
     "electron": "^39.2.6",
     "electron-builder": "^26.0.12",
     "wait-on": "^9.0.3"
@@ -40,7 +40,10 @@
   "build": {
     "appId": "com.interview.whisperer",
     "productName": "Interview Whisperer",
+    "copyright": "Copyright © 2024 Antigravity",
     "npmRebuild": false,
+    "asar": true,
+    "asarUnpack": [],
     "files": [
       "electron-main.js",
       "electron-preload.js",
@@ -51,7 +54,11 @@
       "output": "dist-electron"
     },
     "win": {
-      "target": "nsis"
+      "target": "portable",
+      "icon": "icon.png"
+    },
+    "portable": {
+      "artifactName": "Interview-Whisperer-Setup.exe"
     }
   }
 }

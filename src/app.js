@@ -1,6 +1,6 @@
 /**
  * Express Application Setup
- * Configures middleware, routes, and static file serving
+ * Desktop App Version - User Authentication Only
  */
 
 import express from 'express';
@@ -9,14 +9,12 @@ import fs from 'fs';
 import { fileURLToPath } from 'url';
 
 import config from './config/index.js';
-import { connectRedis, forceLogoutUser, forceLogoutAdmin, forceLogoutAllUsersUnderAdmin } from './lib/redis.js';
+import { connectRedis } from './lib/redis.js';
 import { initSupabase, getSupabase } from './lib/supabase.js';
 import { createSessionMiddleware, sessionAnnotator } from './middleware/session.js';
-import { requireAuth, requireSuperAdmin, requireConsultancyAdmin, requireUser } from './middleware/auth.js';
+import { requireAuth } from './middleware/auth.js';
 import {
   authRoutes,
-  superAdminRoutes,
-  adminRoutes,
   userRoutes,
   interviewRoutes,
 } from './routes/index.js';
@@ -35,7 +33,7 @@ export async function createApp() {
   // Validate config
   config.validateConfig();
 
-  // Trust proxy for Render/Railway
+  // Trust proxy for Railway
   app.set('trust proxy', 1);
 
   // Parse JSON
@@ -50,15 +48,11 @@ export async function createApp() {
 
   // Store clients in app.locals
   app.locals.supabase = supabase;
-  app.locals.forceLogoutUser = forceLogoutUser;
-  app.locals.forceLogoutAdmin = forceLogoutAdmin;
-  app.locals.forceLogoutAllUsersUnderAdmin = forceLogoutAllUsersUnderAdmin;
 
   // Session middleware
   app.use(createSessionMiddleware());
 
-  console.log('🚀 Server starting... (Version: Multi-Tenant Dashboard v2 - Refactored)');
-  console.log('ℹ️  Super Admin auth via SUPER_ADMIN_USERNAME / SUPER_ADMIN_PASSWORD env vars');
+  console.log('🚀 Interview Whisperer Desktop App starting...');
 
   // Load resume and assignment
   loadResumeFiles();
@@ -79,13 +73,8 @@ export async function createApp() {
   app.use(sessionAnnotator);
 
   // Mount protected API routes
-  app.use('/api/super-admin', superAdminRoutes);
-  app.use('/api/admin', adminRoutes);
   app.use('/api/user', userRoutes);
   app.use('/', interviewRoutes);
-
-  // Dashboard routes
-  setupDashboardRoutes(app);
 
   // Static file serving
   setupStaticRoutes(app);
@@ -115,41 +104,6 @@ function loadResumeFiles() {
   }
 
   loadDocuments(resume, assignment);
-}
-
-/**
- * Setup dashboard routes
- */
-function setupDashboardRoutes(app) {
-  // Super Admin Dashboard
-  app.use(
-    '/super-admin',
-    requireSuperAdmin,
-    express.static(path.join(ROOT_DIR, 'dashboards', 'super-admin', 'dist'))
-  );
-  app.get('/super-admin/*', requireSuperAdmin, (req, res) => {
-    res.sendFile(path.join(ROOT_DIR, 'dashboards', 'super-admin', 'dist', 'index.html'));
-  });
-
-  // Admin (Consultancy) Dashboard
-  app.use(
-    '/admin-dashboard',
-    requireConsultancyAdmin,
-    express.static(path.join(ROOT_DIR, 'dashboards', 'admin', 'dist'))
-  );
-  app.get('/admin-dashboard/*', requireConsultancyAdmin, (req, res) => {
-    res.sendFile(path.join(ROOT_DIR, 'dashboards', 'admin', 'dist', 'index.html'));
-  });
-
-  // User (Candidate) Dashboard
-  app.use(
-    '/user-dashboard',
-    requireUser,
-    express.static(path.join(ROOT_DIR, 'dashboards', 'user', 'dist'))
-  );
-  app.get('/user-dashboard/*', requireUser, (req, res) => {
-    res.sendFile(path.join(ROOT_DIR, 'dashboards', 'user', 'dist', 'index.html'));
-  });
 }
 
 /**

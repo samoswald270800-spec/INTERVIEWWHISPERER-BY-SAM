@@ -1,4 +1,5 @@
 import { useState, useRef, useCallback } from 'react';
+import API_BASE_URL from '../config';
 
 export const useRealtimeSession = (mode) => {
     const [isProcessing, setIsProcessing] = useState(false);
@@ -7,9 +8,10 @@ export const useRealtimeSession = (mode) => {
 
     const createSession = useCallback(async () => {
         try {
-            const response = await fetch('/session', {
+            const response = await fetch(`${API_BASE_URL}/session`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
+                credentials: 'include',
                 body: JSON.stringify({ mode }),
             });
 
@@ -58,9 +60,10 @@ export const useRealtimeSession = (mode) => {
         try {
             setIsProcessing(true);
 
-            const response = await fetch('/analyze-screen', {
+            const response = await fetch(`${API_BASE_URL}/analyze-screen`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
+                credentials: 'include',
                 body: JSON.stringify({
                     screenshotBase64,
                     sessionTranscript: transcript,

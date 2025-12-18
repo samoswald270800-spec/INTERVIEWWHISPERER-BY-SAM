@@ -1,7 +1,7 @@
 import React from 'react';
 import './SettingsPopover.css';
 
-export default function SettingsPopover({ isOpen, speed, setSpeed, visionModel, setVisionModel, interviewMode, setInterviewMode }) {
+export default function SettingsPopover({ isOpen, speed, setSpeed, visionModel, setVisionModel, interviewMode, setInterviewMode, opacity, setOpacity }) {
     const getSpeedLabel = () => {
         if (speed === 0) return "Instant";
         if (speed < 10) return "Blazing";
@@ -34,6 +34,28 @@ export default function SettingsPopover({ isOpen, speed, setSpeed, visionModel, 
                     <span className="range-icon">⚡</span>
                 </div>
             </div>
+
+            {window.electron && window.electron.isElectron && (
+                <div className="setting-group">
+                    <div className="setting-label">
+                        Window Opacity
+                        <span className="value-badge">{Math.round(opacity * 100)}%</span>
+                    </div>
+                    <div className="range-wrap">
+                        <span className="range-icon" title="More Transparent">👻</span>
+                        <input
+                            type="range"
+                            min="0.2"
+                            max="1.0"
+                            step="0.05"
+                            value={opacity}
+                            onChange={(e) => setOpacity(parseFloat(e.target.value))}
+                            onPointerDown={(e) => e.stopPropagation()}
+                        />
+                        <span className="range-icon" title="Opaque">⬛</span>
+                    </div>
+                </div>
+            )}
 
             <div className="setting-group">
                 <div className="setting-label">Vision Model</div>

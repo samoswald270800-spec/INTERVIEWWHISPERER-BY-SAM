@@ -7,8 +7,10 @@ import { RedisStore } from 'connect-redis';
 import config from '../config/index.js';
 
 // Create Redis client
+const redisUrl = config.REDIS_URL ? config.REDIS_URL.trim() : '';
+
 const redisClient = createClient({
-  url: config.REDIS_URL.trim(),
+  url: redisUrl,
   socket: config.REDIS_USE_TLS
     ? { tls: true, rejectUnauthorized: false }
     : undefined,
@@ -25,7 +27,7 @@ redisClient.on('ready', () => {
 // Connect to Redis
 export async function connectRedis() {
   await redisClient.connect();
-  
+
   // Health check
   try {
     const pong = await redisClient.ping();
@@ -122,14 +124,14 @@ export async function forceLogoutAdmin(adminId) {
  */
 export async function forceLogoutAllUsersUnderAdmin(supabaseClient, adminId) {
   if (!supabaseClient) return 0;
-  
+
   const { data: users } = await supabaseClient
     .from('users')
     .select('id')
     .eq('admin_id', adminId);
-  
+
   if (!users || users.length === 0) return 0;
-  
+
   let totalCount = 0;
   for (const user of users) {
     const count = await forceLogoutUser(user.id);

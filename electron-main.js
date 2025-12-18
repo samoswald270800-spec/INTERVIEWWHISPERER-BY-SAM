@@ -1,4 +1,4 @@
-import { app, BrowserWindow, globalShortcut, Tray, Menu, desktopCapturer, session } from 'electron';
+import { app, BrowserWindow, globalShortcut, Tray, Menu, desktopCapturer, session, ipcMain } from 'electron';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import fs from 'fs';
@@ -17,6 +17,7 @@ const __dirname = path.dirname(__filename);
 let mainWindow;
 let tray = null;
 let isStealth = false;
+let currentOpacity = 1.0;
 
 function createWindow() {
     mainWindow = new BrowserWindow({
@@ -26,46 +27,29 @@ function createWindow() {
             nodeIntegration: false,
             contextIsolation: true,
             preload: path.join(__dirname, 'electron-preload.js'),
-            devTools: true, // Enable DevTools
-            webSecurity: false, // TEMPORARY: Disable security to rule out CSP/CORS issues
+            devTools: !app.isPackaged, // Only enable DevTools in dev mode
+            webSecurity: true, // Enable web security in production
         },
         // Advanced stealth configuration
         alwaysOnTop: true,           // Stays on top of other windows
         skipTaskbar: true,            // Hides from taskbar
         frame: true,                  // Keep frame for user visibility
         transparent: false,           // Keep opaque for user
-        // icon: path.join(__dirname, 'public/favicon.ico'),
     });
 
     // STEALTH MODE: Prevents window from appearing in screen captures
     mainWindow.setContentProtection(true);
     mainWindow.setAlwaysOnTop(true);
 
-    const isDev = !app.isPackaged;
-
-    // Use Railway URL if configured, otherwise localhost for dev
-    const RAILWAY_URL = process.env.RAILWAY_URL;
-
-    if (!RAILWAY_URL) {
-        console.error('❌ RAILWAY_URL not set in .env file!');
-        console.error('Please create .env file with: RAILWAY_URL=https://your-app.up.railway.app');
-    }
-
-    const loadUrl = RAILWAY_URL || 'http://localhost:3000';
-    console.log(`🚀 Loading app from: ${loadUrl}`);
-
-    // Open DevTools immediately
-    mainWindow.webContents.openDevTools();
+    const isDev = !app.isPackaged && process.env.NODE_ENV !== 'production';
 
     if (isDev) {
-        mainWindow.loadURL(`${loadUrl}/login.html`);
+        mainWindow.loadURL('http://localhost:3000/login.html');
     } else {
-        // Check for login.html in build output
         const loginDistPath = path.join(__dirname, 'public/build/login.html');
         if (fs.existsSync(loginDistPath)) {
             mainWindow.loadFile(loginDistPath);
         } else {
-            // Fallback to index.html
             mainWindow.loadFile(path.join(__dirname, 'public/build/index.html'));
         }
     }
@@ -80,7 +64,8 @@ function toggleStealth() {
 
     if (isStealth) {
         mainWindow.show();
-        mainWindow.setOpacity(1);
+        // Restore user's preferred opacity
+        mainWindow.setOpacity(currentOpacity);
         isStealth = false;
         console.log('Stealth Mode: OFF');
     } else {
@@ -119,6 +104,20 @@ app.whenReady().then(() => {
         });
     });
 
+    // CRITICAL FIX: Patch cookies to allow cross-site (file:// -> https://) persistence
+    session.defaultSession.webRequest.onHeadersReceived((details, callback) => {
+        if (details.responseHeaders && details.responseHeaders['set-cookie']) {
+            details.responseHeaders['set-cookie'] = details.responseHeaders['set-cookie'].map(cookie => {
+                let newCookie = cookie;
+                // Force SameSite=None and Secure for cross-origin cookies in Electron
+                if (!newCookie.includes('SameSite=None')) newCookie += '; SameSite=None';
+                if (!newCookie.includes('Secure')) newCookie += '; Secure';
+                return newCookie;
+            });
+        }
+        callback({ responseHeaders: details.responseHeaders });
+    });
+
     createWindow();
 
     try {
@@ -141,6 +140,14 @@ app.whenReady().then(() => {
     } catch (error) {
         console.log('Tray icon error:', error.message);
     }
+
+    // IPC listener for Opacity
+    ipcMain.on('set-opacity', (event, value) => {
+        if (mainWindow) {
+            currentOpacity = Math.max(0.2, Math.min(1, value)); // Store it
+            mainWindow.setOpacity(currentOpacity);
+        }
+    });
 
     app.on('activate', () => {
         if (BrowserWindow.getAllWindows().length === 0) createWindow();

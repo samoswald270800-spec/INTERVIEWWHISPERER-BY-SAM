@@ -7,6 +7,8 @@ import SettingsPopover from './components/SettingsPopover';
 import { useAudioCapture } from './hooks/useAudioCapture';
 import './App.css';
 
+import API_BASE_URL from './config';
+
 export default function App() {
     const [status, setStatus] = useState("SYSTEM READY");
     const [isListening, setIsListening] = useState(false);
@@ -21,6 +23,7 @@ export default function App() {
     const [permissions, setPermissions] = useState({ canExpand: true, canAnalyze: true });
     const [visionModel, setVisionModel] = useState("openai");
     const [interviewMode, setInterviewMode] = useState("smart"); // 'smart' | 'hr' | 'technical' | 'vp'
+    const [opacity, setOpacity] = useState(1);
 
 
     const pcRef = useRef(null);
@@ -76,7 +79,7 @@ export default function App() {
 
     // Fetch permissions on mount
     useEffect(() => {
-        fetch('/api/me')
+        fetch(`${API_BASE_URL}/api/me`, { credentials: 'include' })
             .then(res => res.json())
             .then(data => {
                 if (data.permissions) {
@@ -90,14 +93,17 @@ export default function App() {
         setStatus("CONNECTING...");
 
         try {
-            const tokenRes = await fetch("/session", {
+            const tokenRes = await fetch(`${API_BASE_URL}/session`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
+                credentials: 'include',
                 body: JSON.stringify({ mode: "smart", interviewMode })
             });
             const data = await tokenRes.json();
 
             if (!data.client_secret?.value) {
+                console.error("Token Error:", data);
+                alert("Failed to get OpenAI Token. Check backend logs.");
                 setStatus("TOKEN ERROR");
                 return;
             }
@@ -150,6 +156,7 @@ export default function App() {
 
         } catch (err) {
             console.error(err);
+            alert(`Connection Failed: ${err.message || JSON.stringify(err)}`);
             setStatus("ERROR");
             stopSession();
         }
@@ -288,9 +295,10 @@ export default function App() {
 
             setStatus("ANALYZING...");
 
-            const res = await fetch("/analyze-screen", {
+            const res = await fetch(`${API_BASE_URL}/analyze-screen`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
+                credentials: 'include',
                 body: JSON.stringify({
                     screenshotBase64: base64,
                     mode: "smart",
@@ -341,11 +349,21 @@ export default function App() {
 
     const handleLogout = async () => {
         try {
-            await fetch('/api/logout', { method: 'POST' });
+            await fetch(`${API_BASE_URL}/api/logout`, {
+                method: 'POST',
+                credentials: 'include'
+            });
             window.location.href = '/login';
         } catch (e) {
             console.error('Logout failed:', e);
             window.location.href = '/login';
+        }
+    };
+
+    const handleOpacityChange = (val) => {
+        setOpacity(val);
+        if (window.electron && window.electron.setOpacity) {
+            window.electron.setOpacity(val);
         }
     };
 
@@ -398,6 +416,9 @@ export default function App() {
                 setVisionModel={setVisionModel}
                 interviewMode={interviewMode}
                 setInterviewMode={setInterviewMode}
+                opacity={opacity}
+                setOpacity={handleOpacityChange}
+                isElectron={window.electron && window.electron.isElectron}
             />
 
             <main className="stage">
