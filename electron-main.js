@@ -2,10 +2,16 @@ import { app, BrowserWindow, globalShortcut, Tray, Menu, desktopCapturer, sessio
 import path from 'path';
 import { fileURLToPath } from 'url';
 import fs from 'fs';
-import dotenv from 'dotenv';
 
-// Load environment variables
-dotenv.config();
+// Load environment variables only in development
+if (!app.isPackaged) {
+    try {
+        const dotenv = await import('dotenv');
+        dotenv.config();
+    } catch (e) {
+        // dotenv not available in production - that's fine
+    }
+}
 
 // FIX: Disable HTTP cache to prevent "Access Denied" errors and blank pages
 app.commandLine.appendSwitch('disable-http-cache');
