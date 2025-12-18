@@ -126,8 +126,18 @@
 
 .session-info .value.timer {
     font-family: 'SF Mono', 'Monaco', 'Consolas', monospace;
-    color: var(--lux-green);
+    color: #22C55E;
     font-variant-numeric: tabular-nums;
+}
+
+.session-info .value.timer.warning {
+    color: #EF4444;
+    animation: pulse 1s infinite;
+}
+
+@keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.5; }
 }
 
 .session-credits .value {

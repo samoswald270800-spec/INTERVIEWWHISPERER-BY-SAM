@@ -24,6 +24,9 @@ export default function App() {
     const [visionModel, setVisionModel] = useState("openai");
     const [interviewMode, setInterviewMode] = useState("smart"); // 'smart' | 'hr' | 'technical' | 'vp'
     const [opacity, setOpacity] = useState(1);
+    const [credits, setCredits] = useState(0);
+    const [remainingTime, setRemainingTime] = useState(0);
+    const timerIntervalRef = useRef(null);
 
 
     const pcRef = useRef(null);
@@ -77,7 +80,7 @@ export default function App() {
         }
     }, [speed, processTypeQueue]);
 
-    // Fetch permissions on mount
+    // Fetch permissions and credits on mount
     useEffect(() => {
         fetch(`${API_BASE_URL}/api/me`, { credentials: 'include' })
             .then(res => res.json())
@@ -85,9 +88,48 @@ export default function App() {
                 if (data.permissions) {
                     setPermissions(data.permissions);
                 }
+                if (data.credits !== undefined) {
+                    setCredits(data.credits);
+                    setRemainingTime(data.credits * 60); // Convert credits (minutes) to seconds
+                }
             })
             .catch(err => console.error("Failed to fetch permissions:", err));
     }, []);
+
+    // Countdown timer when session is active
+    useEffect(() => {
+        if (isSessionActive && remainingTime > 0) {
+            timerIntervalRef.current = setInterval(() => {
+                setRemainingTime(prev => {
+                    if (prev <= 1) {
+                        clearInterval(timerIntervalRef.current);
+                        stopSession();
+                        return 0;
+                    }
+                    return prev - 1;
+                });
+            }, 1000);
+        } else if (!isSessionActive && timerIntervalRef.current) {
+            clearInterval(timerIntervalRef.current);
+        }
+
+        return () => {
+            if (timerIntervalRef.current) {
+                clearInterval(timerIntervalRef.current);
+            }
+        };
+    }, [isSessionActive]);
+
+    // Format seconds to HH:MM:SS
+    const formatTime = (seconds) => {
+        const hrs = Math.floor(seconds / 3600);
+        const mins = Math.floor((seconds % 3600) / 60);
+        const secs = seconds % 60;
+        if (hrs > 0) {
+            return `${hrs}:${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+        }
+        return `${mins}:${secs.toString().padStart(2, '0')}`;
+    };
 
     const startRealtime = async () => {
         setStatus("CONNECTING...");
@@ -372,6 +414,20 @@ export default function App() {
             <div className="void-bg">
                 <div className="aurora"></div>
                 <div className="noise"></div>
+            </div>
+
+            {/* Session Info - Timer & Credits */}
+            <div className="session-info">
+                <div className="session-timer">
+                    <span className="label">Time Left</span>
+                    <span className={`value timer ${remainingTime < 300 ? 'warning' : ''}`}>
+                        {formatTime(remainingTime)}
+                    </span>
+                </div>
+                <div className="session-credits">
+                    <span className="label">Credits</span>
+                    <span className="value">{credits} min</span>
+                </div>
             </div>
 
             <div className="status-pill-wrapper">
