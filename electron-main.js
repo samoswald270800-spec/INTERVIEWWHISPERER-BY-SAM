@@ -126,7 +126,7 @@ app.whenReady().then(() => {
     } catch (e) { console.error(e); }
 
     try {
-        const iconPath = path.join(__dirname, 'public/favicon.ico');
+        const iconPath = path.join(__dirname, 'public/favicon.png');
         if (fs.existsSync(iconPath)) {
             tray = new Tray(iconPath);
             const contextMenu = Menu.buildFromTemplate([
