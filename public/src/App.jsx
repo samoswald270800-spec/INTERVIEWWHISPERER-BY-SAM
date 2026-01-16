@@ -80,6 +80,12 @@ export default function App() {
         }
     }, [speed, processTypeQueue]);
 
+    const formatTime = (seconds) => {
+        const mins = Math.floor(seconds / 60);
+        const secs = seconds % 60;
+        return `${mins}:${secs.toString().padStart(2, '0')}`;
+    };
+
     const stopSession = useCallback(() => {
         if (pcRef.current) pcRef.current.close();
         stopCapture();
@@ -143,6 +149,90 @@ export default function App() {
         }
         return () => { if (timerIntervalRef.current) clearInterval(timerIntervalRef.current); };
     }, [isSessionActive]);
+
+    const startRealtime = async () => {
+        try {
+            setStatus("STARTING...");
+            setQaList([]);
+            lastQuestionRef.current = "";
+            typeQueueRef.current = [];
+            isTypingRef.current = false;
+
+            // Fetch session token from backend (which checks/deducts credits)
+            const res = await fetch(`${API_BASE_URL}/session`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                credentials: 'include',
+                body: JSON.stringify({ mode: 'smart', interviewMode })
+            });
+
+            if (!res.ok) {
+                const errData = await res.json();
+                if (errData.error && errData.error.includes('credit')) {
+                    alert("Insufficient credits. Please top up your account.");
+                    setStatus("INSUFFICIENT CREDITS");
+                } else {
+                    setStatus("ERROR");
+                }
+                return;
+            }
+
+            const data = await res.json();
+            const EPHEMERAL_KEY = data.client_secret.value;
+
+            // Setup WebRTC peer connection
+            const pc = new RTCPeerConnection();
+            pcRef.current = pc;
+
+            // Setup audio stream
+            const audioStream = await startCapture();
+            streamRef.current = audioStream;
+            audioStream.getTracks().forEach(track => pc.addTrack(track, audioStream));
+
+            // Setup data channel
+            const dc = pc.createDataChannel("oai-events");
+            dcRef.current = dc;
+
+            dc.addEventListener("open", () => {
+                console.log("DATA CHANNEL OPENED");
+                setStatus("LISTENING...");
+                setIsSessionActive(true);
+                // Fetch credits immediately after session starts to sync UI
+                fetchCredits();
+            });
+
+            dc.addEventListener("message", (e) => {
+                try {
+                    const event = JSON.parse(e.data);
+                    handleServerEvent(event);
+                } catch (err) {
+                    console.error("DC message parse error:", err);
+                }
+            });
+
+            // Create and set local offer
+            const offer = await pc.createOffer();
+            await pc.setLocalDescription(offer);
+
+            // Send offer to OpenAI, get answer
+            const sdpRes = await fetch("https://api.openai.com/v1/realtime", {
+                method: "POST",
+                headers: {
+                    Authorization: `Bearer ${EPHEMERAL_KEY}`,
+                    "Content-Type": "application/sdp"
+                },
+                body: offer.sdp
+            });
+
+            const answerSdp = await sdpRes.text();
+            await pc.setRemoteDescription({ type: "answer", sdp: answerSdp });
+
+        } catch (e) {
+            console.error("startRealtime error:", e);
+            setStatus("START FAILED");
+            stopCapture();
+        }
+    };
 
     const handleServerEvent = (event) => {
         const type = event.type;

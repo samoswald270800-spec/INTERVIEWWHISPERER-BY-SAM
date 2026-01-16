@@ -13,6 +13,15 @@ export default defineConfig({
         login: './login.html',
       },
     },
+    // Production security: minify and drop console logs
+    minify: 'terser',
+    terserOptions: {
+      compress: {
+        drop_console: true,
+        drop_debugger: true,
+        pure_funcs: ['console.log', 'console.debug']
+      }
+    }
   },
   server: {
     port: 5174,
