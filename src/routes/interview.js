@@ -57,7 +57,7 @@ router.post('/session', requireAuth, async (req, res) => {
   try {
     const mode = (req.body?.mode || 'smart').toString().toLowerCase();
     const interviewMode = (req.body?.interviewMode || 'smart').toString().toLowerCase();
-    
+
     console.log('→ Creating realtime session with mode:', mode, 'interview mode:', interviewMode);
 
     const screenAnalysisContext = req.session?.screenAnalysisContext || '';
@@ -142,7 +142,7 @@ router.post('/analyze-screen', requireAuth, async (req, res) => {
     if (!screenshot) {
       return res.status(400).json({ error: 'screenshotBase64 (or image) is required' });
     }
-    
+
     let imageDataUrl = screenshot.startsWith('data:')
       ? screenshot
       : `data:image/png;base64,${screenshot}`;
