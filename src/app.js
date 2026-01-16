@@ -66,7 +66,11 @@ export async function createApp() {
     res.sendFile(path.join(ROOT_DIR, 'public', 'login.html'));
   });
 
-  // Auth gate (protect everything else)
+  // Serve static assets (CSS, JS, images) BEFORE auth - these are public
+  app.use('/assets', express.static(path.join(ROOT_DIR, 'public', 'build', 'assets')));
+  app.use('/src', express.static(path.join(ROOT_DIR, 'public', 'build', 'src')));
+
+  // Auth gate (protect everything else including index.html)
   app.use(requireAuth);
 
   // Post-auth session annotator
@@ -76,8 +80,20 @@ export async function createApp() {
   app.use('/api/user', userRoutes);
   app.use('/', interviewRoutes);
 
-  // Static file serving
-  setupStaticRoutes(app);
+  // Protected: Serve index.html only to authenticated users
+  app.get('/', (req, res) => {
+    res.sendFile(path.join(ROOT_DIR, 'public', 'build', 'index.html'));
+  });
+
+  // Catch-all for other routes (404 for API, redirect to login for others)
+  app.get('*', (req, res) => {
+    if (req.path.startsWith('/api') || req.path.startsWith('/session') ||
+      req.path.startsWith('/set-jd') || req.path.startsWith('/analyze-screen')) {
+      return res.status(404).json({ error: 'Not found' });
+    }
+    // If someone tries to access any other route, serve the React app
+    res.sendFile(path.join(ROOT_DIR, 'public', 'build', 'index.html'));
+  });
 
   return app;
 }
@@ -106,21 +122,5 @@ function loadResumeFiles() {
   loadDocuments(resume, assignment);
 }
 
-/**
- * Setup static file serving
- */
-function setupStaticRoutes(app) {
-  // Public React app
-  app.use(express.static(path.join(ROOT_DIR, 'public', 'build')));
-
-  // SPA fallback
-  app.get('*', (req, res) => {
-    if (req.path.startsWith('/api') || req.path.startsWith('/session') ||
-      req.path.startsWith('/set-jd') || req.path.startsWith('/analyze-screen')) {
-      return res.status(404).json({ error: 'Not found' });
-    }
-    res.sendFile(path.join(ROOT_DIR, 'public', 'build', 'index.html'));
-  });
-}
-
 export default createApp;
+
