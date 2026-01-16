@@ -66,6 +66,10 @@ export async function createApp() {
     res.sendFile(path.join(ROOT_DIR, 'public', 'login.html'));
   });
 
+  // Serve static assets (CSS, JS, images) BEFORE auth - these are public
+  app.use('/assets', express.static(path.join(ROOT_DIR, 'public', 'build', 'assets')));
+  app.use('/src', express.static(path.join(ROOT_DIR, 'public', 'build', 'src')));
+
   // ===== AUTH GATE: Everything below requires authentication =====
   app.use(requireAuth);
 
@@ -75,10 +79,6 @@ export async function createApp() {
   // Mount protected API routes
   app.use('/api/user', userRoutes);
   app.use('/', interviewRoutes);
-
-  // Serve protected static assets AFTER auth (React app files)
-  app.use('/assets', express.static(path.join(ROOT_DIR, 'public', 'build', 'assets')));
-  app.use('/src', express.static(path.join(ROOT_DIR, 'public', 'build', 'src')));
 
   // Serve index.html (protected by auth above)
   app.get('*', (req, res) => {
