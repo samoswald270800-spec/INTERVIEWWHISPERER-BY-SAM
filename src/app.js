@@ -66,11 +66,7 @@ export async function createApp() {
     res.sendFile(path.join(ROOT_DIR, 'public', 'login.html'));
   });
 
-  // Serve static assets (CSS, JS, images) BEFORE auth - these are public
-  app.use('/assets', express.static(path.join(ROOT_DIR, 'public', 'build', 'assets')));
-  app.use('/src', express.static(path.join(ROOT_DIR, 'public', 'build', 'src')));
-
-  // Auth gate (protect everything else including index.html)
+  // ===== AUTH GATE: Everything below requires authentication =====
   app.use(requireAuth);
 
   // Post-auth session annotator
@@ -80,18 +76,18 @@ export async function createApp() {
   app.use('/api/user', userRoutes);
   app.use('/', interviewRoutes);
 
-  // Protected: Serve index.html only to authenticated users
-  app.get('/', (req, res) => {
-    res.sendFile(path.join(ROOT_DIR, 'public', 'build', 'index.html'));
-  });
+  // Serve protected static assets AFTER auth (React app files)
+  app.use('/assets', express.static(path.join(ROOT_DIR, 'public', 'build', 'assets')));
+  app.use('/src', express.static(path.join(ROOT_DIR, 'public', 'build', 'src')));
 
-  // Catch-all for other routes (404 for API, redirect to login for others)
+  // Serve index.html (protected by auth above)
   app.get('*', (req, res) => {
+    // For API routes that don't exist, return 404 JSON
     if (req.path.startsWith('/api') || req.path.startsWith('/session') ||
       req.path.startsWith('/set-jd') || req.path.startsWith('/analyze-screen')) {
       return res.status(404).json({ error: 'Not found' });
     }
-    // If someone tries to access any other route, serve the React app
+    // For all other routes, serve the React SPA (already protected by auth)
     res.sendFile(path.join(ROOT_DIR, 'public', 'build', 'index.html'));
   });
 
