@@ -14,33 +14,55 @@ import config from '../config/index.js';
  */
 export async function startSession(supabase, userId, adminId) {
   if (!supabase) return { success: false, error: 'Supabase not configured' };
-  
+
   const { data: user } = await supabase
     .from('users')
     .select('credits')
     .eq('id', userId)
     .single();
-  
+
   if (!user || user.credits < config.MIN_CHARGE_TOKENS) {
-    return { 
-      success: false, 
-      error: `Insufficient credits. Minimum ${config.MIN_CHARGE_TOKENS} tokens required (${config.MIN_CHARGE_MINUTES} minutes).` 
+    return {
+      success: false,
+      error: `Insufficient credits. Minimum ${config.MIN_CHARGE_TOKENS} tokens required (${config.MIN_CHARGE_MINUTES} minutes).`
     };
   }
-  
+
+  // IMMEDIATE DEDUCTION: Charge 1 token to start
+  const newCredits = user.credits - config.MIN_CHARGE_TOKENS;
+
+  await supabase
+    .from('users')
+    .update({ credits: newCredits })
+    .eq('id', userId);
+
   const { data, error } = await supabase
     .from('sessions')
     .insert({
       user_id: userId,
       admin_id: adminId,
-      status: 'active'
+      status: 'active',
+      credits_used: config.MIN_CHARGE_TOKENS // Record initial charge
     })
     .select()
     .single();
 
   if (error) {
+    // Refund if session creation fails
+    await supabase.from('users').update({ credits: user.credits }).eq('id', userId);
     return { success: false, error: error.message };
   }
+
+  // Log transaction
+  await supabase.from('credit_transactions').insert({
+    user_id: userId,
+    admin_id: adminId,
+    type: 'consume',
+    amount: -config.MIN_CHARGE_TOKENS,
+    balance_after: newCredits,
+    description: `Session Start: Initial Charge`,
+    session_id: data.id,
+  });
 
   return { success: true, session: data };
 }
@@ -50,7 +72,7 @@ export async function startSession(supabase, userId, adminId) {
  */
 export async function endSession(supabase, sessionId) {
   if (!supabase) return { success: false, error: 'Supabase not configured' };
-  
+
   const { data: session, error: fetchError } = await supabase
     .from('sessions')
     .select('*')
@@ -65,18 +87,29 @@ export async function endSession(supabase, sessionId) {
   const startTime = new Date(session.start_time);
   const endTime = new Date();
   const totalSeconds = Math.floor((endTime - startTime) / 1000);
-  
-  // Calculate credits: 1 token = 6 minutes = 360 seconds
-  // Minimum: 15 minutes = 3 tokens
-  let creditsUsed = Math.ceil(totalSeconds / 360);
-  if (creditsUsed < config.MIN_CHARGE_TOKENS) creditsUsed = config.MIN_CHARGE_TOKENS;
+
+  // Calculate TOTAL credits required for the full duration
+  // 1 token = 6 minutes = 360 seconds
+  let totalCreditsRequired = Math.ceil(totalSeconds / 360);
+
+  // Ensure we at least charge the minimum (already paid)
+  if (totalCreditsRequired < config.MIN_CHARGE_TOKENS) {
+    totalCreditsRequired = config.MIN_CHARGE_TOKENS;
+  }
+
+  // Calculate EXTRA credits to deduct (Total - Already Paid)
+  const creditsAlreadyPaid = session.credits_used || 0;
+  let extraCreditsToDeduct = totalCreditsRequired - creditsAlreadyPaid;
+
+  // Safety check
+  if (extraCreditsToDeduct < 0) extraCreditsToDeduct = 0;
 
   const { data, error } = await supabase
     .from('sessions')
     .update({
       end_time: endTime.toISOString(),
       total_seconds: totalSeconds,
-      credits_used: creditsUsed,
+      credits_used: totalCreditsRequired,
       status: 'completed'
     })
     .eq('id', sessionId)
@@ -93,26 +126,26 @@ export async function endSession(supabase, sessionId) {
     .select('credits')
     .eq('id', session.user_id)
     .single();
-  
+
   if (user) {
-    const newCredits = Math.max(0, user.credits - creditsUsed);
+    const newCredits = Math.max(0, user.credits - extraCreditsToDeduct);
     await supabase
       .from('users')
       .update({ credits: newCredits })
       .eq('id', session.user_id);
-    
+
     await supabase.from('credit_transactions').insert({
       user_id: session.user_id,
       admin_id: session.admin_id,
       type: 'consume',
-      amount: -creditsUsed,
+      amount: -extraCreditsToDeduct,
       balance_after: newCredits,
-      description: `Session: ${Math.floor(totalSeconds / 60)} minutes`,
+      description: `Session End: Additional Time (${Math.floor(totalSeconds / 60)}m active)`,
       session_id: sessionId,
     });
   }
 
-  return { success: true, session: data, creditsUsed };
+  return { success: true, session: data, creditsUsed: totalCreditsRequired };
 }
 
 /**
@@ -120,7 +153,7 @@ export async function endSession(supabase, sessionId) {
  */
 export async function getActiveSession(supabase, userId) {
   if (!supabase) return null;
-  
+
   const { data } = await supabase
     .from('sessions')
     .select('*')
@@ -136,19 +169,19 @@ export async function getActiveSession(supabase, userId) {
  */
 export async function chargeScreenAnalysis(supabase, userId, adminId) {
   if (!supabase) return { success: false, error: 'Supabase not configured' };
-  
+
   const { data: user } = await supabase
     .from('users')
     .select('credits')
     .eq('id', userId)
     .single();
-  
+
   if (!user || user.credits < config.SCREEN_ANALYSIS_COST) {
     return { success: false, error: 'Insufficient credits for screen analysis' };
   }
-  
+
   const newCredits = user.credits - config.SCREEN_ANALYSIS_COST;
-  
+
   await supabase
     .from('users')
     .update({ credits: newCredits })

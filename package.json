@@ -59,6 +59,19 @@
     },
     "portable": {
       "artifactName": "Interview-Whisperer-Setup.exe"
+    },
+    "mac": {
+      "target": [
+        "dmg",
+        "zip"
+      ],
+      "icon": "icon.png",
+      "category": "public.app-category.productivity",
+      "artifactName": "Interview-Whisperer-${version}.${ext}"
+    },
+    "dmg": {
+      "title": "Interview Whisperer",
+      "icon": "icon.png"
     }
   }
 }

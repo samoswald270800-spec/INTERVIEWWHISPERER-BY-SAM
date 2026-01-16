@@ -44,17 +44,17 @@ export const ANALYZE_DAILY_LIMIT = 50;
 
 // Credits
 export const TOKENS_PER_HOUR = 10;         // 10 tokens = 1 hour (1 token = 6 mins)
-export const MIN_CHARGE_MINUTES = 15;       // Minimum 15 minutes charge
-export const MIN_CHARGE_TOKENS = 3;         // 15 mins = 3 tokens
+export const MIN_CHARGE_MINUTES = 6;       // Minimum 6 minutes charge
+export const MIN_CHARGE_TOKENS = 1;         // 6 mins = 1 tokens
 export const SCREEN_ANALYSIS_COST = 1;      // 1 token per screen analysis
 
 // Validate required env vars
 export function validateConfig() {
   const errors = [];
-  
+
   if (!REDIS_URL) errors.push('REDIS_URL is required');
   if (!OPENAI_API_KEY) errors.push('OPENAI_API_KEY is required');
-  
+
   if (errors.length > 0) {
     console.error('❌ Configuration errors:');
     errors.forEach(e => console.error(`   - ${e}`));

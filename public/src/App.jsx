@@ -80,23 +80,52 @@ export default function App() {
         }
     }, [speed, processTypeQueue]);
 
-    // Fetch permissions and credits on mount
+    const stopSession = useCallback(() => {
+        if (pcRef.current) pcRef.current.close();
+        stopCapture();
+        setIsSessionActive(false);
+        setStatus("STOPPED");
+        setIsListening(false);
+        setIsProcessing(false);
+        setCanExpand(false);
+
+        // Re-fetch credits to sync final balance with backend
+        fetchCredits();
+    }, [stopCapture]);
+
+    const fetchCredits = async () => {
+        try {
+            const res = await fetch(`${API_BASE_URL}/api/me`, { credentials: 'include' });
+            if (!res.ok) throw new Error("Failed to fetch info");
+            const data = await res.json();
+
+            if (data.permissions) setPermissions(data.permissions);
+            if (data.credits !== undefined) {
+                setCredits(data.credits);
+                setRemainingTime(data.credits * 60);
+            }
+        } catch (err) {
+            console.error("Fetch credits error:", err);
+            setStatus("NETWORK ERROR");
+        }
+    };
+
+    // Initialize: Permissions, Credits, Opacity
     useEffect(() => {
-        fetch(`${API_BASE_URL}/api/me`, { credentials: 'include' })
-            .then(res => res.json())
-            .then(data => {
-                if (data.permissions) {
-                    setPermissions(data.permissions);
-                }
-                if (data.credits !== undefined) {
-                    setCredits(data.credits);
-                    setRemainingTime(data.credits * 60); // Convert credits (minutes) to seconds
-                }
-            })
-            .catch(err => console.error("Failed to fetch permissions:", err));
+        fetchCredits();
+
+        // Load persisted opacity
+        const savedOpacity = localStorage.getItem('app_opacity');
+        if (savedOpacity) {
+            const val = parseFloat(savedOpacity);
+            setOpacity(val);
+            if (window.electron && window.electron.setOpacity) {
+                window.electron.setOpacity(val);
+            }
+        }
     }, []);
 
-    // Countdown timer when session is active
+    // Countdown timer
     useEffect(() => {
         if (isSessionActive && remainingTime > 0) {
             timerIntervalRef.current = setInterval(() => {
@@ -109,110 +138,11 @@ export default function App() {
                     return prev - 1;
                 });
             }, 1000);
-        } else if (!isSessionActive && timerIntervalRef.current) {
-            clearInterval(timerIntervalRef.current);
+        } else {
+            if (timerIntervalRef.current) clearInterval(timerIntervalRef.current);
         }
-
-        return () => {
-            if (timerIntervalRef.current) {
-                clearInterval(timerIntervalRef.current);
-            }
-        };
+        return () => { if (timerIntervalRef.current) clearInterval(timerIntervalRef.current); };
     }, [isSessionActive]);
-
-    // Format seconds to HH:MM:SS
-    const formatTime = (seconds) => {
-        const hrs = Math.floor(seconds / 3600);
-        const mins = Math.floor((seconds % 3600) / 60);
-        const secs = seconds % 60;
-        if (hrs > 0) {
-            return `${hrs}:${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
-        }
-        return `${mins}:${secs.toString().padStart(2, '0')}`;
-    };
-
-    const startRealtime = async () => {
-        setStatus("CONNECTING...");
-
-        try {
-            const tokenRes = await fetch(`${API_BASE_URL}/session`, {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                credentials: 'include',
-                body: JSON.stringify({ mode: "smart", interviewMode })
-            });
-            const data = await tokenRes.json();
-
-            if (!data.client_secret?.value) {
-                console.error("Token Error:", data);
-                alert("Failed to get OpenAI Token. Check backend logs.");
-                setStatus("TOKEN ERROR");
-                return;
-            }
-
-            const stream = await startCapture();
-            streamRef.current = stream;
-
-            const pc = new RTCPeerConnection();
-            pcRef.current = pc;
-
-            const audioTrack = stream.getAudioTracks()[0];
-            pc.addTrack(audioTrack, stream);
-
-            const dc = pc.createDataChannel("oai-events");
-            dcRef.current = dc;
-
-            dc.onopen = () => {
-                setIsSessionActive(true);
-                setStatus("LISTENING...");
-
-                const instructions = buildInstructions("smart");
-                const event = {
-                    type: "session.update",
-                    session: {
-                        modalities: ["text"],
-                        instructions: instructions,
-                        input_audio_transcription: { model: "whisper-1" },
-                        turn_detection: { type: "server_vad" }
-                    }
-                };
-                dc.send(JSON.stringify(event));
-            };
-
-            dc.onmessage = (e) => handleServerEvent(JSON.parse(e.data));
-
-            const offer = await pc.createOffer();
-            await pc.setLocalDescription(offer);
-
-            const sdpResponse = await fetch(`https://api.openai.com/v1/realtime?model=gpt-4o-realtime-preview`, {
-                method: "POST",
-                body: offer.sdp,
-                headers: {
-                    Authorization: `Bearer ${data.client_secret.value}`,
-                    "Content-Type": "application/sdp"
-                },
-            });
-
-            const answerSdp = await sdpResponse.text();
-            await pc.setRemoteDescription({ type: "answer", sdp: answerSdp });
-
-        } catch (err) {
-            console.error(err);
-            alert(`Connection Failed: ${err.message || JSON.stringify(err)}`);
-            setStatus("ERROR");
-            stopSession();
-        }
-    };
-
-    const stopSession = () => {
-        if (pcRef.current) pcRef.current.close();
-        stopCapture();
-        setIsSessionActive(false);
-        setStatus("STOPPED");
-        setIsListening(false);
-        setIsProcessing(false);
-        setCanExpand(false);
-    };
 
     const handleServerEvent = (event) => {
         const type = event.type;
@@ -404,6 +334,7 @@ export default function App() {
 
     const handleOpacityChange = (val) => {
         setOpacity(val);
+        localStorage.setItem('app_opacity', val); // Persist
         if (window.electron && window.electron.setOpacity) {
             window.electron.setOpacity(val);
         }
