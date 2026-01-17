@@ -440,17 +440,23 @@ export default function App() {
             });
 
             const track = screenStream.getVideoTracks()[0];
-            const imageCapture = new ImageCapture(track);
-            const bitmap = await imageCapture.grabFrame();
+
+            // ROBUST CAPTURE: Use standard Video Element + Canvas (Works everywhere)
+            const video = document.createElement('video');
+            video.srcObject = screenStream;
+            video.muted = true;
+            await video.play();
 
             const canvas = document.createElement("canvas");
-            canvas.width = bitmap.width;
-            canvas.height = bitmap.height;
+            canvas.width = video.videoWidth;
+            canvas.height = video.videoHeight;
             const ctx = canvas.getContext("2d");
-            ctx.drawImage(bitmap, 0, 0);
-            const base64 = canvas.toDataURL("image/jpeg", 0.8);
+            ctx.drawImage(video, 0, 0);
+            const base64 = canvas.toDataURL("image/jpeg", 0.7);
 
+            // Cleanup
             track.stop();
+            video.srcObject = null;
 
             setStatus("ANALYZING...");
 

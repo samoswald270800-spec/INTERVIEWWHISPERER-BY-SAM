@@ -32,9 +32,10 @@ function createWindow() {
         webPreferences: {
             nodeIntegration: false,
             contextIsolation: true,
-            preload: path.join(__dirname, 'electron-preload.js'),
+            preload: path.join(__dirname, 'electron-preload.mjs'),
             devTools: !app.isPackaged, // Only enable DevTools in dev mode
             webSecurity: true, // Enable web security in production
+            sandbox: false // Sandbox off to ensure preload works for remote content
         },
         // Advanced stealth configuration
         alwaysOnTop: true,           // Stays on top of other windows
