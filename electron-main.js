@@ -52,12 +52,19 @@ function createWindow() {
     if (isDev) {
         mainWindow.loadURL('http://localhost:3000/login.html');
     } else {
-        const loginDistPath = path.join(__dirname, 'public/build/login.html');
-        if (fs.existsSync(loginDistPath)) {
-            mainWindow.loadFile(loginDistPath);
-        } else {
-            mainWindow.loadFile(path.join(__dirname, 'public/build/index.html'));
-        }
+        // PROD: Load the live web app so updates are instant
+        // Fallback to local file if offline (optional, but good practice)
+        const PROD_URL = 'https://interviewwhisperer-by-sam-production.up.railway.app/login.html';
+
+        mainWindow.loadURL(PROD_URL).catch(e => {
+            console.log('Failed to load remote URL, falling back to local:', e);
+            const loginDistPath = path.join(__dirname, 'public/build/login.html');
+            if (fs.existsSync(loginDistPath)) {
+                mainWindow.loadFile(loginDistPath);
+            } else {
+                mainWindow.loadFile(path.join(__dirname, 'public/build/index.html'));
+            }
+        });
     }
 
     mainWindow.on('closed', () => {
