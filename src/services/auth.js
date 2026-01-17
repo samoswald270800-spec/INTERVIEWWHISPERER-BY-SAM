@@ -4,7 +4,7 @@
  * - Admin & User: Auth via Supabase with USERNAME (not email)
  */
 
-import bcrypt from 'bcrypt';
+import bcrypt from 'bcryptjs';
 import config from '../config/index.js';
 
 const SALT_ROUNDS = 12;
@@ -247,7 +247,7 @@ export async function updateUserPermissions(supabase, userId, permissions) {
  */
 export async function logAudit(supabase, { actorType, actorId, action, targetType, targetId, details, ip, userAgent }) {
   if (!supabase) return;
-  
+
   const { error } = await supabase
     .from('audit_logs')
     .insert({
