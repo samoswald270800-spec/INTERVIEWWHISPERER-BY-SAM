@@ -40,8 +40,13 @@ export async function startSession(supabase, userId, adminId) {
   // We can't do a true single query easily without RPC, but we can verify active session first.
 
   // Verify no active session first (Redundant to interview.js but safe)
+  // Verify active session
   const active = await getActiveSession(supabase, userId);
-  if (active) return { success: false, error: 'Session already active' };
+  if (active) {
+    console.log(`[Credits] Found stuck session ${active.id} for user ${userId}, auto-ending...`);
+    // Auto-end the old session so the user can start a new one
+    await endSession(supabase, active.id);
+  }
 
   const { data: user } = await supabase
     .from('users')
