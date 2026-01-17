@@ -14,6 +14,7 @@ import { checkAnalyzeRateLimit } from '../middleware/rateLimit.js';
 import { getTranscript, storeTranscript, storeScreenAnalysis } from '../lib/redis.js';
 import { buildInterviewInstructions, VISION_PROMPT } from '../utils/prompts.js';
 import { startSession, endSession, getActiveSession } from '../services/credits.js';
+import { sanitizeText } from '../utils/sanitize.js';
 
 const router = express.Router();
 
@@ -46,8 +47,9 @@ export function getJobDescription() { return JOB_DESC; }
  * POST /set-jd - Update Job Description
  */
 router.post('/set-jd', (req, res) => {
-  const jd = (req.body?.jd || '').toString();
-  JOB_DESC = jd.slice(0, 20000); // Size guard
+  const rawJd = (req.body?.jd || '').toString();
+  // Sanitize input: Strip HTML/Scripts and enforce length
+  JOB_DESC = sanitizeText(rawJd, 20000);
   return res.json({ ok: true, length: JOB_DESC.length });
 });
 
