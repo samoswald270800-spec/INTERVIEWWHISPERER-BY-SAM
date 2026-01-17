@@ -277,8 +277,33 @@ export default function App() {
         }
     };
 
+    const processedEventIds = useRef(new Set());
+
+    // Cleanup on unmount
+    useEffect(() => {
+        return () => {
+            if (pcRef.current) pcRef.current.close();
+            if (dcRef.current) dcRef.current.close();
+            stopCapture();
+        };
+    }, []);
+
     const handleServerEvent = (event) => {
         const type = event.type;
+        const eventId = event.event_id;
+
+        // Prevent processing the same event twice
+        if (eventId && processedEventIds.current.has(eventId)) {
+            return;
+        }
+        if (eventId) {
+            processedEventIds.current.add(eventId);
+            // Keep set size manageable
+            if (processedEventIds.current.size > 1000) {
+                const arr = Array.from(processedEventIds.current);
+                processedEventIds.current = new Set(arr.slice(500));
+            }
+        }
 
         if (type === "input_audio_buffer.speech_started") {
             setStatus("USER SPEAKING");
