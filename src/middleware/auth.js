@@ -22,6 +22,11 @@ export function requireAuth(req, res, next) {
     return next();
   }
 
+  // Return JSON 401 for API requests
+  if (req.path.startsWith('/api') || req.xhr || req.headers.accept?.includes('application/json')) {
+    return res.status(401).json({ error: 'Authentication required' });
+  }
+
   console.log(`[Auth] No session found. Redirecting to /login.`);
   return res.redirect('/login');
 }

@@ -13,6 +13,7 @@ import { requireAuth } from '../middleware/auth.js';
 import { checkAnalyzeRateLimit } from '../middleware/rateLimit.js';
 import { getTranscript, storeTranscript, storeScreenAnalysis } from '../lib/redis.js';
 import { buildInterviewInstructions, VISION_PROMPT } from '../utils/prompts.js';
+import { endSession, getActiveSession } from '../services/credits.js';
 
 const router = express.Router();
 
@@ -103,6 +104,36 @@ router.post('/session', requireAuth, async (req, res) => {
   } catch (e) {
     console.error('Session error:', e);
     res.status(500).json({ error: String(e) });
+  }
+});
+
+/**
+ * POST /session/end - End active session and calculate credits
+ */
+router.post('/session/end', requireAuth, async (req, res) => {
+  try {
+    const supabase = req.app.locals.supabase;
+    if (!supabase) {
+      return res.status(503).json({ error: 'Database not configured' });
+    }
+
+    const userId = req.session.supabaseId;
+    const activeSession = await getActiveSession(supabase, userId);
+
+    if (!activeSession) {
+      return res.json({ ok: true, message: 'No active session to end' });
+    }
+
+    const result = await endSession(supabase, activeSession.id);
+    if (!result.success) {
+      return res.status(500).json({ error: result.error });
+    }
+
+    console.log(`→ Session ${activeSession.id} ended. Credits used: ${result.creditsUsed}`);
+    return res.json({ ok: true, creditsUsed: result.creditsUsed });
+  } catch (e) {
+    console.error('Session end error:', e);
+    return res.status(500).json({ error: 'Failed to end session' });
   }
 });
 

@@ -11,7 +11,7 @@ import { createSessionStore } from '../lib/redis.js';
  */
 export function createSessionMiddleware() {
   const store = createSessionStore();
-  
+
   return session({
     store,
     secret: config.SESSION_SECRET,
@@ -21,7 +21,7 @@ export function createSessionMiddleware() {
     cookie: {
       maxAge: config.SESSION_TTL_MS,
       httpOnly: true,
-      sameSite: 'lax',
+      sameSite: config.IS_PRODUCTION ? 'none' : 'lax',
       secure: config.IS_PRODUCTION,
     },
   });

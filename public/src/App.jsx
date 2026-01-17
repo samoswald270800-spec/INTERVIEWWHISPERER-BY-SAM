@@ -86,11 +86,32 @@ export default function App() {
         return `${mins}:${secs.toString().padStart(2, '0')}`;
     };
 
-    const stopSession = useCallback(() => {
-        if (pcRef.current) pcRef.current.close();
-        stopCapture();
+    const stopSession = useCallback(async () => {
         setIsSessionActive(false);
-        setStatus("STOPPED");
+        setStatus("STOPPING...");
+
+        // Call backend to end session and calculate final credits
+        try {
+            await fetch(`${API_BASE_URL}/session/end`, {
+                method: 'POST',
+                credentials: 'include',
+            });
+        } catch (e) {
+            console.warn('Failed to end session on backend:', e);
+        }
+
+        // Cleanup WebRTC resources
+        if (dcRef.current) {
+            dcRef.current.close();
+            dcRef.current = null;
+        }
+        if (pcRef.current) {
+            pcRef.current.close();
+            pcRef.current = null;
+        }
+
+        stopCapture();
+        setStatus("SESSION ENDED");
         setIsListening(false);
         setIsProcessing(false);
         setCanExpand(false);
