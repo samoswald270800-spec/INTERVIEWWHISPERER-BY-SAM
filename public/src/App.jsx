@@ -494,6 +494,7 @@ export default function App() {
             }
         } catch (e) {
             console.error(e);
+            alert("Screen Analysis Error: " + e.message); // Show exact error to user
             setStatus("ANALYSIS FAILED");
         }
     };
