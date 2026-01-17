@@ -13,7 +13,7 @@ import { requireAuth } from '../middleware/auth.js';
 import { checkAnalyzeRateLimit } from '../middleware/rateLimit.js';
 import { getTranscript, storeTranscript, storeScreenAnalysis } from '../lib/redis.js';
 import { buildInterviewInstructions, VISION_PROMPT } from '../utils/prompts.js';
-import { endSession, getActiveSession } from '../services/credits.js';
+import { startSession, endSession, getActiveSession } from '../services/credits.js';
 
 const router = express.Router();
 
