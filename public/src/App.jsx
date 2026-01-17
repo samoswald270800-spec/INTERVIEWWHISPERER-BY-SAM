@@ -478,7 +478,7 @@ export default function App() {
                 return;
             }
             if (data.analysis) {
-                if (dcRef.current) {
+                if (window._lastDC) {
                     const event = {
                         type: "conversation.item.create",
                         item: {
@@ -487,7 +487,7 @@ export default function App() {
                             content: [{ type: "input_text", text: `[SCREEN CONTEXT]: ${data.analysis}` }]
                         }
                     };
-                    dcRef.current.send(JSON.stringify(event));
+                    window._lastDC.send(JSON.stringify(event));
                 }
                 setStatus("SCREEN ANALYZED");
                 setTimeout(() => setStatus("LISTENING..."), 2000);
