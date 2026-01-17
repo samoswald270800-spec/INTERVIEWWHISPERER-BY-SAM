@@ -150,15 +150,31 @@ export default function App() {
         return () => { if (timerIntervalRef.current) clearInterval(timerIntervalRef.current); };
     }, [isSessionActive]);
 
+    const isStartingRef = useRef(false);
+
     const startRealtime = async () => {
+        if (isSessionActive || isStartingRef.current) return;
+        isStartingRef.current = true;
+
         try {
-            setStatus("STARTING...");
+            setStatus("REQUESTING ACCESS...");
+
+            // 1. Get Media Permissions FIRST (Prevents credit charge if denied)
+            const audioStream = await startCapture();
+            if (!audioStream) {
+                isStartingRef.current = false;
+                setStatus("PERMISSION DENIED");
+                return;
+            }
+            streamRef.current = audioStream;
+
+            setStatus("STARTING SESSION...");
             setQaList([]);
             lastQuestionRef.current = "";
             typeQueueRef.current = [];
             isTypingRef.current = false;
 
-            // Fetch session token from backend (which checks/deducts credits)
+            // 2. Fetch session token (Deducts credits)
             const res = await fetch(`${API_BASE_URL}/session`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -174,6 +190,8 @@ export default function App() {
                 } else {
                     setStatus("ERROR");
                 }
+                isStartingRef.current = false;
+                stopCapture(); // Cleanup the stream we just got
                 return;
             }
 
@@ -184,9 +202,7 @@ export default function App() {
             const pc = new RTCPeerConnection();
             pcRef.current = pc;
 
-            // Setup audio stream
-            const audioStream = await startCapture();
-            streamRef.current = audioStream;
+            // Add audio tracks
             audioStream.getTracks().forEach(track => pc.addTrack(track, audioStream));
 
             // Setup data channel
@@ -197,8 +213,13 @@ export default function App() {
                 console.log("DATA CHANNEL OPENED");
                 setStatus("LISTENING...");
                 setIsSessionActive(true);
+                isStartingRef.current = false;
                 // Fetch credits immediately after session starts to sync UI
                 fetchCredits();
+            });
+
+            dc.addEventListener("close", () => {
+                isStartingRef.current = false;
             });
 
             dc.addEventListener("message", (e) => {
@@ -230,6 +251,7 @@ export default function App() {
         } catch (e) {
             console.error("startRealtime error:", e);
             setStatus("START FAILED");
+            isStartingRef.current = false;
             stopCapture();
         }
     };
