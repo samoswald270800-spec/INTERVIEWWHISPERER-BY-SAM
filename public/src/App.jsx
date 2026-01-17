@@ -9,7 +9,12 @@ import './App.css';
 
 import API_BASE_URL from './config';
 
+const GLOBAL_PROCESSED_EVENTS = new Set();
+
 export default function App() {
+    const instanceId = useRef(Math.random().toString(36).substring(7));
+    console.log(`[App] Mounting instance: ${instanceId.current}`);
+
     const [status, setStatus] = useState("SYSTEM READY");
     const [isListening, setIsListening] = useState(false);
     const [isProcessing, setIsProcessing] = useState(false);
@@ -243,14 +248,14 @@ export default function App() {
                 isStartingRef.current = false;
             });
 
-            dc.addEventListener("message", (e) => {
+            dc.onmessage = (e) => {
                 try {
                     const event = JSON.parse(e.data);
                     handleServerEvent(event);
                 } catch (err) {
                     console.error("DC message parse error:", err);
                 }
-            });
+            };
 
             // Create and set local offer
             const offer = await pc.createOffer();
@@ -277,7 +282,7 @@ export default function App() {
         }
     };
 
-    const processedEventIds = useRef(new Set());
+    // Removal of local processedEventIds ref
 
     // Cleanup on unmount
     useEffect(() => {
@@ -292,16 +297,17 @@ export default function App() {
         const type = event.type;
         const eventId = event.event_id;
 
-        // Prevent processing the same event twice
-        if (eventId && processedEventIds.current.has(eventId)) {
+        // Prevent processing the same event twice globally
+        if (eventId && GLOBAL_PROCESSED_EVENTS.has(eventId)) {
             return;
         }
         if (eventId) {
-            processedEventIds.current.add(eventId);
-            // Keep set size manageable
-            if (processedEventIds.current.size > 1000) {
-                const arr = Array.from(processedEventIds.current);
-                processedEventIds.current = new Set(arr.slice(500));
+            GLOBAL_PROCESSED_EVENTS.add(eventId);
+            if (GLOBAL_PROCESSED_EVENTS.size > 2000) {
+                const arr = Array.from(GLOBAL_PROCESSED_EVENTS);
+                const newSet = new Set(arr.slice(1000));
+                GLOBAL_PROCESSED_EVENTS.clear();
+                newSet.forEach(id => GLOBAL_PROCESSED_EVENTS.add(id));
             }
         }
 
