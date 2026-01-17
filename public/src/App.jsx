@@ -10,6 +10,10 @@ import './App.css';
 import API_BASE_URL from './config';
 
 const GLOBAL_PROCESSED_EVENTS = new Set();
+// Global WebRTC tracking to survive React remounts/HMR
+window._lastPC = null;
+window._lastDC = null;
+window._lastStream = null;
 
 export default function App() {
     const instanceId = useRef(Math.random().toString(36).substring(7));
@@ -34,9 +38,6 @@ export default function App() {
     const timerIntervalRef = useRef(null);
 
 
-    const pcRef = useRef(null);
-    const dcRef = useRef(null);
-    const streamRef = useRef(null);
     const lastQuestionRef = useRef("");
     const typeQueueRef = useRef([]);
     const isTypingRef = useRef(false);
@@ -106,13 +107,17 @@ export default function App() {
         }
 
         // Cleanup WebRTC resources
-        if (dcRef.current) {
-            dcRef.current.close();
-            dcRef.current = null;
+        if (window._lastDC) {
+            window._lastDC.close();
+            window._lastDC = null;
         }
-        if (pcRef.current) {
-            pcRef.current.close();
-            pcRef.current = null;
+        if (window._lastPC) {
+            window._lastPC.close();
+            window._lastPC = null;
+        }
+        if (window._lastStream) {
+            window._lastStream.getTracks().forEach(t => t.stop());
+            window._lastStream = null;
         }
 
         stopCapture();
@@ -182,6 +187,22 @@ export default function App() {
         if (isSessionActive || isStartingRef.current) return;
         isStartingRef.current = true;
 
+        // NUCLEAR CLEANUP: Kill any lingering global connections before starting
+        if (window._lastPC) {
+            console.log("[Nuclear] Closing previous zombie PC");
+            try { window._lastPC.close(); } catch (e) { }
+            window._lastPC = null;
+        }
+        if (window._lastDC) {
+            console.log("[Nuclear] Closing previous zombie DC");
+            try { window._lastDC.close(); } catch (e) { }
+            window._lastDC = null;
+        }
+        if (window._lastStream) {
+            try { window._lastStream.getTracks().forEach(t => t.stop()); } catch (e) { }
+            window._lastStream = null;
+        }
+
         try {
             setStatus("REQUESTING ACCESS...");
 
@@ -192,7 +213,7 @@ export default function App() {
                 setStatus("PERMISSION DENIED");
                 return;
             }
-            streamRef.current = audioStream;
+            window._lastStream = audioStream;
 
             setStatus("STARTING SESSION...");
             setQaList([]);
@@ -226,14 +247,14 @@ export default function App() {
 
             // Setup WebRTC peer connection
             const pc = new RTCPeerConnection();
-            pcRef.current = pc;
+            window._lastPC = pc;
 
             // Add audio tracks
             audioStream.getTracks().forEach(track => pc.addTrack(track, audioStream));
 
             // Setup data channel
             const dc = pc.createDataChannel("oai-events");
-            dcRef.current = dc;
+            window._lastDC = dc;
 
             dc.addEventListener("open", () => {
                 console.log("DATA CHANNEL OPENED");
@@ -287,8 +308,8 @@ export default function App() {
     // Cleanup on unmount
     useEffect(() => {
         return () => {
-            if (pcRef.current) pcRef.current.close();
-            if (dcRef.current) dcRef.current.close();
+            if (window._lastPC) window._lastPC.close();
+            if (window._lastDC) window._lastDC.close();
             stopCapture();
         };
     }, []);
@@ -359,7 +380,7 @@ export default function App() {
     };
 
     const expandLastAnswer = () => {
-        if (!dcRef.current || !lastQuestionRef.current || isExpanding) return;
+        if (!window._lastDC || !lastQuestionRef.current || isExpanding) return;
 
         setIsExpanding(true);
 
@@ -374,9 +395,9 @@ export default function App() {
                 content: [{ type: "input_text", text: `Expand on this: ${lastQuestionRef.current}` }]
             }
         };
-        dcRef.current.send(JSON.stringify(event));
+        window._lastDC.send(JSON.stringify(event));
 
-        dcRef.current.send(JSON.stringify({ type: "response.create", response: { modalities: ["text"] } }));
+        window._lastDC.send(JSON.stringify({ type: "response.create", response: { modalities: ["text"] } }));
 
         setQaList(prev => {
             const newList = [...prev];
@@ -400,13 +421,13 @@ export default function App() {
     };
 
     const sendSessionUpdate = (mode, instructionsOverride) => {
-        if (!dcRef.current) return;
+        if (!window._lastDC) return;
         const instructions = instructionsOverride || buildInstructions(mode);
         const event = {
             type: "session.update",
             session: { instructions }
         };
-        dcRef.current.send(JSON.stringify(event));
+        window._lastDC.send(JSON.stringify(event));
     };
 
     const handleAnalyzeScreen = async () => {

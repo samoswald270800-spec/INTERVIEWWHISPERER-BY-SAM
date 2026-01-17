@@ -56,11 +56,26 @@ router.post('/set-jd', (req, res) => {
  */
 router.post('/session', requireAuth, async (req, res) => {
   try {
+    const supabase = req.app.locals.supabase;
+    if (!supabase) return res.status(503).json({ error: 'Database not configured' });
+
+    const userId = req.session.supabaseId;
+    const adminId = req.session.adminId;
+
+    // 1. Enforce single active session & deduct initial credit
+    // startSession returns { success, session, error }
+    const result = await startSession(supabase, userId, adminId);
+    if (!result.success) {
+      console.warn(`[Session] Start failed for user ${userId}:`, result.error);
+      return res.status(400).json({ error: result.error });
+    }
+
+    const dbSession = result.session;
+    console.log(`→ Session ${dbSession.id} created for user ${userId}`);
+
+    // 2. Build instructions for OpenAI
     const mode = (req.body?.mode || 'smart').toString().toLowerCase();
     const interviewMode = (req.body?.interviewMode || 'smart').toString().toLowerCase();
-
-    console.log('→ Creating realtime session with mode:', mode, 'interview mode:', interviewMode);
-
     const screenAnalysisContext = req.session?.screenAnalysisContext || '';
 
     const fullInstructions = buildInterviewInstructions({
@@ -73,6 +88,7 @@ router.post('/session', requireAuth, async (req, res) => {
 
     if (req.session) req.session.mode = mode;
 
+    // 3. Request OpenAI ephemeral key
     const r = await fetch('https://api.openai.com/v1/realtime/sessions', {
       method: 'POST',
       headers: {
