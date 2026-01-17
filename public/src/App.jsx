@@ -53,10 +53,11 @@ export default function App() {
                 typeQueueRef.current = [];
 
                 setQaList(prev => {
+                    if (prev.length === 0) return prev;
                     const newList = [...prev];
-                    if (newList.length > 0) {
-                        newList[newList.length - 1].answer += text;
-                    }
+                    const lastIdx = newList.length - 1;
+                    // Deep copy the item to avoid mutation of previous state
+                    newList[lastIdx] = { ...newList[lastIdx], answer: newList[lastIdx].answer + text };
                     return newList;
                 });
 
@@ -65,10 +66,11 @@ export default function App() {
                 const char = typeQueueRef.current.shift();
 
                 setQaList(prev => {
+                    if (prev.length === 0) return prev;
                     const newList = [...prev];
-                    if (newList.length > 0) {
-                        newList[newList.length - 1].answer += char;
-                    }
+                    const lastIdx = newList.length - 1;
+                    // Deep copy item
+                    newList[lastIdx] = { ...newList[lastIdx], answer: newList[lastIdx].answer + char };
                     return newList;
                 });
 
