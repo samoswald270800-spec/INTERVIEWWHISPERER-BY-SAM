@@ -128,5 +128,111 @@ router.get('/sessions', async (req, res) => {
   }
 });
 
+// --- HISTORY ROUTES ---
+
+/**
+ * GET /history
+ * Fetch last 10 interview history items for the user
+ */
+router.get('/history', async (req, res) => {
+  try {
+    const { supabase } = req.app.locals;
+    const userId = req.session.supabaseId;
+
+    if (!userId) return res.status(401).json({ error: 'Unauthorized' });
+
+    const { data, error } = await supabase
+      .from('interview_history')
+      .select('*')
+      .eq('user_id', userId)
+      .order('created_at', { ascending: false })
+      .limit(10);
+
+    if (error) throw error;
+
+    res.json({ ok: true, history: data });
+  } catch (e) {
+    console.error('[History GET] Error:', e);
+    res.status(500).json({ error: 'Failed to fetch history' });
+  }
+});
+
+/**
+ * POST /history
+ * Save a new interview history item.
+ * Enforces max 10 items per user (deletes oldest if > 10).
+ */
+router.post('/history', async (req, res) => {
+  try {
+    const { supabase } = req.app.locals;
+    const userId = req.session.supabaseId;
+    const { name, resume_text, jd_text, qa_list, settings } = req.body;
+
+    if (!userId) return res.status(401).json({ error: 'Unauthorized' });
+    if (!name) return res.status(400).json({ error: 'Name is required' });
+
+    // 1. Insert new item
+    const { data, error } = await supabase
+      .from('interview_history')
+      .insert({
+        user_id: userId,
+        name,
+        resume_text,
+        jd_text,
+        qa_list,
+        settings
+      })
+      .select()
+      .single();
+
+    if (error) throw error;
+
+    // 2. Enforce limit (Keep only latest 10)
+    const { data: itemsToDelete, error: fetchError } = await supabase
+      .from('interview_history')
+      .select('id')
+      .eq('user_id', userId)
+      .order('created_at', { ascending: false })
+      .range(10, 100);
+
+    if (!fetchError && itemsToDelete && itemsToDelete.length > 0) {
+      const idsToDelete = itemsToDelete.map(i => i.id);
+      await supabase.from('interview_history').delete().in('id', idsToDelete);
+    }
+
+    res.json({ ok: true, item: data });
+  } catch (e) {
+    console.error('[History POST] Error:', e);
+    res.status(500).json({ error: 'Failed to save history' });
+  }
+});
+
+/**
+ * DELETE /history/:id
+ * Delete a specific history item
+ */
+router.delete('/history/:id', async (req, res) => {
+  try {
+    const { supabase } = req.app.locals;
+    const userId = req.session.supabaseId;
+    const { id } = req.params;
+
+    if (!userId) return res.status(401).json({ error: 'Unauthorized' });
+
+    const { error } = await supabase
+      .from('interview_history')
+      .delete()
+      .eq('id', id)
+      .eq('user_id', userId);
+
+    if (error) throw error;
+
+    res.json({ ok: true });
+  } catch (e) {
+    console.error('[History DELETE] Error:', e);
+    res.status(500).json({ error: 'Failed to delete history item' });
+  }
+});
+
 export default router;
 

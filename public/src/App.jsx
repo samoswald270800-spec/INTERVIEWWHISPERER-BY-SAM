@@ -5,6 +5,7 @@ import JobDescription from './components/JobDescription';
 import QAList from './components/QAList';
 import SettingsPopover from './components/SettingsPopover';
 import { useAudioCapture } from './hooks/useAudioCapture';
+import HistoryDrawer from './components/HistoryDrawer';
 import './App.css';
 
 import API_BASE_URL from './config';
@@ -36,6 +37,10 @@ export default function App() {
     const [credits, setCredits] = useState(0);
     const [remainingTime, setRemainingTime] = useState(0);
     const timerIntervalRef = useRef(null);
+
+    // History State
+    const [history, setHistory] = useState([]);
+    const [isHistoryOpen, setIsHistoryOpen] = useState(false);
 
 
     const lastQuestionRef = useRef("");
@@ -149,9 +154,80 @@ export default function App() {
         }
     };
 
-    // Initialize: Permissions, Credits, Opacity
+    const fetchHistory = async () => {
+        try {
+            const res = await fetch(`${API_BASE_URL}/api/user/history`, { credentials: 'include' });
+            const data = await res.json();
+            if (data.ok) {
+                setHistory(data.history || []);
+            }
+        } catch (e) {
+            console.error("Failed to fetch history:", e);
+        }
+    };
+
+    const saveHistory = async (nameOverride) => {
+        // Only save if there's meaningful content
+        if (!jd && qaList.length === 0) return;
+
+        try {
+            const name = nameOverride || `Interview ${new Date().toLocaleDateString()} ${new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
+            await fetch(`${API_BASE_URL}/api/user/history`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                credentials: 'include',
+                body: JSON.stringify({
+                    name,
+                    resume_text: "",
+                    jd_text: jd,
+                    qa_list: qaList,
+                    settings: { visionModel, interviewMode, speed }
+                })
+            });
+            fetchHistory(); // Refresh list
+        } catch (e) {
+            console.error("Failed to save history:", e);
+        }
+    };
+
+    const deleteHistoryItem = async (id) => {
+        try {
+            await fetch(`${API_BASE_URL}/api/user/history/${id}`, {
+                method: 'DELETE',
+                credentials: 'include'
+            });
+            fetchHistory();
+        } catch (e) {
+            console.error("Failed to delete history:", e);
+        }
+    };
+
+    const loadHistoryItem = (item) => {
+        // Load item state
+        setStatus("HISTORY LOADED");
+        setJd(item.jd_text || "");
+        setQaList(item.qa_list || []);
+        if (item.settings) {
+            if (item.settings.interviewMode) setInterviewMode(item.settings.interviewMode);
+            if (item.settings.visionModel) setVisionModel(item.settings.visionModel);
+            if (item.settings.speed !== undefined) setSpeed(item.settings.speed);
+        }
+        // stopSession(); // Optional: Ensure no active session
+    };
+
+    const handleNewInterview = async () => {
+        await saveHistory();
+        // Clear State
+        setQaList([]);
+        setJd("");
+        // Reset valid refs if needed
+        setStatus("SYSTEM READY");
+    };
+
+    // Initialize: Permissions, Credits, Opacity, History
     useEffect(() => {
         fetchCredits();
+        fetchHistory();
 
         // Load persisted opacity
         const savedOpacity = localStorage.getItem('app_opacity');
@@ -570,6 +646,46 @@ export default function App() {
                     <line x1="21" y1="12" x2="9" y2="12"></line>
                 </svg>
             </button>
+
+            {/* Button to open history */}
+            <button
+                className="hamburger-btn"
+                onClick={() => setIsHistoryOpen(true)}
+                title="Interview History"
+                style={{
+                    position: 'absolute',
+                    top: '20px',
+                    left: '20px',
+                    zIndex: 100,
+                    background: 'none',
+                    border: 'none',
+                    color: 'rgba(255, 255, 255, 0.5)',
+                    cursor: 'pointer',
+                    fontSize: '14px',
+                    fontWeight: 500,
+                    textTransform: 'uppercase',
+                    letterSpacing: '0.05em',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '8px'
+                }}
+            >
+                <svg viewBox="0 0 24 24" width="20" height="20" stroke="currentColor" strokeWidth="2" fill="none" strokeLinecap="round" strokeLinejoin="round">
+                    <line x1="3" y1="12" x2="21" y2="12"></line>
+                    <line x1="3" y1="6" x2="21" y2="6"></line>
+                    <line x1="3" y1="18" x2="21" y2="18"></line>
+                </svg>
+                History
+            </button>
+
+            <HistoryDrawer
+                isOpen={isHistoryOpen}
+                onClose={() => setIsHistoryOpen(false)}
+                history={history}
+                onSelect={loadHistoryItem}
+                onDelete={deleteHistoryItem}
+                onNewInterview={handleNewInterview}
+            />
 
             <button
                 className={`settings-btn ${isSettingsOpen ? 'active' : ''}`}
