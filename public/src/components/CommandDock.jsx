@@ -90,7 +90,7 @@ export default function CommandDock({
                     title="Expand Answer"
                 >
                     {isExpanding ? (
-                        <svg className="icon" viewBox="0 0 24 24" className="spin">
+                        <svg className="icon spin" viewBox="0 0 24 24">
                             <circle cx="12" cy="12" r="10"></circle>
                             <path d="M12 6v6l4 2"></path>
                         </svg>
