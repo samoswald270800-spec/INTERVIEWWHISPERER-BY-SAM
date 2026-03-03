@@ -418,7 +418,7 @@ router.post('/classic-interview/turn', requireAuth, upload.single('audio'), asyn
       interviewMode,
       resume: "(resume context omitted for brevity, fetch from DB ideally)",
       assignment: "(assignment context omitted)",
-      jobDescription: JOB_DESC,
+      jobDescription: "", // To be passed from frontend in a future iteration
       screenAnalysisContext
     });
 
