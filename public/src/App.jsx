@@ -326,22 +326,35 @@ export default function App() {
     };
 
     const toggleRecording = () => {
-        if (!mediaRecorderRef.current) return;
+        console.log("toggleRecording called! isRecording:", isRecording);
+        console.log("mediaRecorderRef.current:", !!mediaRecorderRef.current);
 
-        if (isRecording) {
-            mediaRecorderRef.current.stop();
-            setIsRecording(false);
-            setStatus("PROCESSING...");
-        } else {
-            // Stop any playing TTS audio before recording new input
-            if (classicAudioElRef.current) {
-                classicAudioElRef.current.pause();
-                classicAudioElRef.current.currentTime = 0;
+        if (!mediaRecorderRef.current) {
+            console.warn("No media recorder available!");
+            return;
+        }
+
+        try {
+            if (isRecording) {
+                console.log("Stopping media recorder...");
+                mediaRecorderRef.current.stop();
+                setIsRecording(false);
+                setStatus("PROCESSING...");
+            } else {
+                console.log("Starting media recorder...");
+                // Stop any playing TTS audio before recording new input
+                if (classicAudioElRef.current) {
+                    classicAudioElRef.current.pause();
+                    classicAudioElRef.current.currentTime = 0;
+                }
+                audioChunksRef.current = [];
+                mediaRecorderRef.current.start(250); // Record in 250ms chunks
+                setIsRecording(true);
+                setStatus("LISTENING...");
+                console.log("Media recorder started successfully.");
             }
-            audioChunksRef.current = [];
-            mediaRecorderRef.current.start(250); // Record in 250ms chunks
-            setIsRecording(true);
-            setStatus("LISTENING...");
+        } catch (e) {
+            console.error("Error in toggleRecording:", e);
         }
     };
 
