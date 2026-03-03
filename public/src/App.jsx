@@ -296,7 +296,8 @@ export default function App() {
             isTypingRef.current = false;
 
             // Setup MediaRecorder for manual STT capture, but do NOT start recording yet
-            const mediaRecorder = new MediaRecorder(audioStream, { mimeType: 'audio/webm' });
+            // Warning: Do not force mimeType here, let the browser negotiate it to prevent NotSupportedError
+            const mediaRecorder = new MediaRecorder(audioStream);
             mediaRecorderRef.current = mediaRecorder;
             audioChunksRef.current = [];
 
@@ -308,7 +309,7 @@ export default function App() {
 
             mediaRecorder.onstop = async () => {
                 if (audioChunksRef.current.length === 0) return;
-                const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
+                const audioBlob = new Blob(audioChunksRef.current, { type: mediaRecorder.mimeType });
                 audioChunksRef.current = [];
                 await processClassicTurn(audioBlob);
             };

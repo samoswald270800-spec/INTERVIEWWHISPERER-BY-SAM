@@ -378,10 +378,13 @@ router.post('/classic-interview/turn', requireAuth, upload.single('audio'), asyn
     }
 
     // 1. STT: Send user audio to OpenAI Whisper
+    const mime = req.file.mimetype || 'audio/webm';
+    const ext = mime.includes('mp4') ? 'm4a' : (mime.includes('mpeg') ? 'mp3' : 'weba');
+
     const formData = new FormData();
     formData.append('file', req.file.buffer, {
-      filename: 'audio.weba',
-      contentType: req.file.mimetype || 'audio/webm'
+      filename: `audio.${ext}`,
+      contentType: mime
     });
     formData.append('model', 'whisper-1');
     formData.append('language', 'en');
