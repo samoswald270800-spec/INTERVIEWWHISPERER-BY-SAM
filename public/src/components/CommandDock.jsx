@@ -13,7 +13,9 @@ export default function CommandDock({
     isMuted,
     canExpand,
     isExpanding,
-    canAnalyze = true
+    canAnalyze = true,
+    selectedModel,
+    onModelChange
 }) {
     const dragControls = useDragControls();
 
@@ -45,6 +47,20 @@ export default function CommandDock({
                         <circle cx="15" cy="19" r="1"></circle>
                     </svg>
                 </div>
+
+                <div className="divider"></div>
+
+                {/* Model Selector */}
+                <select
+                    className="dock-select"
+                    value={selectedModel}
+                    onChange={(e) => onModelChange(e.target.value)}
+                    disabled={isSessionActive}
+                    title="Choose AI Model"
+                >
+                    <option value="gpt-realtime-1.5">GPT Realtime (Fast)</option>
+                    <option value="gpt-4.1">GPT-4.1 (Slow)</option>
+                </select>
 
                 <div className="divider"></div>
 

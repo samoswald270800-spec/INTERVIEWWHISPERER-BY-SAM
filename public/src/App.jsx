@@ -33,6 +33,7 @@ export default function App() {
     const [permissions, setPermissions] = useState({ canExpand: true, canAnalyze: true });
     const [visionModel, setVisionModel] = useState("openai");
     const [interviewMode, setInterviewMode] = useState("smart"); // 'smart' | 'hr' | 'technical' | 'vp'
+    const [selectedModel, setSelectedModel] = useState("gpt-realtime-1.5"); // 'gpt-realtime-1.5' | 'gpt-4.1'
     const [opacity, setOpacity] = useState(1);
     const [credits, setCredits] = useState(0);
     const [remainingTime, setRemainingTime] = useState(0);
@@ -734,6 +735,8 @@ export default function App() {
                 canExpand={canExpand && permissions.canExpand}
                 isExpanding={isExpanding}
                 canAnalyze={permissions.canAnalyze}
+                selectedModel={selectedModel}
+                onModelChange={setSelectedModel}
             />
 
             <JobDescription
