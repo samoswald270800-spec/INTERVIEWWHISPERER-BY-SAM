@@ -6,9 +6,15 @@
 import express from 'express';
 import fetch from 'node-fetch';
 import OpenAI from 'openai';
+import multer from 'multer';
+import FormData from 'form-data';
 import { createAnthropic } from '@ai-sdk/anthropic';
 import { generateText } from 'ai';
 import config from '../config/index.js';
+import promptConfig from '../utils/prompts.js';
+
+// Setup multer for in-memory audio buffer parsing
+const upload = multer({ storage: multer.memoryStorage() });
 import { requireAuth } from '../middleware/auth.js';
 import { checkAnalyzeRateLimit } from '../middleware/rateLimit.js';
 import { getTranscript, storeTranscript, storeScreenAnalysis } from '../lib/redis.js';
@@ -358,6 +364,107 @@ router.post('/analyze-screen', requireAuth, async (req, res) => {
   } catch (err) {
     console.error('[analyze-screen] error:', err);
     return res.status(500).json({ error: 'internal_error' });
+  }
+});
+
+/**
+ * POST /classic-interview/turn
+ * The custom STT -> GPT-4.1 -> TTS pipeline for the alternative slower architecture.
+ */
+router.post('/classic-interview/turn', requireAuth, upload.single('audio'), async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ error: 'No audio file provided.' });
+    }
+
+    // 1. STT: Send user audio to OpenAI Whisper
+    const formData = new FormData();
+    formData.append('file', req.file.buffer, {
+      filename: 'audio.weba',
+      contentType: req.file.mimetype || 'audio/webm'
+    });
+    formData.append('model', 'whisper-1');
+    formData.append('language', 'en');
+
+    const whisperRes = await fetch('https://api.openai.com/v1/audio/transcriptions', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${config.OPENAI_API_KEY}`,
+        ...formData.getHeaders()
+      },
+      body: formData
+    });
+
+    if (!whisperRes.ok) throw new Error(`Whisper failed: ${await whisperRes.text()}`);
+    const whisperData = await whisperRes.json();
+    const userTranscript = whisperData.text || '';
+
+    // If the user's transcript is empty (just silence), abort early
+    if (userTranscript.trim().length === 0) {
+      return res.json({ transcript: "...", responseText: "I didn't quite catch that.", audio: null });
+    }
+
+    // 2. Build Instructions for GPT-4.1
+    const { mode: preferredMode, interviewMode: preferredLayer } = req.session || {};
+    const mode = preferredMode || 'smart';
+    const interviewMode = preferredLayer || 'smart';
+    const screenAnalysisContext = req.session?.screenAnalysisContext || '';
+
+    // Reconstruct the full instructions dynamically using prompts.js
+    let systemPrompt = promptConfig.buildInterviewInstructions({
+      interviewMode,
+      resume: "(resume context omitted for brevity, fetch from DB ideally)",
+      assignment: "(assignment context omitted)",
+      jobDescription: JOB_DESC,
+      screenAnalysisContext
+    });
+
+    // 3. LLM: Send user text to GPT-4.1
+    const gptResponse = await openai.chat.completions.create({
+      model: 'gpt-4.1',
+      messages: [
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: userTranscript }
+      ],
+      temperature: 0.7,
+      max_tokens: 500
+    });
+
+    const aiTextResponse = gptResponse.choices[0]?.message?.content || "I don't know what to say.";
+
+    // 4. TTS: Send AI text to OpenAI TTS for audio streaming
+    const ttsRes = await fetch('https://api.openai.com/v1/audio/speech', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${config.OPENAI_API_KEY}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        model: 'tts-1',
+        voice: 'alloy',
+        input: aiTextResponse,
+        response_format: 'mp3'
+      })
+    });
+
+    if (!ttsRes.ok) throw new Error(`TTS failed: ${await ttsRes.text()}`);
+    const audioBuffer = await ttsRes.buffer();
+
+    // 5. Respond to frontend
+    // Set headers to expose the audio length to the browser
+    res.set({
+      'Content-Type': 'application/json'
+    });
+
+    return res.json({
+      transcript: userTranscript,
+      responseText: aiTextResponse,
+      audioBase64: audioBuffer.toString('base64')
+    });
+
+  } catch (err) {
+    console.error('[classic-interview/turn] Pipeline error:', err);
+    return res.status(500).json({ error: 'Pipeline error occurred.' });
   }
 });
 

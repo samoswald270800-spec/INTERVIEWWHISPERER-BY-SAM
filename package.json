@@ -21,6 +21,8 @@
     "connect-redis": "^8.0.0",
     "express": "^4.19.2",
     "express-session": "^1.17.3",
+    "form-data": "^4.0.5",
+    "multer": "^2.1.0",
     "node-fetch": "^3.3.2",
     "openai": "^4.0.0",
     "redis": "^4.6.12"
