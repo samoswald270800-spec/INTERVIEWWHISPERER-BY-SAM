@@ -15,7 +15,9 @@ export default function CommandDock({
     isExpanding,
     canAnalyze = true,
     selectedModel,
-    onModelChange
+    onModelChange,
+    isRecording,
+    onToggleRecording
 }) {
     const dragControls = useDragControls();
 
@@ -97,6 +99,32 @@ export default function CommandDock({
                 </button>
 
                 <div className="divider"></div>
+
+                {/* Classic Pipeline Push-to-Talk Button (Only visible if 4.1 is active) */}
+                {isSessionActive && selectedModel === "gpt-4.1" && (
+                    <>
+                        <button
+                            className={`dock-btn ${isRecording ? 'dock-btn-record' : ''}`}
+                            onClick={onToggleRecording}
+                            style={{ color: isRecording ? 'var(--lux-rose)' : 'var(--text-white)', fontWeight: 'bold' }}
+                            title={isRecording ? "Stop speaking and send" : "Hold to speak"}
+                        >
+                            {isRecording ? (
+                                <svg className="icon spin" viewBox="0 0 24 24" fill="currentColor">
+                                    <rect x="6" y="6" width="12" height="12" rx="2"></rect>
+                                </svg>
+                            ) : (
+                                <svg className="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                                    <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"></path>
+                                    <path d="M19 10v2a7 7 0 0 1-14 0v-2"></path>
+                                    <line x1="12" y1="19" x2="12" y2="22"></line>
+                                </svg>
+                            )}
+                            {isRecording ? "Stop & Send" : "Push to Speak"}
+                        </button>
+                        <div className="divider"></div>
+                    </>
+                )}
 
                 {/* Expand Button */}
                 <button

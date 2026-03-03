@@ -25,6 +25,7 @@ export default function App() {
     const [isProcessing, setIsProcessing] = useState(false);
     const [qaList, setQaList] = useState([]);
     const [isSessionActive, setIsSessionActive] = useState(false);
+    const [isRecording, setIsRecording] = useState(false);
     const [canExpand, setCanExpand] = useState(false);
     const [isExpanding, setIsExpanding] = useState(false);
     const [jd, setJd] = useState("");
@@ -132,6 +133,7 @@ export default function App() {
         setStatus("SESSION ENDED");
         setIsListening(false);
         setIsProcessing(false);
+        setIsRecording(false);
         setCanExpand(false);
 
         // Re-fetch credits to sync final balance with backend
@@ -261,6 +263,148 @@ export default function App() {
     }, [isSessionActive]);
 
     const isStartingRef = useRef(false);
+    const mediaRecorderRef = useRef(null);
+    const audioChunksRef = useRef([]);
+    const classicAudioElRef = useRef(null);
+
+    const startSessionRouter = async () => {
+        if (selectedModel === "gpt-realtime-1.5") {
+            await startRealtime();
+        } else if (selectedModel === "gpt-4.1") {
+            await startClassicPipeline();
+        }
+    };
+
+    const startClassicPipeline = async () => {
+        if (isSessionActive || isStartingRef.current) return;
+        isStartingRef.current = true;
+
+        try {
+            setStatus("REQUESTING ACCESS...");
+            const audioStream = await startCapture();
+            if (!audioStream) {
+                isStartingRef.current = false;
+                setStatus("PERMISSION DENIED");
+                return;
+            }
+            window._lastStream = audioStream;
+
+            setStatus("WAITING FOR AUDIO...");
+            setQaList([]);
+            lastQuestionRef.current = "";
+            typeQueueRef.current = [];
+            isTypingRef.current = false;
+
+            // Setup MediaRecorder for manual STT capture, but do NOT start recording yet
+            const mediaRecorder = new MediaRecorder(audioStream, { mimeType: 'audio/webm' });
+            mediaRecorderRef.current = mediaRecorder;
+            audioChunksRef.current = [];
+
+            mediaRecorder.ondataavailable = (event) => {
+                if (event.data.size > 0) {
+                    audioChunksRef.current.push(event.data);
+                }
+            };
+
+            mediaRecorder.onstop = async () => {
+                if (audioChunksRef.current.length === 0) return;
+                const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
+                audioChunksRef.current = [];
+                await processClassicTurn(audioBlob);
+            };
+
+            setIsSessionActive(true);
+            isStartingRef.current = false;
+            fetchCredits();
+
+        } catch (e) {
+            console.error("startClassicPipeline error:", e);
+            setStatus("START FAILED");
+            isStartingRef.current = false;
+            stopCapture();
+        }
+    };
+
+    const toggleRecording = () => {
+        if (!mediaRecorderRef.current) return;
+
+        if (isRecording) {
+            mediaRecorderRef.current.stop();
+            setIsRecording(false);
+            setStatus("PROCESSING...");
+        } else {
+            // Stop any playing TTS audio before recording new input
+            if (classicAudioElRef.current) {
+                classicAudioElRef.current.pause();
+                classicAudioElRef.current.currentTime = 0;
+            }
+            audioChunksRef.current = [];
+            mediaRecorderRef.current.start(250); // Record in 250ms chunks
+            setIsRecording(true);
+            setStatus("LISTENING...");
+        }
+    };
+
+    const processClassicTurn = async (audioBlob) => {
+        if (!isSessionActive) return;
+        setStatus("PROCESSING...");
+        setIsProcessing(true);
+        setQaList(prev => [...prev, { question: "Processing audio...", answer: "" }]);
+
+        try {
+            const formData = new FormData();
+            formData.append('audio', audioBlob, 'speech.webm');
+
+            const res = await fetch(`${API_BASE_URL}/api/classic-interview/turn`, {
+                method: 'POST',
+                credentials: 'include',
+                body: formData
+            });
+
+            if (!res.ok) throw new Error("Pipeline request failed");
+            const data = await res.json();
+
+            // Update UI with transcript
+            const qText = data.transcript || "...";
+            lastQuestionRef.current = qText;
+            setCanExpand(true);
+            setQaList(prev => {
+                const newList = [...prev];
+                if (newList.length > 0) newList[newList.length - 1].question = qText;
+                return newList;
+            });
+
+            // Simulate typing for text response
+            const textResponse = data.responseText || "";
+            for (let char of textResponse) {
+                typeQueueRef.current.push(char);
+            }
+            processTypeQueue();
+
+            // Play the returned TTS audio
+            if (data.audioBase64) {
+                const audioSrc = `data:audio/mp3;base64,${data.audioBase64}`;
+                const audio = new Audio(audioSrc);
+                classicAudioElRef.current = audio;
+
+                audio.onended = () => {
+                    setStatus("WAITING FOR AUDIO...");
+                    setIsProcessing(false);
+                };
+
+                await audio.play();
+                setStatus("AI SPEAKING");
+            } else {
+                setStatus("WAITING FOR AUDIO...");
+                setIsProcessing(false);
+            }
+
+        } catch (e) {
+            console.error("Classic pipeline error:", e);
+            setStatus("ERROR");
+            setIsProcessing(false);
+        }
+    };
 
     const startRealtime = async () => {
         if (isSessionActive || isStartingRef.current) return;
@@ -724,7 +868,7 @@ export default function App() {
             </main>
 
             <CommandDock
-                onStart={startRealtime}
+                onStart={startSessionRouter}
                 onStop={stopSession}
                 onAnalyze={handleAnalyzeScreen}
                 onClear={handleClear}
@@ -737,6 +881,8 @@ export default function App() {
                 canAnalyze={permissions.canAnalyze}
                 selectedModel={selectedModel}
                 onModelChange={setSelectedModel}
+                isRecording={isRecording}
+                onToggleRecording={toggleRecording}
             />
 
             <JobDescription
