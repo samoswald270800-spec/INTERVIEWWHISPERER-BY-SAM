@@ -374,8 +374,11 @@ router.post('/analyze-screen', requireAuth, async (req, res) => {
 router.post('/classic-interview/turn', requireAuth, upload.single('audio'), async (req, res) => {
   try {
     if (!req.file) {
+      console.warn('[classic-interview/turn] No audio file provided in request.');
       return res.status(400).json({ error: 'No audio file provided.' });
     }
+
+    console.log('[classic-interview/turn] Received audio blob. Size:', req.file.size);
 
     // 1. STT: Send user audio to OpenAI Whisper
     const mime = req.file.mimetype || 'audio/webm';
@@ -389,6 +392,7 @@ router.post('/classic-interview/turn', requireAuth, upload.single('audio'), asyn
     formData.append('model', 'whisper-1');
     formData.append('language', 'en');
 
+    console.log('[classic-interview/turn] Transcribing via Whisper...');
     const whisperRes = await fetch('https://api.openai.com/v1/audio/transcriptions', {
       method: 'POST',
       headers: {
@@ -402,8 +406,11 @@ router.post('/classic-interview/turn', requireAuth, upload.single('audio'), asyn
     const whisperData = await whisperRes.json();
     const userTranscript = whisperData.text || '';
 
+    console.log('[classic-interview/turn] Whisper transcript:', userTranscript);
+
     // If the user's transcript is empty (just silence), abort early
     if (userTranscript.trim().length === 0) {
+      console.log('[classic-interview/turn] Transcript empty. Aborting turn.');
       return res.json({ transcript: "...", responseText: "I didn't quite catch that.", audio: null });
     }
 
@@ -416,12 +423,13 @@ router.post('/classic-interview/turn', requireAuth, upload.single('audio'), asyn
     // Reconstruct the full instructions dynamically using prompts.js
     let systemPrompt = promptConfig.buildInterviewInstructions({
       interviewMode,
-      resume: "(resume context omitted for brevity, fetch from DB ideally)",
-      assignment: "(assignment context omitted)",
-      jobDescription: "", // To be passed from frontend in a future iteration
+      resume: resume || "",
+      assignment: assignment || "",
+      jobDescription: JOB_DESC || "",
       screenAnalysisContext
     });
 
+    console.log('[classic-interview/turn] Calling GPT-4.1...');
     // 3. LLM: Send user text to GPT-4.1
     const gptResponse = await openai.chat.completions.create({
       model: 'gpt-4.1',
@@ -434,7 +442,9 @@ router.post('/classic-interview/turn', requireAuth, upload.single('audio'), asyn
     });
 
     const aiTextResponse = gptResponse.choices[0]?.message?.content || "I don't know what to say.";
+    console.log('[classic-interview/turn] GPT-4.1 generated text:', aiTextResponse.substring(0, 50) + '...');
 
+    console.log('[classic-interview/turn] Calling TTS...');
     // 4. TTS: Send AI text to OpenAI TTS for audio streaming
     const ttsRes = await fetch('https://api.openai.com/v1/audio/speech', {
       method: 'POST',
@@ -451,8 +461,12 @@ router.post('/classic-interview/turn', requireAuth, upload.single('audio'), asyn
     });
 
     if (!ttsRes.ok) throw new Error(`TTS failed: ${await ttsRes.text()}`);
-    const audioBuffer = await ttsRes.buffer();
 
+    // Safely parse buffer for both pure-Node and node-fetch
+    const arrayBuffer = await ttsRes.arrayBuffer();
+    const audioBuffer = Buffer.from(arrayBuffer);
+
+    console.log('[classic-interview/turn] Pipeline complete. Sending buffer to client.');
     // 5. Respond to frontend
     // Set headers to expose the audio length to the browser
     res.set({
