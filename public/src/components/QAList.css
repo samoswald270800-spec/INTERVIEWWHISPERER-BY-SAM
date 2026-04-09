@@ -140,3 +140,66 @@
     width: 12px;
     height: 12px;
 }
+
+.manual-search-btn {
+    opacity: 0.5;
+    transition: opacity 0.2s ease, color 0.2s ease;
+}
+
+.manual-search-btn:hover {
+    opacity: 1;
+    color: var(--theme-primary);
+}
+
+/* ========================================
+   MOBILE RESPONSIVE STYLES
+   ======================================== */
+
+/* Tablet and below (768px) */
+@media (max-width: 768px) {
+    .stream {
+        padding: 100px 24px 160px 24px;
+        gap: 36px;
+    }
+
+    .empty-hero h1 {
+        font-size: 48px;
+    }
+
+    .shard.q .text {
+        font-size: 20px;
+    }
+
+    .shard.a {
+        padding: 24px;
+    }
+}
+
+/* Mobile phones (480px) */
+@media (max-width: 480px) {
+    .stream {
+        padding: 80px 16px 120px 16px;
+        gap: 28px;
+    }
+
+    .empty-hero h1 {
+        font-size: 36px;
+    }
+
+    .empty-hero p {
+        font-size: 13px;
+    }
+
+    .shard.q .text {
+        font-size: 18px;
+    }
+
+    .shard.a {
+        padding: 20px 16px;
+    }
+
+    .shard.a .text {
+        font-size: 14px;
+        line-height: 1.7;
+    }
+}

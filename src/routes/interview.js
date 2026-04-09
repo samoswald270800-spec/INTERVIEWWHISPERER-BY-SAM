@@ -12,6 +12,7 @@ import { createAnthropic } from '@ai-sdk/anthropic';
 import { generateText } from 'ai';
 import config from '../config/index.js';
 import promptConfig from '../utils/prompts.js';
+import * as cheerio from 'cheerio';
 
 // Setup multer for in-memory audio buffer parsing
 const upload = multer({ storage: multer.memoryStorage() });
@@ -26,6 +27,17 @@ const router = express.Router();
 
 // OpenAI client
 const openai = new OpenAI({ apiKey: config.OPENAI_API_KEY });
+
+// Retrieve pool of OpenAI API keys
+const getOpenAIKeyPool = () => {
+  const keys = [config.OPENAI_API_KEY]; // Existing key is always first
+
+  // Add fallback keys if they exist in the environment
+  if (process.env.OPENAI_API_KEY_1) keys.push(process.env.OPENAI_API_KEY_1);
+  if (process.env.OPENAI_API_KEY_2) keys.push(process.env.OPENAI_API_KEY_2);
+
+  return keys;
+};
 
 // Anthropic client
 const anthropic = createAnthropic({
@@ -57,6 +69,109 @@ router.post('/set-jd', (req, res) => {
   // Sanitize input: Strip HTML/Scripts and enforce length
   JOB_DESC = sanitizeText(rawJd, 20000);
   return res.json({ ok: true, length: JOB_DESC.length });
+});
+
+async function searchDuckDuckGo(query) {
+  const response = await fetch(`https://html.duckduckgo.com/html/?q=${encodeURIComponent(query)}`, {
+    headers: {
+      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36',
+      'Accept-Language': 'en-US,en;q=0.9'
+    }
+  });
+  if (!response.ok) throw new Error(`DuckDuckGo responded with status: ${response.status}`);
+  const html = await response.text();
+  const $ = cheerio.load(html);
+  const snippets = [];
+  $('.result__snippet').each((i, el) => {
+    if (i < 3) snippets.push(`[DuckDuckGo Result ${i + 1}]: ${$(el).text().trim()}`);
+  });
+  return snippets;
+}
+
+async function searchBing(query) {
+  const response = await fetch(`https://www.bing.com/search?q=${encodeURIComponent(query)}`, {
+    headers: {
+      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36',
+      'Accept-Language': 'en-US,en;q=0.9'
+    }
+  });
+  if (!response.ok) throw new Error(`Bing responded with status: ${response.status}`);
+  const html = await response.text();
+  const $ = cheerio.load(html);
+  const snippets = [];
+  $('.b_algo .b_caption p').each((i, el) => {
+    if (i < 3) snippets.push(`[Bing Result ${i + 1}]: ${$(el).text().trim()}`);
+  });
+  return snippets;
+}
+
+async function searchWikipedia(query) {
+  const searchUrl = `https://en.wikipedia.org/w/api.php?action=query&list=search&srsearch=${encodeURIComponent(query)}&utf8=&format=json`;
+  const response = await fetch(searchUrl);
+  if (!response.ok) throw new Error(`Wikipedia responded with status: ${response.status}`);
+  const data = await response.json();
+  const snippets = [];
+  if (data.query && data.query.search) {
+    data.query.search.slice(0, 3).forEach((item, i) => {
+      const cleanSnippet = item.snippet.replace(/<[^>]*>?/gm, '');
+      snippets.push(`[Wikipedia Result ${i + 1}] Title: ${item.title} - ${cleanSnippet}`);
+    });
+  }
+  return snippets;
+}
+
+/**
+ * POST /api/search - Web Search with Tri-Level Fallback
+ */
+router.post('/api/search', requireAuth, async (req, res) => {
+  try {
+    const { query } = req.body || {};
+    if (!query || typeof query !== 'string') {
+      return res.status(400).json({ error: 'Query is required.' });
+    }
+
+    console.log(`[Search] Searching web for: "${query}"`);
+    let snippets = [];
+
+    // 1. DuckDuckGo (Primary)
+    try {
+      snippets = await searchDuckDuckGo(query);
+    } catch (e) {
+      console.warn(`[Search] DuckDuckGo failed: ${e.message}`);
+    }
+
+    // 2. Bing (Secondary Fallback)
+    if (snippets.length === 0) {
+      try {
+        console.log(`[Search] Falling back to Bing for: "${query}"`);
+        snippets = await searchBing(query);
+      } catch (e) {
+        console.warn(`[Search] Bing failed: ${e.message}`);
+      }
+    }
+
+    // 3. Wikipedia API (Ultimate Failsafe)
+    if (snippets.length === 0) {
+      try {
+        console.log(`[Search] Falling back to Wikipedia for: "${query}"`);
+        snippets = await searchWikipedia(query);
+      } catch (e) {
+        console.warn(`[Search] Wikipedia failed: ${e.message}`);
+      }
+    }
+
+    if (snippets.length === 0) {
+      return res.json({ results: 'No recent or relevant search results found across all providers.' });
+    }
+
+    const combinedResults = snippets.join('\n\n');
+    console.log(`[Search] Found ${snippets.length} snippets. Returning top results.`);
+
+    return res.json({ results: combinedResults });
+  } catch (err) {
+    console.error('[Search] Error:', err);
+    return res.status(500).json({ error: 'Internal search error.' });
+  }
 });
 
 /**
@@ -96,34 +211,63 @@ router.post('/session', requireAuth, async (req, res) => {
 
     if (req.session) req.session.mode = mode;
 
-    // 3. Request OpenAI ephemeral key
-    const r = await fetch('https://api.openai.com/v1/realtime/sessions', {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${config.OPENAI_API_KEY}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        model: 'gpt-4o-realtime-preview',
-        modalities: ['text'],
-        input_audio_format: 'pcm16',
-        turn_detection: {
-          type: 'server_vad',
-          threshold: 0.5,
-          prefix_padding_ms: 300,
-          silence_duration_ms: 1200,
-          create_response: true,
-          interrupt_response: true,
-        },
-        input_audio_transcription: {
-          model: 'gpt-4o-transcribe',
-          language: 'en'
-        },
-        instructions: fullInstructions,
-      }),
-    });
+    // 3. Request OpenAI ephemeral key with key pool fallback
+    const keys = getOpenAIKeyPool();
+    let session = null;
+    let lastError = null;
 
-    const session = await r.json();
+    // Retry loop for API Key Fallback
+    for (let i = 0; i < keys.length; i++) {
+      const apiKey = keys[i];
+      console.log(`[Session] Attempting OpenAI Realtime Session with Key #${i === 0 ? 'Primary' : i}`);
+
+      try {
+        const r = await fetch('https://api.openai.com/v1/realtime/sessions', {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${apiKey}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            model: 'gpt-realtime-1.5',
+            modalities: ['text'],
+            input_audio_format: 'pcm16',
+            turn_detection: {
+              type: 'server_vad',
+              threshold: 0.5,
+              prefix_padding_ms: 300,
+              silence_duration_ms: 1200,
+              create_response: true,
+              interrupt_response: true,
+            },
+            input_audio_transcription: {
+              model: 'gpt-4o-transcribe',
+              language: 'en'
+            },
+            instructions: fullInstructions,
+          }),
+        });
+
+        if (!r.ok) {
+          const errData = await r.json().catch(() => ({}));
+          throw new Error(`OpenAI HTTP ${r.status}: ${JSON.stringify(errData)}`);
+        }
+
+        session = await r.json();
+        console.log(`[Session] ✅ Model confirmed by OpenAI: ${session.model}`);
+        break; // Success! Exit the retry loop
+      } catch (err) {
+        console.warn(`[Session] Key #${i === 0 ? 'Primary' : i} failed:`, err.message);
+        lastError = err;
+        // The loop will automatically continue to the next key
+      }
+    }
+
+    if (!session) {
+      console.error('[Session] All OpenAI API keys in the pool failed.');
+      return res.status(502).json({ error: 'All AI models are currently overwhelmed or out of quota. Please contact support.', details: String(lastError) });
+    }
+
     res.json(session);
   } catch (e) {
     console.error('Session error:', e);
@@ -254,7 +398,7 @@ router.post('/analyze-screen', requireAuth, async (req, res) => {
       new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), ms))
     ]);
 
-    // Helper: OpenAI Call
+    // Helper: OpenAI Call with Fallback
     const callOpenAI = async () => {
       const content = [];
       if (combinedTranscript) {
@@ -263,14 +407,31 @@ router.post('/analyze-screen', requireAuth, async (req, res) => {
       content.push({ type: 'text', text: VISION_PROMPT });
       content.push({ type: 'image_url', image_url: { url: imageDataUrl } });
 
-      const response = await openai.chat.completions.create({
-        model: 'gpt-4o',
-        messages: [{ role: 'user', content }],
-        temperature: 0.4,
-        max_tokens: 3000,
-        response_format: { type: 'json_object' }
-      });
-      return JSON.parse(response.choices[0].message.content);
+      const keys = getOpenAIKeyPool();
+      let lastError = null;
+
+      for (let i = 0; i < keys.length; i++) {
+        try {
+          console.log(`[analyze-screen] Attempting OpenAI Vision with Key #${i === 0 ? 'Primary' : i}`);
+          // Dynamic client creation for fallback keys
+          const fallbackClient = new OpenAI({ apiKey: keys[i] });
+
+          const response = await fallbackClient.chat.completions.create({
+            model: 'gpt-4o',
+            messages: [{ role: 'user', content }],
+            temperature: 0.4,
+            max_tokens: 3000,
+            response_format: { type: 'json_object' }
+          });
+
+          return JSON.parse(response.choices[0].message.content);
+        } catch (err) {
+          console.warn(`[analyze-screen] Key #${i === 0 ? 'Primary' : i} failed:`, err.message);
+          lastError = err;
+        }
+      }
+
+      throw new Error(`All OpenAI keys failed for Vision model. Last error: ${lastError?.message}`);
     };
 
     // Helper: Anthropic Call
@@ -282,7 +443,7 @@ router.post('/analyze-screen', requireAuth, async (req, res) => {
       }
 
       const { text } = await generateText({
-        model: anthropic('claude-3-5-sonnet'),
+        model: anthropic('claude-3-5-sonnet-20241022'),
         messages: [
           {
             role: 'user',
@@ -313,6 +474,7 @@ router.post('/analyze-screen', requireAuth, async (req, res) => {
       parsed = await timeout(primary(), 30000);
     } catch (err) {
       console.warn(`[analyze-screen] ${primaryName} failed/timeout:`, err.message);
+      console.error(`[analyze-screen] Full Error:`, err);
       console.log(`[analyze-screen] Falling back to ${secondaryName}...`);
       try {
         parsed = await secondary();

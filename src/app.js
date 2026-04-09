@@ -17,6 +17,7 @@ import {
   authRoutes,
   userRoutes,
   interviewRoutes,
+  reasoningRoutes,
 } from './routes/index.js';
 import { loadDocuments } from './routes/interview.js';
 
@@ -79,6 +80,7 @@ export async function createApp() {
   // Mount protected API routes
   app.use('/api/user', userRoutes);
   app.use('/', interviewRoutes);
+  app.use('/', reasoningRoutes);
 
   // Serve index.html (protected by auth above)
   app.get('*', (req, res) => {

@@ -112,29 +112,75 @@
     }
 }
 
-.dock-select {
-    height: 36px;
-    padding: 0 16px;
-    border-radius: 12px;
-    border: 1px solid rgba(255, 255, 255, 0.1);
-    background: rgba(0, 0, 0, 0.5);
-    color: var(--text-white);
-    font-family: var(--font-display);
-    font-size: 12px;
-    cursor: pointer;
-    outline: none;
-    transition: all 0.3s;
-    appearance: none;
-    -webkit-appearance: none;
-    text-align: center;
+/* ========================================
+   MOBILE RESPONSIVE STYLES
+   ======================================== */
+
+/* Tablet and below (768px) */
+@media (max-width: 768px) {
+    .dock-wrapper {
+        bottom: 20px;
+    }
+
+    .dock {
+        padding: 4px;
+        gap: 2px;
+    }
+
+    .dock-btn {
+        height: 40px;
+        padding: 0 12px;
+        font-size: 11px;
+    }
+
+    .dock-btn.analyze {
+        padding: 0 14px;
+    }
+
+    .drag-handle {
+        width: 20px;
+        height: 28px;
+    }
 }
 
-.dock-select:hover:not(:disabled) {
-    border-color: rgba(255, 255, 255, 0.2);
-    background: rgba(255, 255, 255, 0.05);
-}
+/* Mobile phones (480px) */
+@media (max-width: 480px) {
+    .dock-wrapper {
+        bottom: 16px;
+    }
 
-.dock-select:disabled {
-    opacity: 0.3;
-    cursor: not-allowed;
+    .dock {
+        padding: 3px;
+    }
+
+    .dock-btn {
+        height: 36px;
+        padding: 0 10px;
+        font-size: 10px;
+        gap: 6px;
+    }
+
+    .dock-btn.analyze {
+        padding: 0 12px;
+    }
+
+    .divider {
+        height: 16px;
+    }
+
+    /* MOBILE: Make mute button larger and centered */
+    .dock-btn.mute-mobile {
+        width: 56px;
+        height: 56px;
+        border-radius: 50%;
+        padding: 0;
+        justify-content: center;
+        order: 2;
+        /* Center position in flexbox */
+    }
+
+    .dock-btn.mute-mobile .icon {
+        width: 20px;
+        height: 20px;
+    }
 }

@@ -34,6 +34,7 @@ export default function App() {
     const [permissions, setPermissions] = useState({ canExpand: true, canAnalyze: true });
     const [visionModel, setVisionModel] = useState("openai");
     const [interviewMode, setInterviewMode] = useState("smart"); // 'smart' | 'hr' | 'technical' | 'vp'
+    const [architecture, setArchitecture] = useState("live"); // 'live' | 'reasoning' | 'automatic'
     const [selectedModel, setSelectedModel] = useState("gpt-realtime-1.5"); // 'gpt-realtime-1.5' | 'gpt-4.1'
     const [opacity, setOpacity] = useState(1);
     const [credits, setCredits] = useState(0);
@@ -769,6 +770,72 @@ export default function App() {
         }
     };
 
+    const handleManualSearch = async (index, question) => {
+        if (!question) return;
+        try {
+            setStatus("SEARCHING WEB...");
+
+            const searchRes = await fetch(`${API_BASE_URL}/api/search`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                credentials: 'include',
+                body: JSON.stringify({ query: question })
+            });
+
+            const searchData = await searchRes.json();
+            const webContext = searchData.results || '';
+
+            if (!webContext || webContext === 'No recent or relevant search results found across all providers.') {
+                setStatus("NO RESULTS FOUND");
+                setTimeout(() => setStatus(isSessionActive ? "LISTENING..." : "SYSTEM READY"), 2000);
+                return;
+            }
+
+            // If we have a data channel (Live mode), inject the web context
+            if (window._lastDC) {
+                const event = {
+                    type: "conversation.item.create",
+                    item: {
+                        type: "message",
+                        role: "system",
+                        content: [{ type: "input_text", text: `[WEB SEARCH CONTEXT for "${question}"]: ${webContext}` }]
+                    }
+                };
+                window._lastDC.send(JSON.stringify(event));
+
+                // Clear the answer and regenerate
+                setQaList(prev => {
+                    const newList = [...prev];
+                    if (newList[index]) {
+                        newList[index] = { ...newList[index], answer: "" };
+                    }
+                    return newList;
+                });
+
+                typeQueueRef.current = [];
+                isTypingRef.current = false;
+
+                // Send response.create to regenerate
+                const regenEvent = {
+                    type: "conversation.item.create",
+                    item: {
+                        type: "message",
+                        role: "user",
+                        content: [{ type: "input_text", text: `Using the web search context provided, answer this question with the latest information: ${question}` }]
+                    }
+                };
+                window._lastDC.send(JSON.stringify(regenEvent));
+                window._lastDC.send(JSON.stringify({ type: "response.create", response: { modalities: ["text"] } }));
+            }
+
+            setStatus("REGENERATING...");
+        } catch (e) {
+            console.error("Manual search error:", e);
+            setStatus("SEARCH FAILED");
+            setTimeout(() => setStatus(isSessionActive ? "LISTENING..." : "SYSTEM READY"), 2000);
+        }
+    };
+
     return (
         <div className="app-container">
             <div className="void-bg">
@@ -872,13 +939,15 @@ export default function App() {
                 setVisionModel={setVisionModel}
                 interviewMode={interviewMode}
                 setInterviewMode={setInterviewMode}
+                architecture={architecture}
+                setArchitecture={setArchitecture}
                 opacity={opacity}
                 setOpacity={handleOpacityChange}
                 isElectron={window.electron && window.electron.isElectron}
             />
 
             <main className="stage">
-                <QAList qaList={qaList} />
+                <QAList qaList={qaList} onManualSearch={handleManualSearch} />
             </main>
 
             <CommandDock

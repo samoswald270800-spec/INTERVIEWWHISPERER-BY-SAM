@@ -14,10 +14,7 @@ export default function CommandDock({
     canExpand,
     isExpanding,
     canAnalyze = true,
-    selectedModel,
-    onModelChange,
-    isRecording,
-    onToggleRecording
+    isMobile = false // MOBILE: Hide Analyze, Expand on mobile
 }) {
     const dragControls = useDragControls();
 
@@ -52,20 +49,6 @@ export default function CommandDock({
 
                 <div className="divider"></div>
 
-                {/* Model Selector */}
-                <select
-                    className="dock-select"
-                    value={selectedModel}
-                    onChange={(e) => onModelChange(e.target.value)}
-                    disabled={isSessionActive}
-                    title="Choose AI Model"
-                >
-                    <option value="gpt-realtime-1.5">GPT Realtime (Fast)</option>
-                    <option value="gpt-4.1">GPT-4.1 (Slow)</option>
-                </select>
-
-                <div className="divider"></div>
-
                 {/* Start Button */}
                 {!isSessionActive ? (
                     <button className="dock-btn" onClick={onStart} style={{ color: 'var(--lux-cyan)' }}>
@@ -85,72 +68,51 @@ export default function CommandDock({
 
                 <div className="divider"></div>
 
-                {/* Analyze Button */}
-                <button
-                    className="dock-btn analyze"
-                    onClick={onAnalyze}
-                    disabled={!isSessionActive || !canAnalyze}
-                    title={!canAnalyze ? "Screen analysis disabled by admin" : "Analyze Screen"}
-                >
-                    <svg className="icon" viewBox="0 0 24 24">
-                        <path d="M21 12a9 9 0 1 1-6.219-8.56"></path>
-                    </svg>
-                    Analyze Screen
-                </button>
-
-                <div className="divider"></div>
-
-                {/* Classic Pipeline Push-to-Talk Button (Only visible if 4.1 is active) */}
-                {isSessionActive && selectedModel === "gpt-4.1" && (
+                {/* DESKTOP ONLY: Analyze & Expand buttons */}
+                {!isMobile && (
                     <>
+                        {/* Analyze Button */}
                         <button
-                            className={`dock-btn ${isRecording ? 'dock-btn-record' : ''}`}
-                            onClick={onToggleRecording}
-                            style={{ color: isRecording ? 'var(--lux-rose)' : 'var(--text-white)', fontWeight: 'bold' }}
-                            title={isRecording ? "Stop speaking and send" : "Hold to speak"}
+                            className="dock-btn analyze"
+                            onClick={onAnalyze}
+                            disabled={!isSessionActive || !canAnalyze}
+                            title={!canAnalyze ? "Screen analysis disabled by admin" : "Analyze Screen"}
                         >
-                            {isRecording ? (
-                                <svg className="icon spin" viewBox="0 0 24 24" fill="currentColor">
-                                    <rect x="6" y="6" width="12" height="12" rx="2"></rect>
+                            <svg className="icon" viewBox="0 0 24 24">
+                                <path d="M21 12a9 9 0 1 1-6.219-8.56"></path>
+                            </svg>
+                            Analyze Screen
+                        </button>
+
+                        <div className="divider"></div>
+
+                        {/* Expand Button */}
+                        <button
+                            className="dock-btn"
+                            onClick={onExpand}
+                            disabled={!canExpand}
+                            title="Expand Answer"
+                        >
+                            {isExpanding ? (
+                                <svg className="icon spin" viewBox="0 0 24 24">
+                                    <circle cx="12" cy="12" r="10"></circle>
+                                    <path d="M12 6v6l4 2"></path>
                                 </svg>
                             ) : (
-                                <svg className="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor">
-                                    <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"></path>
-                                    <path d="M19 10v2a7 7 0 0 1-14 0v-2"></path>
-                                    <line x1="12" y1="19" x2="12" y2="22"></line>
+                                <svg className="icon" viewBox="0 0 24 24">
+                                    <polyline points="15 3 21 3 21 9"></polyline>
+                                    <polyline points="9 21 3 21 3 15"></polyline>
+                                    <line x1="21" y1="3" x2="14" y2="10"></line>
+                                    <line x1="3" y1="21" x2="10" y2="14"></line>
                                 </svg>
                             )}
-                            {isRecording ? "Stop & Send" : "Push to Speak"}
                         </button>
-                        <div className="divider"></div>
                     </>
                 )}
 
-                {/* Expand Button */}
+                {/* Mute Button - MOBILE: Larger & centered */}
                 <button
-                    className="dock-btn"
-                    onClick={onExpand}
-                    disabled={!canExpand}
-                    title="Expand Answer"
-                >
-                    {isExpanding ? (
-                        <svg className="icon spin" viewBox="0 0 24 24">
-                            <circle cx="12" cy="12" r="10"></circle>
-                            <path d="M12 6v6l4 2"></path>
-                        </svg>
-                    ) : (
-                        <svg className="icon" viewBox="0 0 24 24">
-                            <polyline points="15 3 21 3 21 9"></polyline>
-                            <polyline points="9 21 3 21 3 15"></polyline>
-                            <line x1="21" y1="3" x2="14" y2="10"></line>
-                            <line x1="3" y1="21" x2="10" y2="14"></line>
-                        </svg>
-                    )}
-                </button>
-
-                {/* Mute Button */}
-                <button
-                    className={`dock-btn ${isMuted ? 'active' : ''}`}
+                    className={`dock-btn ${isMuted ? 'active' : ''} ${isMobile ? 'mute-mobile' : ''}`}
                     onClick={onMute}
                     disabled={!isSessionActive}
                 >

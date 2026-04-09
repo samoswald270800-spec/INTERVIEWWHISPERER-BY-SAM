@@ -2,7 +2,7 @@ import React, { useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import './QAList.css';
 
-export default function QAList({ qaList }) {
+export default function QAList({ qaList, onManualSearch }) {
     const listRef = useRef(null);
 
     useEffect(() => {
@@ -42,9 +42,19 @@ export default function QAList({ qaList }) {
                             </div>
 
                             <div className="shard a">
-                                <div className="meta">
-                                    <svg className="icon" viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>
-                                    SUGGESTED ANSWER
+                                <div className="meta" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                    <div style={{ display: 'flex', alignItems: 'center' }}>
+                                        <svg className="icon" viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>
+                                        SUGGESTED ANSWER
+                                    </div>
+                                    <button
+                                        onClick={() => onManualSearch && onManualSearch(index, qa.question)}
+                                        className="manual-search-btn"
+                                        title="Search Web & Regenerate"
+                                        style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: 'var(--text-sec)', padding: '2px 4px', display: 'flex', alignItems: 'center' }}
+                                    >
+                                        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="feather feather-search"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+                                    </button>
                                 </div>
                                 <div className="text">
                                     {qa.answer}
