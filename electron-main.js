@@ -32,7 +32,7 @@ function createWindow() {
         webPreferences: {
             nodeIntegration: false,
             contextIsolation: true,
-            preload: path.join(__dirname, 'electron-preload.mjs'),
+            preload: path.join(__dirname, 'electron-preload.js'),
             devTools: !app.isPackaged, // Only enable DevTools in dev mode
             webSecurity: true, // Enable web security in production
             sandbox: false // Sandbox off to ensure preload works for remote content
@@ -136,8 +136,19 @@ app.whenReady().then(() => {
 
     try {
         const ret = globalShortcut.register('CommandOrControl+Shift+H', toggleStealth);
-        if (!ret) console.log('Shortcut registration failed');
-    } catch (e) { console.error(e); }
+        if (!ret) {
+            console.error('Shortcut Ctrl+Shift+H registration FAILED — another app may have claimed it.');
+            // Fallback: try an alternative shortcut
+            const fallback = globalShortcut.register('CommandOrControl+Shift+J', toggleStealth);
+            if (fallback) {
+                console.log('Fallback shortcut Ctrl+Shift+J registered successfully.');
+            } else {
+                console.error('Fallback shortcut Ctrl+Shift+J also failed.');
+            }
+        } else {
+            console.log('Shortcut Ctrl+Shift+H registered successfully.');
+        }
+    } catch (e) { console.error('Shortcut registration error:', e); }
 
     try {
         const iconPath = path.join(__dirname, 'public/favicon.png');

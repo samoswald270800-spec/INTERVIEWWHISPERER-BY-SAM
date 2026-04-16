@@ -49,7 +49,7 @@
     "asarUnpack": [],
     "files": [
       "electron-main.js",
-      "electron-preload.mjs",
+      "electron-preload.js",
       "public/build/**/*",
       "package.json"
     ],
