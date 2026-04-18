@@ -201,7 +201,8 @@ export default function App() {
     };
 
     const saveHistory = async (nameOverride) => {
-        // Only save if there's meaningful content
+        // A session is only blank if it has NO job description AND no Q&A history.
+        // We use && instead of || because users might do an interview without a JD.
         if (!jd && qaList.length === 0) return;
 
         try {
