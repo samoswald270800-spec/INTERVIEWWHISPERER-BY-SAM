@@ -269,10 +269,12 @@ export default function App() {
     const classicAudioElRef = useRef(null);
 
     const startSessionRouter = async () => {
-        if (selectedModel === "gpt-realtime-1.5") {
-            await startRealtime();
-        } else if (selectedModel === "gpt-4.1") {
+        if (architecture === "reasoning") {
+            // Reasoning uses the classic manual record → transcribe → answer pipeline
             await startClassicPipeline();
+        } else {
+            // 'live' and 'automatic' both use the realtime WebRTC pipeline
+            await startRealtime();
         }
     };
 
