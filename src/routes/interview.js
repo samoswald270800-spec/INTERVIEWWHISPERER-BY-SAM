@@ -600,7 +600,7 @@ router.post('/classic-interview/turn', requireAuth, upload.single('audio'), asyn
         { role: 'user', content: userTranscript }
       ],
       temperature: 0.7,
-      max_tokens: 500
+      max_tokens: 4000
     });
 
     const aiTextResponse = gptResponse.choices[0]?.message?.content || "I don't know what to say.";
