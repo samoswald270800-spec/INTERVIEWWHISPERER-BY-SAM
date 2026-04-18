@@ -73,11 +73,11 @@ export async function startSession(supabase, userId, adminId) {
     return { success: false, error: 'Transaction failed (Low balance or race condition)' };
   }
 
-  return createSessionRecord(supabase, userId, adminId, config.MIN_CHARGE_TOKENS);
+  return createSessionRecord(supabase, userId, adminId, config.MIN_CHARGE_TOKENS, newCredits);
 }
 
 // Helper to insert session and log transaction
-async function createSessionRecord(supabase, userId, adminId, cost) {
+async function createSessionRecord(supabase, userId, adminId, cost, newBalance) {
   const { data, error } = await supabase
     .from('sessions')
     .insert({
@@ -101,7 +101,7 @@ async function createSessionRecord(supabase, userId, adminId, cost) {
     admin_id: adminId,
     type: 'consume',
     amount: -cost,
-    balance_after: 0, // We don't know exact balance here easily without refetch, but acceptable for log
+    balance_after: newBalance,
     description: `Session Start: Initial Charge`,
     session_id: data.id,
   });
@@ -171,20 +171,27 @@ export async function endSession(supabase, sessionId) {
 
   if (user) {
     const newCredits = Math.max(0, user.credits - extraCreditsToDeduct);
-    await supabase
+    
+    // Optimistic lock: Only update if their balance hasn't dropped below extraCreditsToDeduct
+    const { error: updateError, count } = await supabase
       .from('users')
       .update({ credits: newCredits })
-      .eq('id', session.user_id);
+      .eq('id', session.user_id)
+      .gte('credits', extraCreditsToDeduct);
 
-    await supabase.from('credit_transactions').insert({
-      user_id: session.user_id,
-      admin_id: session.admin_id,
-      type: 'consume',
-      amount: -extraCreditsToDeduct,
-      balance_after: newCredits,
-      description: `Session End: Additional Time (${Math.floor(totalSeconds / 60)}m active)`,
-      session_id: sessionId,
-    });
+    if (updateError || count === 0) {
+       console.error('[Credits] Race condition during endSession deduction for user', session.user_id);
+    } else {
+      await supabase.from('credit_transactions').insert({
+        user_id: session.user_id,
+        admin_id: session.admin_id,
+        type: 'consume',
+        amount: -extraCreditsToDeduct,
+        balance_after: newCredits,
+        description: `Session End: Additional Time (${Math.floor(totalSeconds / 60)}m active)`,
+        session_id: sessionId,
+      });
+    }
   }
 
   return { success: true, session: data, creditsUsed: totalCreditsRequired };
@@ -224,10 +231,16 @@ export async function chargeScreenAnalysis(supabase, userId, adminId) {
 
   const newCredits = user.credits - config.SCREEN_ANALYSIS_COST;
 
-  await supabase
+  // Optimistic lock
+  const { error: updateError, count } = await supabase
     .from('users')
     .update({ credits: newCredits })
-    .eq('id', userId);
+    .eq('id', userId)
+    .gte('credits', config.SCREEN_ANALYSIS_COST);
+
+  if (updateError || count === 0) {
+    return { success: false, error: 'Transaction failed due to concurrent modification. Try again.' };
+  }
 
   await supabase
     .from('credit_transactions')
