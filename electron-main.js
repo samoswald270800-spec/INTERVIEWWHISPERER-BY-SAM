@@ -20,10 +20,26 @@ app.commandLine.appendSwitch('disable-http-cache');
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
+// SINGLE INSTANCE LOCK: Prevent multiple app windows from opening
+const gotTheLock = app.requestSingleInstanceLock();
+if (!gotTheLock) {
+    // Another instance is already running — quit this one immediately
+    app.quit();
+}
+
 let mainWindow;
 let tray = null;
 let isStealth = false;
 let currentOpacity = 1.0;
+
+// When a second instance is attempted, focus the existing window instead
+app.on('second-instance', () => {
+    if (mainWindow) {
+        if (mainWindow.isMinimized()) mainWindow.restore();
+        if (!mainWindow.isVisible()) mainWindow.show();
+        mainWindow.focus();
+    }
+});
 
 function createWindow() {
     mainWindow = new BrowserWindow({
