@@ -5,6 +5,7 @@ import JobDescription from './components/JobDescription';
 import QAList from './components/QAList';
 import SettingsPopover from './components/SettingsPopover';
 import { useAudioCapture } from './hooks/useAudioCapture';
+import { useReasoningFlow } from './hooks/useReasoningFlow';
 import HistoryDrawer from './components/HistoryDrawer';
 import './App.css';
 
@@ -47,10 +48,18 @@ export default function App() {
 
 
     const lastQuestionRef = useRef("");
+    const lastAnswerRef = useRef("");
     const typeQueueRef = useRef([]);
     const isTypingRef = useRef(false);
+    const isSessionActiveRef = useRef(false);
 
     const { startCapture, stopCapture, toggleMute, isMuted } = useAudioCapture();
+
+    // Keep isSessionActiveRef in sync with state
+    const setIsSessionActiveSync = useCallback((val) => {
+        setIsSessionActive(val);
+        isSessionActiveRef.current = val;
+    }, []);
 
     const processTypeQueue = useCallback(() => {
         if (!isTypingRef.current && typeQueueRef.current.length > 0) {
@@ -96,6 +105,24 @@ export default function App() {
         }
     }, [speed, processTypeQueue]);
 
+    // --- Reasoning Architecture Hook ---
+    const reasoningFlow = useReasoningFlow({
+        setStatus,
+        setIsListening,
+        setIsProcessing,
+        setQaList,
+        setCanExpand,
+        setIsRecording,
+        lastQuestionRef,
+        lastAnswerRef,
+        typeQueueRef,
+        isTypingRef,
+        processTypeQueue,
+        getJd: () => jd,
+        getInterviewMode: () => interviewMode,
+        isSessionActiveRef,
+    });
+
     const formatTime = (seconds) => {
         const mins = Math.floor(seconds / 60);
         const secs = seconds % 60;
@@ -103,7 +130,7 @@ export default function App() {
     };
 
     const stopSession = useCallback(async () => {
-        setIsSessionActive(false);
+        setIsSessionActiveSync(false);
         setStatus("STOPPING...");
 
         // Call backend to end session and calculate final credits
@@ -130,6 +157,9 @@ export default function App() {
             window._lastStream = null;
         }
 
+        // Cleanup reasoning flow resources
+        reasoningFlow.cleanup();
+
         stopCapture();
         setStatus("SESSION ENDED");
         setIsListening(false);
@@ -139,7 +169,7 @@ export default function App() {
 
         // Re-fetch credits to sync final balance with backend
         fetchCredits();
-    }, [stopCapture]);
+    }, [stopCapture, reasoningFlow]);
 
     const fetchCredits = async () => {
         try {
@@ -270,158 +300,53 @@ export default function App() {
 
     const startSessionRouter = async () => {
         if (architecture === "reasoning") {
-            // Reasoning uses the classic manual record → transcribe → answer pipeline
-            await startClassicPipeline();
+            // Reasoning: auto-VAD → Whisper → GPT SSE streaming
+            await startReasoningPipeline();
         } else {
             // 'live' and 'automatic' both use the realtime WebRTC pipeline
             await startRealtime();
         }
     };
 
-    const startClassicPipeline = async () => {
+    const startReasoningPipeline = async () => {
         if (isSessionActive || isStartingRef.current) return;
         isStartingRef.current = true;
 
         try {
-            setStatus("REQUESTING ACCESS...");
-            const audioStream = await startCapture();
-            if (!audioStream) {
-                isStartingRef.current = false;
-                setStatus("PERMISSION DENIED");
-                return;
-            }
-            window._lastStream = audioStream;
+            setStatus("INITIALIZING REASONING...");
 
-            setStatus("WAITING FOR AUDIO...");
+            // Start credit session on the backend
+            const sessRes = await fetch(`${API_BASE_URL}/session/start`, {
+                method: 'POST',
+                credentials: 'include',
+            });
+            if (!sessRes.ok) {
+                const errData = await sessRes.json().catch(() => ({}));
+                throw new Error(errData.error || 'Failed to start session');
+            }
+
             setQaList([]);
             lastQuestionRef.current = "";
+            lastAnswerRef.current = "";
             typeQueueRef.current = [];
             isTypingRef.current = false;
 
-            // Setup MediaRecorder for manual STT capture, but do NOT start recording yet
-            // Warning: Do not force mimeType here, let the browser negotiate it to prevent NotSupportedError
-            const mediaRecorder = new MediaRecorder(audioStream);
-            mediaRecorderRef.current = mediaRecorder;
-            audioChunksRef.current = [];
-
-            mediaRecorder.ondataavailable = (event) => {
-                if (event.data.size > 0) {
-                    audioChunksRef.current.push(event.data);
-                }
-            };
-
-            mediaRecorder.onstop = async () => {
-                if (audioChunksRef.current.length === 0) return;
-                const audioBlob = new Blob(audioChunksRef.current, { type: mediaRecorder.mimeType });
-                audioChunksRef.current = [];
-                await processClassicTurn(audioBlob);
-            };
-
-            setIsSessionActive(true);
+            setIsSessionActiveSync(true);
             isStartingRef.current = false;
             fetchCredits();
 
+            // Start the auto-listening VAD loop
+            reasoningFlow.startListening();
+
         } catch (e) {
-            console.error("startClassicPipeline error:", e);
-            setStatus("START FAILED");
+            console.error("startReasoningPipeline error:", e);
+            setStatus(e.message || "START FAILED");
             isStartingRef.current = false;
-            stopCapture();
         }
     };
 
-    const toggleRecording = () => {
-        console.log("toggleRecording called! isRecording:", isRecording);
-        console.log("mediaRecorderRef.current:", !!mediaRecorderRef.current);
-
-        if (!mediaRecorderRef.current) {
-            console.warn("No media recorder available!");
-            return;
-        }
-
-        try {
-            if (isRecording) {
-                console.log("Stopping media recorder...");
-                mediaRecorderRef.current.stop();
-                setIsRecording(false);
-                setStatus("PROCESSING...");
-            } else {
-                console.log("Starting media recorder...");
-                // Stop any playing TTS audio before recording new input
-                if (classicAudioElRef.current) {
-                    classicAudioElRef.current.pause();
-                    classicAudioElRef.current.currentTime = 0;
-                }
-                audioChunksRef.current = [];
-                mediaRecorderRef.current.start(250); // Record in 250ms chunks
-                setIsRecording(true);
-                setStatus("LISTENING...");
-                console.log("Media recorder started successfully.");
-            }
-        } catch (e) {
-            console.error("Error in toggleRecording:", e);
-        }
-    };
-
-    const processClassicTurn = async (audioBlob) => {
-        if (!isSessionActive) return;
-        setStatus("PROCESSING...");
-        setIsProcessing(true);
-        setQaList(prev => [...prev, { question: "Processing audio...", answer: "" }]);
-
-        try {
-            const formData = new FormData();
-            formData.append('audio', audioBlob, 'speech.webm');
-
-            const res = await fetch(`${API_BASE_URL}/api/classic-interview/turn`, {
-                method: 'POST',
-                credentials: 'include',
-                body: formData
-            });
-
-            if (!res.ok) throw new Error("Pipeline request failed");
-            const data = await res.json();
-
-            // Update UI with transcript
-            const qText = data.transcript || "...";
-            lastQuestionRef.current = qText;
-            setCanExpand(true);
-            setQaList(prev => {
-                const newList = [...prev];
-                if (newList.length > 0) newList[newList.length - 1].question = qText;
-                return newList;
-            });
-
-            // Simulate typing for text response
-            const textResponse = data.responseText || "";
-            for (let char of textResponse) {
-                typeQueueRef.current.push(char);
-            }
-            processTypeQueue();
-
-            // Play the returned TTS audio
-            if (data.audioBase64) {
-                const audioSrc = `data:audio/mp3;base64,${data.audioBase64}`;
-                const audio = new Audio(audioSrc);
-                classicAudioElRef.current = audio;
-
-                audio.onended = () => {
-                    setStatus("WAITING FOR AUDIO...");
-                    setIsProcessing(false);
-                };
-
-                await audio.play();
-                setStatus("AI SPEAKING");
-            } else {
-                setStatus("WAITING FOR AUDIO...");
-                setIsProcessing(false);
-            }
-
-        } catch (e) {
-            console.error("Classic pipeline error:", e);
-            setStatus("ERROR");
-            setIsProcessing(false);
-        }
-    };
+    // toggleRecording is no longer needed — reasoning uses auto-VAD
+    const toggleRecording = () => {};
 
     const startRealtime = async () => {
         if (isSessionActive || isStartingRef.current) return;
@@ -499,7 +424,7 @@ export default function App() {
             dc.addEventListener("open", () => {
                 console.log("DATA CHANNEL OPENED");
                 setStatus("LISTENING...");
-                setIsSessionActive(true);
+                setIsSessionActiveSync(true);
                 isStartingRef.current = false;
                 // Fetch credits immediately after session starts to sync UI
                 fetchCredits();
@@ -620,6 +545,16 @@ export default function App() {
     };
 
     const expandLastAnswer = () => {
+        // Route expand to the correct architecture
+        if (architecture === "reasoning") {
+            // Use reasoning SSE expand
+            if (!lastQuestionRef.current || isExpanding) return;
+            setIsExpanding(true);
+            reasoningFlow.expandLastAnswer().finally(() => setIsExpanding(false));
+            return;
+        }
+
+        // Live/WebRTC expand (original)
         if (!window._lastDC || !lastQuestionRef.current || isExpanding) return;
 
         setIsExpanding(true);
