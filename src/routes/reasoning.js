@@ -92,7 +92,7 @@ router.post('/api/reasoning/answer', requireAuth, async (req, res) => {
       interviewMode,
       resume: getResume(),
       assignment: getAssignment(),
-      jobDescription: jd || getJobDescription(),
+      jobDescription: jd || getJobDescription(req),
       screenAnalysisContext: req.session?.screenAnalysisContext || '',
     });
 

@@ -44,10 +44,9 @@ const anthropic = createAnthropic({
   apiKey: config.ANTHROPIC_API_KEY,
 });
 
-// In-memory storage for resume, assignment, and JD
+// In-memory storage for resume and assignment (shared, loaded from files)
 let resume = '';
 let assignment = '';
-let JOB_DESC = '';
 
 /**
  * Load resume and assignment from files
@@ -59,7 +58,7 @@ export function loadDocuments(resumeText, assignmentText) {
 
 export function getResume() { return resume; }
 export function getAssignment() { return assignment; }
-export function getJobDescription() { return JOB_DESC; }
+export function getJobDescription(req) { return (req?.session?.jobDescription) || ''; }
 
 /**
  * POST /set-jd - Update Job Description
@@ -67,8 +66,10 @@ export function getJobDescription() { return JOB_DESC; }
 router.post('/set-jd', (req, res) => {
   const rawJd = (req.body?.jd || '').toString();
   // Sanitize input: Strip HTML/Scripts and enforce length
-  JOB_DESC = sanitizeText(rawJd, 20000);
-  return res.json({ ok: true, length: JOB_DESC.length });
+  const sanitizedJd = sanitizeText(rawJd, 20000);
+  // Store per-session so each user has their own JD
+  if (req.session) req.session.jobDescription = sanitizedJd;
+  return res.json({ ok: true, length: sanitizedJd.length });
 });
 
 async function searchDuckDuckGo(query) {
@@ -205,7 +206,7 @@ router.post('/session', requireAuth, async (req, res) => {
       interviewMode,
       resume,
       assignment,
-      jobDescription: JOB_DESC,
+      jobDescription: req.session?.jobDescription || '',
       screenAnalysisContext,
     });
 
@@ -587,7 +588,7 @@ router.post('/classic-interview/turn', requireAuth, upload.single('audio'), asyn
       interviewMode,
       resume: resume || "",
       assignment: assignment || "",
-      jobDescription: JOB_DESC || "",
+      jobDescription: req.session?.jobDescription || "",
       screenAnalysisContext
     });
 
