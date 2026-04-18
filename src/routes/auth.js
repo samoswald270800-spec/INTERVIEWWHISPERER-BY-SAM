@@ -36,33 +36,10 @@ router.post('/auth/user', async (req, res) => {
       return res.status(401).json({ error: result.error });
     }
 
-    // Single device enforcement
+    // Single device enforcement — force-kick any existing sessions so this login wins
     const activeSessions = await getActiveSessions(`supabase:${result.user.id}`);
     if (activeSessions.length > 0) {
-      const currentIp = (req.headers['x-forwarded-for'] || req.ip || '').split(',')[0].trim();
-      let activeOnOtherDevice = false;
-
-      for (const sid of activeSessions) {
-        const sRaw = await redisClient.get(`sess:${sid}`);
-        if (sRaw) {
-          try {
-            const s = JSON.parse(sRaw);
-            const sIp = (s.ip || '').split(',')[0].trim();
-            if (sIp && sIp !== currentIp) {
-              activeOnOtherDevice = true;
-              break;
-            }
-          } catch (e) { /* ignore */ }
-        }
-      }
-
-      if (activeOnOtherDevice) {
-        return res.status(403).json({
-          error: 'Account is active on another device. Please logout there first.'
-        });
-      }
-
-      // Same IP -> Kick out old sessions
+      console.log(`[Auth] Force-logging out ${activeSessions.length} existing session(s) for user ${result.user.id}`);
       for (const oldSessionId of activeSessions) {
         await redisClient.del(`sess:${oldSessionId}`);
       }
