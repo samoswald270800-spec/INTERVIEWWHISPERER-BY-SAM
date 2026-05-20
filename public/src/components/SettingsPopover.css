@@ -159,6 +159,25 @@ input[type=range]::-webkit-slider-runnable-track {
     font-weight: 600;
 }
 
+.arch-btn.arch-locked {
+    opacity: 0.3;
+    cursor: not-allowed;
+    position: relative;
+}
+
+.arch-btn.arch-locked:hover {
+    color: rgba(255, 180, 60, 0.6);
+}
+
+.lock-badge {
+    display: inline-flex;
+    align-items: center;
+    margin-right: 3px;
+    color: rgba(255, 180, 60, 0.9);
+    vertical-align: middle;
+    filter: drop-shadow(0 0 3px rgba(255, 180, 60, 0.3));
+}
+
 .arch-slider-container {
     position: absolute;
     top: 3px;

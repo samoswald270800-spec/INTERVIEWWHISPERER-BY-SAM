@@ -32,11 +32,11 @@ export default function App() {
     const [jd, setJd] = useState("");
     const [speed, setSpeed] = useState(0);
     const [isSettingsOpen, setIsSettingsOpen] = useState(false);
-    const [permissions, setPermissions] = useState({ canExpand: true, canAnalyze: true });
+    const [permissions, setPermissions] = useState({ canExpand: true, canAnalyze: true, canReasoning: true, canTurbo: true, canStartSession: true });
+    const [lockedFeatures, setLockedFeatures] = useState({});
     const [visionModel, setVisionModel] = useState("openai");
     const [interviewMode, setInterviewMode] = useState("smart"); // 'smart' | 'hr' | 'technical' | 'vp'
-    const [architecture, setArchitecture] = useState("live"); // 'live' | 'reasoning' | 'automatic'
-    const [selectedModel, setSelectedModel] = useState("gpt-realtime-1.5"); // 'gpt-realtime-1.5' | 'gpt-4.1'
+    const [architecture, setArchitecture] = useState("live"); // 'live' | 'reasoning' | 'turbo'
     const [opacity, setOpacity] = useState(1);
     const [credits, setCredits] = useState(0);
     const [remainingTime, setRemainingTime] = useState(0);
@@ -178,6 +178,7 @@ export default function App() {
             const data = await res.json();
 
             if (data.permissions) setPermissions(data.permissions);
+            if (data.lockedFeatures) setLockedFeatures(data.lockedFeatures);
             if (data.credits !== undefined) {
                 setCredits(data.credits);
                 setRemainingTime(data.credits * 60);
@@ -304,7 +305,7 @@ export default function App() {
             // Reasoning: auto-VAD → Whisper → GPT SSE streaming
             await startReasoningPipeline();
         } else {
-            // 'live' and 'automatic' both use the realtime WebRTC pipeline
+            // 'live' and 'turbo' both use the realtime WebRTC pipeline
             await startRealtime();
         }
     };
@@ -392,7 +393,7 @@ export default function App() {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 credentials: 'include',
-                body: JSON.stringify({ mode: 'smart', interviewMode })
+                body: JSON.stringify({ mode: 'smart', interviewMode, architecture })
             });
 
             if (!res.ok) {
@@ -449,7 +450,10 @@ export default function App() {
             await pc.setLocalDescription(offer);
 
             // Send offer to OpenAI, get answer
-            const sdpRes = await fetch("https://api.openai.com/v1/realtime", {
+            // Ephemeral token flow (official GA docs):
+            // POST SDP to /v1/realtime/calls with Bearer <ephemeral_key>
+            // Model is already bound to the token from /client_secrets
+            const sdpRes = await fetch("https://api.openai.com/v1/realtime/calls", {
                 method: "POST",
                 headers: {
                     Authorization: `Bearer ${EPHEMERAL_KEY}`,
@@ -879,6 +883,8 @@ export default function App() {
                 setInterviewMode={setInterviewMode}
                 architecture={architecture}
                 setArchitecture={setArchitecture}
+                permissions={permissions}
+                lockedFeatures={lockedFeatures}
                 opacity={opacity}
                 setOpacity={handleOpacityChange}
                 isElectron={window.electron && window.electron.isElectron}
@@ -900,8 +906,6 @@ export default function App() {
                 canExpand={canExpand && permissions.canExpand}
                 isExpanding={isExpanding}
                 canAnalyze={permissions.canAnalyze}
-                selectedModel={selectedModel}
-                onModelChange={setSelectedModel}
                 isRecording={isRecording}
                 onToggleRecording={toggleRecording}
             />

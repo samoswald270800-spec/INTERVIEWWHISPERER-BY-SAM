@@ -200,7 +200,15 @@ router.post('/session', requireAuth, async (req, res) => {
     // 2. Build instructions for OpenAI
     const mode = (req.body?.mode || 'smart').toString().toLowerCase();
     const interviewMode = (req.body?.interviewMode || 'smart').toString().toLowerCase();
+    const architecture = (req.body?.architecture || 'live').toString().toLowerCase();
     const screenAnalysisContext = req.session?.screenAnalysisContext || '';
+
+    // Select model based on architecture
+    // gpt-realtime = standard, gpt-realtime-2 = GPT-5 class reasoning (Turbo)
+    const isTurbo = architecture === 'turbo';
+    const realtimeModel = isTurbo ? 'gpt-realtime-2' : 'gpt-realtime';
+
+    console.log(`[Session] architecture: ${architecture}, model: ${realtimeModel}`);
 
     const fullInstructions = buildInterviewInstructions({
       interviewMode,
@@ -223,30 +231,43 @@ router.post('/session', requireAuth, async (req, res) => {
       console.log(`[Session] Attempting OpenAI Realtime Session with Key #${i === 0 ? 'Primary' : i}`);
 
       try {
-        const r = await fetch('https://api.openai.com/v1/realtime/sessions', {
+        // All GA models use the /client_secrets endpoint.
+        // The old /sessions beta endpoint (used by gpt-realtime-1.5) has been retired by OpenAI.
+        const sessionEndpoint = 'https://api.openai.com/v1/realtime/client_secrets';
+
+        // GA /client_secrets body: wrap config inside a `session` object
+        const requestBody = {
+          session: {
+            type: 'realtime',
+            model: realtimeModel,
+            output_modalities: ['text'],
+            max_output_tokens: 300,
+            instructions: fullInstructions,
+            audio: {
+              input: {
+                transcription: {
+                  model: 'gpt-4o-transcribe',
+                },
+                turn_detection: {
+                  type: 'server_vad',
+                  threshold: 0.5,
+                  prefix_padding_ms: 300,
+                  silence_duration_ms: 1200,
+                  create_response: true,
+                  interrupt_response: true,
+                },
+              },
+            },
+          }
+        };
+
+        const r = await fetch(sessionEndpoint, {
           method: 'POST',
           headers: {
             Authorization: `Bearer ${apiKey}`,
             'Content-Type': 'application/json',
           },
-          body: JSON.stringify({
-            model: 'gpt-realtime-1.5',
-            modalities: ['text'],
-            input_audio_format: 'pcm16',
-            turn_detection: {
-              type: 'server_vad',
-              threshold: 0.5,
-              prefix_padding_ms: 300,
-              silence_duration_ms: 1200,
-              create_response: true,
-              interrupt_response: true,
-            },
-            input_audio_transcription: {
-              model: 'gpt-4o-transcribe',
-              language: 'en'
-            },
-            instructions: fullInstructions,
-          }),
+          body: JSON.stringify(requestBody),
         });
 
         if (!r.ok) {
@@ -255,7 +276,19 @@ router.post('/session', requireAuth, async (req, res) => {
         }
 
         session = await r.json();
-        console.log(`[Session] ✅ Model confirmed by OpenAI: ${session.model}`);
+        console.log(`[Session] ✅ Model confirmed by OpenAI: ${session.model || session.session?.model}`);
+
+        // CRITICAL: Normalize response shape
+        // /client_secrets returns: { value: "ek_...", expires_at: "...", session: { model, id, ... } }
+        // Frontend expects: { client_secret: { value: "ek_..." }, model: "...", id: "...", ... }
+        if (session.value && session.session) {
+          const ephemeralKey = session.value;
+          const sessionConfig = session.session;
+          session = {
+            ...sessionConfig,
+            client_secret: { value: ephemeralKey },
+          };
+        }
         break; // Success! Exit the retry loop
       } catch (err) {
         console.warn(`[Session] Key #${i === 0 ? 'Primary' : i} failed:`, err.message);
