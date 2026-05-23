@@ -31,9 +31,7 @@ jobs:
           npm run build
 
       - name: Build Electron app (Windows)
-        run: npx electron-builder --win
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: npx electron-builder --win --publish never
 
       - name: Upload Windows artifact
         uses: actions/upload-artifact@v4
@@ -69,9 +67,8 @@ jobs:
           npm run build
 
       - name: Build Electron app (macOS)
-        run: npx electron-builder --mac
+        run: npx electron-builder --mac --publish never
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           CSC_IDENTITY_AUTO_DISCOVERY: false
 
       # Ad-hoc sign every .app bundle so Gatekeeper allows launch
