@@ -240,6 +240,18 @@ Write-Output "READY"
 
     function psExec(cmd) { if (psProcess && psReady) psProcess.stdin.write(cmd + '\n'); }
 
+    // Cache screen size (refreshed every 10 seconds)
+    let cachedScreenSize = null;
+    let screenSizeLastRefresh = 0;
+    function getScreenSize() {
+        const now = Date.now();
+        if (!cachedScreenSize || now - screenSizeLastRefresh > 10000) {
+            cachedScreenSize = electronScreen.getPrimaryDisplay().size;
+            screenSizeLastRefresh = now;
+        }
+        return cachedScreenSize;
+    }
+
     // VK code mapping
     const VK = {
         'Enter':0x0D,'Tab':0x09,'Escape':0x1B,'Backspace':0x08,'Delete':0x2E,
@@ -249,6 +261,8 @@ Write-Output "READY"
         'F1':0x70,'F2':0x71,'F3':0x72,'F4':0x73,'F5':0x74,'F6':0x75,
         'F7':0x76,'F8':0x77,'F9':0x78,'F10':0x79,'F11':0x7A,'F12':0x7B,
         ' ':0x20,'Space':0x20,
+        'CapsLock':0x14,'Insert':0x2D,'PrintScreen':0x2C,'Pause':0x13,
+        'NumLock':0x90,'ScrollLock':0x91,
     };
 
     function getVK(key) {
@@ -266,46 +280,66 @@ Write-Output "READY"
         if (!psReady) return;
 
         const { type } = data;
-        const scr = electronScreen.getPrimaryDisplay().size;
+        const scr = getScreenSize(); // Cached — no IPC overhead
 
+        // Mouse events with position
         if (type === 'mousemove' || type === 'click' || type === 'mousedown' || type === 'dblclick' || type === 'contextmenu') {
             const px = Math.round(data.x * scr.width);
             const py = Math.round(data.y * scr.height);
-            psExec(`[InputSim]::SetCursorPos(${px}, ${py})`);
 
-            if (type === 'click') {
-                if (data.button === 2) {
-                    psExec(`[InputSim]::mouse_event([InputSim]::MOUSEEVENTF_RIGHTDOWN, 0, 0, 0, [IntPtr]::Zero)`);
-                    psExec(`[InputSim]::mouse_event([InputSim]::MOUSEEVENTF_RIGHTUP, 0, 0, 0, [IntPtr]::Zero)`);
-                } else {
-                    psExec(`[InputSim]::mouse_event([InputSim]::MOUSEEVENTF_LEFTDOWN, 0, 0, 0, [IntPtr]::Zero)`);
-                    psExec(`[InputSim]::mouse_event([InputSim]::MOUSEEVENTF_LEFTUP, 0, 0, 0, [IntPtr]::Zero)`);
-                }
+            if (type === 'mousemove') {
+                // Single command for max speed on frequent events
+                psExec(`[InputSim]::SetCursorPos(${px}, ${py})`);
+            } else if (type === 'click') {
+                // Batch: move + down + up in single write for lower latency
+                const downFlag = data.button === 2 ? 'MOUSEEVENTF_RIGHTDOWN' : 'MOUSEEVENTF_LEFTDOWN';
+                const upFlag = data.button === 2 ? 'MOUSEEVENTF_RIGHTUP' : 'MOUSEEVENTF_LEFTUP';
+                psProcess.stdin.write(
+                    `[InputSim]::SetCursorPos(${px}, ${py})\n` +
+                    `[InputSim]::mouse_event([InputSim]::${downFlag}, 0, 0, 0, [IntPtr]::Zero)\n` +
+                    `[InputSim]::mouse_event([InputSim]::${upFlag}, 0, 0, 0, [IntPtr]::Zero)\n`
+                );
             } else if (type === 'mousedown') {
-                psExec(`[InputSim]::mouse_event(${data.button === 2 ? '[InputSim]::MOUSEEVENTF_RIGHTDOWN' : '[InputSim]::MOUSEEVENTF_LEFTDOWN'}, 0, 0, 0, [IntPtr]::Zero)`);
+                const flag = data.button === 2 ? 'MOUSEEVENTF_RIGHTDOWN' : 'MOUSEEVENTF_LEFTDOWN';
+                psProcess.stdin.write(
+                    `[InputSim]::SetCursorPos(${px}, ${py})\n` +
+                    `[InputSim]::mouse_event([InputSim]::${flag}, 0, 0, 0, [IntPtr]::Zero)\n`
+                );
             } else if (type === 'dblclick') {
-                psExec(`[InputSim]::mouse_event([InputSim]::MOUSEEVENTF_LEFTDOWN, 0, 0, 0, [IntPtr]::Zero)`);
-                psExec(`[InputSim]::mouse_event([InputSim]::MOUSEEVENTF_LEFTUP, 0, 0, 0, [IntPtr]::Zero)`);
-                psExec(`[InputSim]::mouse_event([InputSim]::MOUSEEVENTF_LEFTDOWN, 0, 0, 0, [IntPtr]::Zero)`);
-                psExec(`[InputSim]::mouse_event([InputSim]::MOUSEEVENTF_LEFTUP, 0, 0, 0, [IntPtr]::Zero)`);
+                psProcess.stdin.write(
+                    `[InputSim]::SetCursorPos(${px}, ${py})\n` +
+                    `[InputSim]::mouse_event([InputSim]::MOUSEEVENTF_LEFTDOWN, 0, 0, 0, [IntPtr]::Zero)\n` +
+                    `[InputSim]::mouse_event([InputSim]::MOUSEEVENTF_LEFTUP, 0, 0, 0, [IntPtr]::Zero)\n` +
+                    `[InputSim]::mouse_event([InputSim]::MOUSEEVENTF_LEFTDOWN, 0, 0, 0, [IntPtr]::Zero)\n` +
+                    `[InputSim]::mouse_event([InputSim]::MOUSEEVENTF_LEFTUP, 0, 0, 0, [IntPtr]::Zero)\n`
+                );
             } else if (type === 'contextmenu') {
-                psExec(`[InputSim]::mouse_event([InputSim]::MOUSEEVENTF_RIGHTDOWN, 0, 0, 0, [IntPtr]::Zero)`);
-                psExec(`[InputSim]::mouse_event([InputSim]::MOUSEEVENTF_RIGHTUP, 0, 0, 0, [IntPtr]::Zero)`);
+                psProcess.stdin.write(
+                    `[InputSim]::SetCursorPos(${px}, ${py})\n` +
+                    `[InputSim]::mouse_event([InputSim]::MOUSEEVENTF_RIGHTDOWN, 0, 0, 0, [IntPtr]::Zero)\n` +
+                    `[InputSim]::mouse_event([InputSim]::MOUSEEVENTF_RIGHTUP, 0, 0, 0, [IntPtr]::Zero)\n`
+                );
             }
         } else if (type === 'mouseup') {
-            psExec(`[InputSim]::mouse_event(${data.button === 2 ? '[InputSim]::MOUSEEVENTF_RIGHTUP' : '[InputSim]::MOUSEEVENTF_LEFTUP'}, 0, 0, 0, [IntPtr]::Zero)`);
+            const flag = data.button === 2 ? 'MOUSEEVENTF_RIGHTUP' : 'MOUSEEVENTF_LEFTUP';
+            psExec(`[InputSim]::mouse_event([InputSim]::${flag}, 0, 0, 0, [IntPtr]::Zero)`);
         } else if (type === 'keydown') {
-            if (data.ctrlKey) psExec(`[InputSim]::keybd_event(0x11, 0, 0, [IntPtr]::Zero)`);
-            if (data.shiftKey) psExec(`[InputSim]::keybd_event(0x10, 0, 0, [IntPtr]::Zero)`);
-            if (data.altKey) psExec(`[InputSim]::keybd_event(0x12, 0, 0, [IntPtr]::Zero)`);
+            // Batch modifier keys + main key in single write
+            let cmds = '';
+            if (data.ctrlKey) cmds += `[InputSim]::keybd_event(0x11, 0, 0, [IntPtr]::Zero)\n`;
+            if (data.shiftKey) cmds += `[InputSim]::keybd_event(0x10, 0, 0, [IntPtr]::Zero)\n`;
+            if (data.altKey) cmds += `[InputSim]::keybd_event(0x12, 0, 0, [IntPtr]::Zero)\n`;
             const vk = getVK(data.key);
-            if (vk) psExec(`[InputSim]::keybd_event(${vk}, 0, 0, [IntPtr]::Zero)`);
+            if (vk) cmds += `[InputSim]::keybd_event(${vk}, 0, 0, [IntPtr]::Zero)\n`;
+            if (cmds) psProcess.stdin.write(cmds);
         } else if (type === 'keyup') {
+            let cmds = '';
             const vk = getVK(data.key);
-            if (vk) psExec(`[InputSim]::keybd_event(${vk}, 0, [InputSim]::KEYEVENTF_KEYUP, [IntPtr]::Zero)`);
-            if (data.ctrlKey) psExec(`[InputSim]::keybd_event(0x11, 0, [InputSim]::KEYEVENTF_KEYUP, [IntPtr]::Zero)`);
-            if (data.shiftKey) psExec(`[InputSim]::keybd_event(0x10, 0, [InputSim]::KEYEVENTF_KEYUP, [IntPtr]::Zero)`);
-            if (data.altKey) psExec(`[InputSim]::keybd_event(0x12, 0, [InputSim]::KEYEVENTF_KEYUP, [IntPtr]::Zero)`);
+            if (vk) cmds += `[InputSim]::keybd_event(${vk}, 0, [InputSim]::KEYEVENTF_KEYUP, [IntPtr]::Zero)\n`;
+            if (data.ctrlKey) cmds += `[InputSim]::keybd_event(0x11, 0, [InputSim]::KEYEVENTF_KEYUP, [IntPtr]::Zero)\n`;
+            if (data.shiftKey) cmds += `[InputSim]::keybd_event(0x10, 0, [InputSim]::KEYEVENTF_KEYUP, [IntPtr]::Zero)\n`;
+            if (data.altKey) cmds += `[InputSim]::keybd_event(0x12, 0, [InputSim]::KEYEVENTF_KEYUP, [IntPtr]::Zero)\n`;
+            if (cmds) psProcess.stdin.write(cmds);
         }
     });
 

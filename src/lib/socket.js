@@ -42,6 +42,9 @@ export function initSocketIO(httpServer, sessionMiddleware) {
   const io = new Server(httpServer, {
     cors: { origin: '*', credentials: true },
     transports: ['websocket', 'polling'],
+    maxHttpBufferSize: 5e6,  // 5MB — JPEG frames can be 200-500KB
+    pingTimeout: 30000,       // 30s — prevents disconnect on slow networks
+    pingInterval: 10000,      // 10s heartbeat
   });
 
   // Share Express session with Socket.IO

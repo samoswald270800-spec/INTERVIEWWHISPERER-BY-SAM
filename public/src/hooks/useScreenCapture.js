@@ -1,14 +1,15 @@
 /**
  * useScreenCapture — Captures desktop screen frames for remote viewing
  * 
- * Uses desktopCapturer in Electron, getDisplayMedia on web.
+ * Uses getDisplayMedia for both Electron and web.
+ * Electron auto-approves via setDisplayMediaRequestHandler in electron-main.js.
  * Captures frames at configurable FPS, compresses to JPEG, sends via callback.
  */
 
 import { useRef, useState, useCallback } from 'react';
 
-const DEFAULT_FPS = 3;
-const JPEG_QUALITY = 0.5; // 0-1, lower = smaller frames
+const DEFAULT_FPS = 5;  // 5 FPS = smooth Zoom-level updates
+const JPEG_QUALITY = 0.4; // Lower = smaller frames = faster transfer
 
 export default function useScreenCapture({ onFrame, fps = DEFAULT_FPS }) {
     const [isCapturing, setIsCapturing] = useState(false);
@@ -20,42 +21,29 @@ export default function useScreenCapture({ onFrame, fps = DEFAULT_FPS }) {
     onFrameRef.current = onFrame; // Always keep latest callback
 
     const startCapture = useCallback(async () => {
-        try {
-            let stream;
+        // Prevent double-start
+        if (streamRef.current) return;
 
-            // Electron: use desktopCapturer
-            if (window.electron?.isElectron) {
-                // In Electron, getDisplayMedia should work with desktopCapturer
-                stream = await navigator.mediaDevices.getUserMedia({
-                    audio: false,
-                    video: {
-                        mandatory: {
-                            chromeMediaSource: 'desktop',
-                            minWidth: 1280,
-                            maxWidth: 1920,
-                            minHeight: 720,
-                            maxHeight: 1080,
-                        }
-                    }
-                });
-            } else {
-                // Web: use getDisplayMedia (user picks screen)
-                stream = await navigator.mediaDevices.getDisplayMedia({
-                    video: {
-                        width: { ideal: 1920, max: 1920 },
-                        height: { ideal: 1080, max: 1080 },
-                        frameRate: { ideal: fps, max: 5 },
-                    },
-                    audio: false,
-                });
-            }
+        try {
+            // getDisplayMedia works in both Electron and web browsers.
+            // Electron auto-approves via setDisplayMediaRequestHandler in electron-main.js
+            // (selects primary screen automatically, no user prompt).
+            const stream = await navigator.mediaDevices.getDisplayMedia({
+                video: {
+                    width: { ideal: 1920, max: 1920 },
+                    height: { ideal: 1080, max: 1080 },
+                    frameRate: { ideal: fps, max: 5 },
+                },
+                audio: false,
+            });
 
             streamRef.current = stream;
 
-            // Create video element to receive stream
+            // Create hidden video element to receive stream
             const video = document.createElement('video');
             video.srcObject = stream;
             video.muted = true;
+            video.playsInline = true;
             await video.play();
             videoRef.current = video;
 
@@ -66,12 +54,12 @@ export default function useScreenCapture({ onFrame, fps = DEFAULT_FPS }) {
             // Start frame capture interval
             const interval = 1000 / fps;
             intervalRef.current = setInterval(() => {
-                if (!video.videoWidth) return;
+                if (!video.videoWidth || video.readyState < 2) return;
 
-                // Scale down for bandwidth
+                // Scale down for bandwidth efficiency
                 const scale = Math.min(1, 1280 / video.videoWidth);
-                canvas.width = video.videoWidth * scale;
-                canvas.height = video.videoHeight * scale;
+                canvas.width = Math.round(video.videoWidth * scale);
+                canvas.height = Math.round(video.videoHeight * scale);
 
                 const ctx = canvas.getContext('2d');
                 ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
@@ -82,15 +70,16 @@ export default function useScreenCapture({ onFrame, fps = DEFAULT_FPS }) {
             }, interval);
 
             setIsCapturing(true);
-            console.log('[ScreenCapture] Started');
+            console.log('[ScreenCapture] Started — streaming at', fps, 'FPS');
 
-            // Handle stream ended (user revoked permission)
+            // Handle stream ended (user revoked permission or display disconnected)
             stream.getVideoTracks()[0].addEventListener('ended', () => {
+                console.log('[ScreenCapture] Stream ended externally');
                 stopCapture();
             });
 
         } catch (err) {
-            console.error('[ScreenCapture] Failed to start:', err);
+            console.error('[ScreenCapture] Failed to start:', err.name, err.message);
             setIsCapturing(false);
         }
     }, [fps]); // onFrame accessed via ref, not closure
@@ -105,6 +94,7 @@ export default function useScreenCapture({ onFrame, fps = DEFAULT_FPS }) {
             streamRef.current = null;
         }
         if (videoRef.current) {
+            videoRef.current.pause();
             videoRef.current.srcObject = null;
             videoRef.current = null;
         }

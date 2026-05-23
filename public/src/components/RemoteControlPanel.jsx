@@ -106,14 +106,14 @@ export default function RemoteControlPanel({
         return { x: Math.max(0, Math.min(1, x)), y: Math.max(0, Math.min(1, y)) };
     }, []);
 
-    // Throttled mousemove (30ms = ~33 events/sec max)
+    // Throttled mousemove — moves cursor on user's machine in real-time (Zoom-style)
     const throttledMouseMove = useCallback(
         throttle((e) => {
             const coords = getRelativeCoords(e);
             if (!coords) return;
             cursorPosRef.current = coords;
             sendInputEvent({ type: 'mousemove', ...coords });
-        }, 30),
+        }, 25), // 40 events/sec — smooth without flooding
         [getRelativeCoords, sendInputEvent]
     );
 
