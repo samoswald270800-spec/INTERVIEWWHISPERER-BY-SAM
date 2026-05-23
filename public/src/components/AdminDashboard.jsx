@@ -26,6 +26,16 @@ export default function AdminDashboard() {
     const [showModal, setShowModal] = useState(false);
     const [form, setForm] = useState({ username: '', password: '', credits: 15, canExpand: true, canAnalyze: true });
 
+    // Fix: Override body overflow:hidden (set for interview UI) so dashboard scrolls
+    useEffect(() => {
+        document.body.style.overflow = 'auto';
+        document.body.style.height = 'auto';
+        return () => {
+            document.body.style.overflow = '';
+            document.body.style.height = '';
+        };
+    }, []);
+
     const showToast = (msg, err = false) => {
         setToast({ show: true, msg, err });
         setTimeout(() => setToast({ show: false, msg: '', err: false }), 2500);

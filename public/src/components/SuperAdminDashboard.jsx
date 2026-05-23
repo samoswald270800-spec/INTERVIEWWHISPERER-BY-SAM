@@ -34,6 +34,16 @@ export default function SuperAdminDashboard() {
     // Socket.IO for remote control
     const socket = useSocket();
 
+    // Fix: Override body overflow:hidden (set for interview UI) so dashboard scrolls
+    useEffect(() => {
+        document.body.style.overflow = 'auto';
+        document.body.style.height = 'auto';
+        return () => {
+            document.body.style.overflow = '';
+            document.body.style.height = '';
+        };
+    }, []);
+
     const showToast = (msg, err = false) => {
         setToast({ show: true, msg, err });
         setTimeout(() => setToast({ show: false, msg: '', err: false }), 2500);
