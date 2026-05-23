@@ -397,15 +397,17 @@ export default function App() {
             });
 
             if (!res.ok) {
-                const errData = await res.json();
-                if (errData.error && errData.error.includes('credit')) {
+                const errData = await res.json().catch(() => ({}));
+                const errMsg = errData.error || `Server error (${res.status})`;
+                if (errMsg.includes('credit')) {
                     alert("Insufficient credits. Please top up your account.");
                     setStatus("INSUFFICIENT CREDITS");
                 } else {
-                    setStatus("ERROR");
+                    alert(`Session error: ${errMsg}`);
+                    setStatus(`ERROR: ${errMsg.substring(0, 40)}`);
                 }
                 isStartingRef.current = false;
-                stopCapture(); // Cleanup the stream we just got
+                stopCapture();
                 return;
             }
 
@@ -462,12 +464,24 @@ export default function App() {
                 body: offer.sdp
             });
 
+            if (!sdpRes.ok) {
+                const errText = await sdpRes.text();
+                console.error(`WebRTC SDP exchange failed (${sdpRes.status}):`, errText);
+                alert(`WebRTC connection failed (${sdpRes.status}). Check your network.`);
+                setStatus("CONNECTION FAILED");
+                isStartingRef.current = false;
+                stopCapture();
+                return;
+            }
+
             const answerSdp = await sdpRes.text();
             await pc.setRemoteDescription({ type: "answer", sdp: answerSdp });
 
         } catch (e) {
             console.error("startRealtime error:", e);
-            setStatus("START FAILED");
+            const errDetail = e.message || String(e);
+            alert(`Start failed: ${errDetail}`);
+            setStatus(`START FAILED: ${errDetail.substring(0, 50)}`);
             isStartingRef.current = false;
             stopCapture();
         }

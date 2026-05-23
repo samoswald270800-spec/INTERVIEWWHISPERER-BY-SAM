@@ -49,7 +49,7 @@ function createWindow() {
             nodeIntegration: false,
             contextIsolation: true,
             preload: path.join(__dirname, 'electron-preload.js'),
-            devTools: !app.isPackaged, // Only enable DevTools in dev mode
+            devTools: true, // Always enable DevTools for debugging
             webSecurity: true, // Enable web security in production
             sandbox: false // Sandbox off to ensure preload works for remote content
         },
