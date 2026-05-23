@@ -1,10 +1,19 @@
 /**
- * RemoteControlPanel — Admin-side remote control UI
- * Shows online users, passcode input, screen viewer
+ * RemoteControlPanel — Zoom-quality remote control viewer
+ * Canvas-based screen viewer with cursor overlay, throttled input, fullscreen
  */
 
-import React, { useState } from 'react';
+import React, { useState, useRef, useCallback, useEffect } from 'react';
 import './RemoteControlPanel.css';
+
+// Throttle helper
+function throttle(fn, ms) {
+    let last = 0;
+    return (...args) => {
+        const now = Date.now();
+        if (now - last >= ms) { last = now; fn(...args); }
+    };
+}
 
 export default function RemoteControlPanel({
     connected, onlineUsers, error, waitingConsent,
@@ -12,6 +21,132 @@ export default function RemoteControlPanel({
     connectWithPasscode, sendInputEvent, endSession
 }) {
     const [passcodeInput, setPasscodeInput] = useState('');
+    const [isFullscreen, setIsFullscreen] = useState(false);
+    const [fps, setFps] = useState(0);
+    const canvasRef = useRef(null);
+    const containerRef = useRef(null);
+    const imgBufferRef = useRef(new Image());
+    const frameCountRef = useRef(0);
+    const fpsIntervalRef = useRef(null);
+    const cursorPosRef = useRef({ x: 0.5, y: 0.5 });
+
+    // FPS counter
+    useEffect(() => {
+        if (remoteSession) {
+            fpsIntervalRef.current = setInterval(() => {
+                setFps(frameCountRef.current);
+                frameCountRef.current = 0;
+            }, 1000);
+            return () => clearInterval(fpsIntervalRef.current);
+        }
+    }, [remoteSession]);
+
+    // Draw frame to canvas (double-buffered via Image preload)
+    useEffect(() => {
+        if (!screenFrame || !canvasRef.current) return;
+
+        const img = imgBufferRef.current;
+        img.onload = () => {
+            const canvas = canvasRef.current;
+            if (!canvas) return;
+
+            canvas.width = img.naturalWidth;
+            canvas.height = img.naturalHeight;
+
+            const ctx = canvas.getContext('2d');
+            ctx.drawImage(img, 0, 0);
+
+            // Draw admin cursor overlay
+            const cx = cursorPosRef.current.x * canvas.width;
+            const cy = cursorPosRef.current.y * canvas.height;
+            drawCursor(ctx, cx, cy);
+
+            frameCountRef.current++;
+        };
+        img.src = screenFrame;
+    }, [screenFrame]);
+
+    // Draw a clean cursor
+    const drawCursor = (ctx, x, y) => {
+        ctx.save();
+        ctx.translate(x, y);
+
+        // White arrow with black outline
+        ctx.beginPath();
+        ctx.moveTo(0, 0);
+        ctx.lineTo(0, 20);
+        ctx.lineTo(5.5, 15);
+        ctx.lineTo(10, 24);
+        ctx.lineTo(13, 22.5);
+        ctx.lineTo(8.5, 14);
+        ctx.lineTo(14, 13);
+        ctx.closePath();
+
+        ctx.strokeStyle = 'rgba(0,0,0,0.7)';
+        ctx.lineWidth = 1.5;
+        ctx.stroke();
+        ctx.fillStyle = 'rgba(255,255,255,0.95)';
+        ctx.fill();
+
+        // Small dot at tip for precision
+        ctx.beginPath();
+        ctx.arc(0, 0, 2, 0, Math.PI * 2);
+        ctx.fillStyle = '#5E5CE6';
+        ctx.fill();
+
+        ctx.restore();
+    };
+
+    // Calculate relative coordinates on canvas
+    const getRelativeCoords = useCallback((e) => {
+        if (!canvasRef.current) return null;
+        const rect = canvasRef.current.getBoundingClientRect();
+        const x = (e.clientX - rect.left) / rect.width;
+        const y = (e.clientY - rect.top) / rect.height;
+        return { x: Math.max(0, Math.min(1, x)), y: Math.max(0, Math.min(1, y)) };
+    }, []);
+
+    // Throttled mousemove (30ms = ~33 events/sec max)
+    const throttledMouseMove = useCallback(
+        throttle((e) => {
+            const coords = getRelativeCoords(e);
+            if (!coords) return;
+            cursorPosRef.current = coords;
+            sendInputEvent({ type: 'mousemove', ...coords });
+        }, 30),
+        [getRelativeCoords, sendInputEvent]
+    );
+
+    const handleMouseEvent = useCallback((e, type) => {
+        e.preventDefault();
+        const coords = getRelativeCoords(e);
+        if (!coords) return;
+        cursorPosRef.current = coords;
+        sendInputEvent({ type, ...coords, button: e.button });
+    }, [getRelativeCoords, sendInputEvent]);
+
+    const handleKeyEvent = useCallback((e, type) => {
+        e.preventDefault();
+        e.stopPropagation();
+        sendInputEvent({
+            type,
+            key: e.key,
+            code: e.code,
+            ctrlKey: e.ctrlKey,
+            shiftKey: e.shiftKey,
+            altKey: e.altKey,
+            metaKey: e.metaKey,
+        });
+    }, [sendInputEvent]);
+
+    const toggleFullscreen = useCallback(() => {
+        if (!containerRef.current) return;
+        if (!document.fullscreenElement) {
+            containerRef.current.requestFullscreen().then(() => setIsFullscreen(true));
+        } else {
+            document.exitFullscreen().then(() => setIsFullscreen(false));
+        }
+    }, []);
 
     const handleConnect = (e) => {
         e.preventDefault();
@@ -21,58 +156,92 @@ export default function RemoteControlPanel({
         }
     };
 
-    // Active remote session view
+    // ═══════════════════════════════════════
+    //  ACTIVE SESSION — Canvas Viewer
+    // ═══════════════════════════════════════
     if (remoteSession) {
         return (
-            <div className="rc-panel">
-                <div className="rc-header">
+            <div className={`rc-panel rc-session-active ${isFullscreen ? 'rc-fullscreen' : ''}`} ref={containerRef}>
+                <div className="rc-session-toolbar">
                     <div className="rc-status live">
-                        <span className="rc-dot"></span> Live Session — {remoteSession.username || 'User'}
+                        <span className="rc-dot"></span>
+                        <span className="rc-live-label">LIVE</span>
+                        <span className="rc-session-user">{remoteSession.username || 'User'}</span>
                     </div>
-                    <button className="rc-btn rc-btn-danger" onClick={endSession}>End Session</button>
+                    <div className="rc-toolbar-right">
+                        <span className="rc-fps">{fps} FPS</span>
+                        <button className="rc-toolbar-btn" onClick={toggleFullscreen} title="Fullscreen">
+                            {isFullscreen ? '⊡' : '⊞'}
+                        </button>
+                        <button className="rc-toolbar-btn rc-toolbar-end" onClick={endSession}>
+                            End Session
+                        </button>
+                    </div>
                 </div>
-                <div className="rc-screen-viewer">
+                <div
+                    className="rc-canvas-container"
+                    tabIndex={0}
+                    onKeyDown={(e) => handleKeyEvent(e, 'keydown')}
+                    onKeyUp={(e) => handleKeyEvent(e, 'keyup')}
+                >
                     {screenFrame ? (
-                        <img src={screenFrame} alt="User screen" className="rc-screen-img" />
+                        <canvas
+                            ref={canvasRef}
+                            className="rc-canvas"
+                            onClick={(e) => handleMouseEvent(e, 'click')}
+                            onMouseMove={throttledMouseMove}
+                            onMouseDown={(e) => handleMouseEvent(e, 'mousedown')}
+                            onMouseUp={(e) => handleMouseEvent(e, 'mouseup')}
+                            onDoubleClick={(e) => handleMouseEvent(e, 'dblclick')}
+                            onContextMenu={(e) => { e.preventDefault(); handleMouseEvent(e, 'contextmenu'); }}
+                        />
                     ) : (
                         <div className="rc-screen-placeholder">
-                            <div className="rc-screen-icon">🖥️</div>
-                            <p>Waiting for screen data...</p>
-                            <p className="rc-sub">User's screen will appear here once streaming begins</p>
+                            <div className="rc-spinner"></div>
+                            <p>Connecting to user's screen...</p>
+                            <p className="rc-sub">Waiting for screen share to begin</p>
                         </div>
                     )}
+                </div>
+                <div className="rc-controls-hint">
+                    <span>🖱️ Click &amp; drag to interact</span>
+                    <span>⌨️ Type when viewer is focused</span>
+                    <span>📺 {isFullscreen ? 'ESC to exit' : 'Click ⊞ for fullscreen'}</span>
                 </div>
             </div>
         );
     }
 
-    // Waiting for consent
+    // ═══════════════════════════════════════
+    //  WAITING FOR CONSENT
+    // ═══════════════════════════════════════
     if (waitingConsent) {
         return (
             <div className="rc-panel">
                 <div className="rc-waiting">
                     <div className="rc-spinner"></div>
-                    <h3>Waiting for consent</h3>
-                    <p>Asking <strong>{waitingConsent}</strong> for permission...</p>
-                    <p className="rc-sub">The user must accept the connection request</p>
+                    <h3>Requesting access</h3>
+                    <p>Waiting for <strong>{waitingConsent}</strong> to accept...</p>
+                    <p className="rc-sub">The user will see a consent dialog</p>
                 </div>
             </div>
         );
     }
 
-    // Default: connect form + online users
+    // ═══════════════════════════════════════
+    //  DEFAULT — Connect Form + Online Users
+    // ═══════════════════════════════════════
     return (
         <div className="rc-panel">
             <div className="rc-header">
                 <h3 className="rc-title">Remote Control</h3>
                 <div className={`rc-status ${connected ? 'online' : 'offline'}`}>
-                    <span className="rc-dot"></span> {connected ? 'Socket Connected' : 'Disconnected'}
+                    <span className="rc-dot"></span> {connected ? 'Connected' : 'Disconnected'}
                 </div>
             </div>
 
             {error && <div className="rc-error">{error}</div>}
 
-            {/* Passcode Connect */}
             <form className="rc-connect-form" onSubmit={handleConnect}>
                 <label className="rc-label">Enter User Passcode</label>
                 <div className="rc-input-row">
@@ -91,7 +260,6 @@ export default function RemoteControlPanel({
                 </div>
             </form>
 
-            {/* Online Users */}
             <div className="rc-users-section">
                 <div className="rc-label">Online Users <span className="rc-count">{onlineUsers.length}</span></div>
                 {onlineUsers.length === 0 ? (

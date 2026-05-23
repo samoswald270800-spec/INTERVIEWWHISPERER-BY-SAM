@@ -1174,6 +1174,7 @@ This is your chance to really impress. Leave nothing on the table.`;
                     requestHelp={socket.requestHelp}
                     refreshPasscode={socket.refreshPasscode}
                     respondConsent={socket.respondConsent}
+                    sendScreenFrame={socket.sendScreenFrame}
                     endSession={socket.endSession}
                 />
             )}

@@ -1,16 +1,47 @@
 /**
  * UserHelpButton — User-side remote control UI
- * Small floating button to request help + show passcode + consent dialog
+ * Floating help button + passcode + consent dialog + auto screen capture
  */
 
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
+import useScreenCapture from '../hooks/useScreenCapture';
 import './UserHelpButton.css';
 
 export default function UserHelpButton({
     connected, passcode, consentRequest, remoteSession,
-    requestHelp, refreshPasscode, respondConsent, endSession
+    requestHelp, refreshPasscode, respondConsent, sendScreenFrame, endSession
 }) {
     const [expanded, setExpanded] = useState(false);
+
+    // Screen capture — fires onFrame when active
+    const onFrame = useCallback((frame) => {
+        sendScreenFrame(frame);
+    }, [sendScreenFrame]);
+
+    const { isCapturing, startCapture, stopCapture } = useScreenCapture({
+        onFrame,
+        fps: 3,
+    });
+
+    // Auto-start screen capture when remote session begins
+    useEffect(() => {
+        if (remoteSession?.controlled && !isCapturing) {
+            startCapture();
+        }
+        if (!remoteSession?.controlled && isCapturing) {
+            stopCapture();
+        }
+    }, [remoteSession?.controlled, isCapturing, startCapture, stopCapture]);
+
+    // Stop capture on unmount
+    useEffect(() => {
+        return () => { stopCapture(); };
+    }, [stopCapture]);
+
+    const handleEndSession = () => {
+        stopCapture();
+        endSession();
+    };
 
     // Consent dialog overlay
     if (consentRequest) {
@@ -39,8 +70,8 @@ export default function UserHelpButton({
         return (
             <div className="uh-active-bar">
                 <span className="uh-active-dot"></span>
-                <span>Admin is viewing your screen</span>
-                <button className="uh-btn uh-btn-end" onClick={endSession}>End</button>
+                <span>Admin is viewing your screen {isCapturing ? '(streaming)' : '(starting...)'}</span>
+                <button className="uh-btn uh-btn-end" onClick={handleEndSession}>End</button>
             </div>
         );
     }
