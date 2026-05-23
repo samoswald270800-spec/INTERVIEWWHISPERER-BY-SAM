@@ -5,6 +5,7 @@
  */
 
 import bcrypt from 'bcryptjs';
+import crypto from 'crypto';
 import config from '../config/index.js';
 
 const SALT_ROUNDS = 12;
@@ -24,6 +25,17 @@ export async function verifyPassword(password, hash) {
 }
 
 /**
+ * Constant-time string comparison to prevent timing attacks
+ */
+function safeCompare(a, b) {
+  if (typeof a !== 'string' || typeof b !== 'string') return false;
+  const bufA = Buffer.from(a, 'utf8');
+  const bufB = Buffer.from(b, 'utf8');
+  if (bufA.length !== bufB.length) return false;
+  return crypto.timingSafeEqual(bufA, bufB);
+}
+
+/**
  * Authenticate Super Admin (via environment variables ONLY - no database)
  * Easter egg login - checks SUPER_ADMIN_USERNAME and SUPER_ADMIN_PASSWORD env vars
  */
@@ -35,7 +47,7 @@ export async function authenticateSuperAdmin(username, password) {
     return { success: false, error: 'Super Admin not configured' };
   }
 
-  if (username === validUsername && password === validPassword) {
+  if (safeCompare(username, validUsername) && safeCompare(password, validPassword)) {
     return {
       success: true,
       user: {
@@ -55,7 +67,7 @@ export async function authenticateSuperAdmin(username, password) {
 export async function authenticateAdmin(supabase, username, password) {
   const { data: admin, error } = await supabase
     .from('admins')
-    .select('*')
+    .select('id, username, name, credits, status, password_hash')
     .eq('username', username)
     .single();
 

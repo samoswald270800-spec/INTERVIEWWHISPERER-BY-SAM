@@ -12,7 +12,7 @@ export const NODE_ENV = process.env.NODE_ENV || 'development';
 export const IS_PRODUCTION = NODE_ENV === 'production';
 
 // Session
-export const SESSION_SECRET = process.env.SESSION_SECRET || 'dev-secret';
+export const SESSION_SECRET = process.env.SESSION_SECRET;
 export const SESSION_TTL_HOURS = 6;
 export const SESSION_TTL_MS = SESSION_TTL_HOURS * 60 * 60 * 1000;
 
@@ -54,6 +54,7 @@ export function validateConfig() {
 
   if (!REDIS_URL) errors.push('REDIS_URL is required');
   if (!OPENAI_API_KEY) errors.push('OPENAI_API_KEY is required');
+  if (!SESSION_SECRET) errors.push('SESSION_SECRET is required — generate one with: node -e "console.log(require(\'crypto\').randomBytes(32).toString(\'hex\'))"');
 
   if (errors.length > 0) {
     console.error('❌ Configuration errors:');

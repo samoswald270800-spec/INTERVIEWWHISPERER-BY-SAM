@@ -21,7 +21,7 @@ export function createSessionMiddleware() {
     cookie: {
       maxAge: config.SESSION_TTL_MS,
       httpOnly: true,
-      sameSite: config.IS_PRODUCTION ? 'none' : 'lax',
+      sameSite: 'strict',
       secure: config.IS_PRODUCTION,
     },
   });
