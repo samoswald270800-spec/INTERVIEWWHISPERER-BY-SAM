@@ -54,8 +54,8 @@ export default function App() {
     const [userRole, setUserRole] = useState(null);
     const [isAppLoading, setIsAppLoading] = useState(true);
 
-    // Socket.IO for user-side remote control
-    const socket = useSocket();
+    // Socket.IO for user-side remote control (only for user role)
+    const socket = useSocket(userRole === 'user');
 
 
     const lastQuestionRef = useRef("");

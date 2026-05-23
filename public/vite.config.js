@@ -30,6 +30,10 @@ export default defineConfig({
       '/session': 'http://localhost:3000',
       '/set-jd': 'http://localhost:3000',
       '/analyze-screen': 'http://localhost:3000',
+      '/socket.io': {
+        target: 'http://localhost:3000',
+        ws: true,
+      },
     }
   }
 });

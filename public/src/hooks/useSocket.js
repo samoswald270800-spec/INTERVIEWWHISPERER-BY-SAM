@@ -7,7 +7,7 @@ import { useEffect, useRef, useState, useCallback } from 'react';
 import { io } from 'socket.io-client';
 import API_BASE_URL from '../config';
 
-export default function useSocket() {
+export default function useSocket(enabled = true) {
     const socketRef = useRef(null);
     const [connected, setConnected] = useState(false);
     const [onlineUsers, setOnlineUsers] = useState([]);
@@ -19,6 +19,8 @@ export default function useSocket() {
     const [waitingConsent, setWaitingConsent] = useState(null);
 
     useEffect(() => {
+        if (!enabled) return;
+
         const socket = io(API_BASE_URL || window.location.origin, {
             withCredentials: true,
             transports: ['websocket', 'polling'],
@@ -101,7 +103,7 @@ export default function useSocket() {
             socket.disconnect();
             socketRef.current = null;
         };
-    }, []);
+    }, [enabled]);
 
     // ── User Actions ──
     const requestHelp = useCallback(() => {
