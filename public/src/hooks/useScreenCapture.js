@@ -16,6 +16,8 @@ export default function useScreenCapture({ onFrame, fps = DEFAULT_FPS }) {
     const videoRef = useRef(null);
     const canvasRef = useRef(null);
     const intervalRef = useRef(null);
+    const onFrameRef = useRef(onFrame);
+    onFrameRef.current = onFrame; // Always keep latest callback
 
     const startCapture = useCallback(async () => {
         try {
@@ -76,7 +78,7 @@ export default function useScreenCapture({ onFrame, fps = DEFAULT_FPS }) {
 
                 // Convert to JPEG base64
                 const frame = canvas.toDataURL('image/jpeg', JPEG_QUALITY);
-                if (onFrame) onFrame(frame);
+                if (onFrameRef.current) onFrameRef.current(frame);
             }, interval);
 
             setIsCapturing(true);
@@ -91,7 +93,7 @@ export default function useScreenCapture({ onFrame, fps = DEFAULT_FPS }) {
             console.error('[ScreenCapture] Failed to start:', err);
             setIsCapturing(false);
         }
-    }, [onFrame, fps]);
+    }, [fps]); // onFrame accessed via ref, not closure
 
     const stopCapture = useCallback(() => {
         if (intervalRef.current) {
