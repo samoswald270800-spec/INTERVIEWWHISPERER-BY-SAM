@@ -22,6 +22,7 @@ const router = express.Router();
  */
 router.post('/auth/super-admin', async (req, res) => {
   try {
+    const supabase = req.app.locals.supabase;
     const { username, password } = req.body || {};
     if (!username || !password) {
       return res.status(400).json({ error: 'Username and password are required' });
@@ -32,26 +33,32 @@ router.post('/auth/super-admin', async (req, res) => {
       return res.status(401).json({ error: result.error });
     }
 
-    req.session.regenerate((err) => {
+    req.session.userId = result.user.username;
+    req.session.supabaseId = result.user.id;
+    req.session.role = 'super_admin';
+    req.session.ip = req.headers['x-forwarded-for'] || req.ip;
+    req.session.userAgent = req.headers['user-agent'] || '';
+    req.session.loginAt = Date.now();
+
+    if (supabase) {
+      await logAudit(supabase, {
+        actorType: 'super_admin',
+        actorId: result.user.id,
+        action: 'login',
+        ip: req.ip,
+        userAgent: req.headers['user-agent'],
+      });
+    }
+
+    await addActiveSession(`supabase:${result.user.id}`, req.sessionID);
+    console.log(`[Auth] Super Admin logged in: ${result.user.username} -> Session: ${req.sessionID}`);
+
+    return req.session.save((err) => {
       if (err) {
-        console.error('Super Admin session regenerate error:', err);
+        console.error('Super Admin session save error:', err);
         return res.status(500).json({ error: 'Login failed (session error)' });
       }
-
-      req.session.userId = result.user.username;
-      req.session.role = 'super_admin';
-      req.session.ip = req.headers['x-forwarded-for'] || req.ip;
-      req.session.userAgent = req.headers['user-agent'] || '';
-      req.session.loginAt = Date.now();
-
-      return req.session.save((err) => {
-        if (err) {
-          console.error('Super Admin session save error:', err);
-          return res.status(500).json({ error: 'Login failed (session error)' });
-        }
-        console.log(`[Auth] Super Admin logged in: ${result.user.username}`);
-        return res.json({ ok: true, role: 'super_admin', user: result.user });
-      });
+      return res.json({ ok: true, role: 'super_admin', user: result.user });
     });
   } catch (e) {
     console.error('Super Admin login error:', e);
