@@ -122,8 +122,9 @@ app.whenReady().then(() => {
         desktopCapturer.getSources({ types: ['screen'] }).then((sources) => {
             if (sources.length > 0) {
                 // Auto-select the first screen (Primary Display)
-                // This enables 'loopback' (System Audio) capture on Windows
-                callback({ video: sources[0], audio: 'loopback' });
+                // NOTE: 'loopback' audio is Windows-only — omit on macOS to avoid crash
+                const audioOption = process.platform === 'win32' ? 'loopback' : false;
+                callback({ video: sources[0], audio: audioOption });
             } else {
                 console.error('No screen sources found');
                 callback(null);

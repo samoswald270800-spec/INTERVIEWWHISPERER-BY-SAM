@@ -65,16 +65,24 @@
     },
     "mac": {
       "target": [
-        "dmg",
-        "zip"
+        { "target": "dmg", "arch": ["x64", "arm64"] },
+        { "target": "zip", "arch": ["x64", "arm64"] }
       ],
       "icon": "icon.png",
       "category": "public.app-category.productivity",
-      "artifactName": "Interview-Whisperer-${version}.${ext}"
+      "artifactName": "Interview-Whisperer-${version}-${arch}.${ext}",
+      "hardenedRuntime": false,
+      "gatekeeperAssess": false
     },
     "dmg": {
       "title": "Interview Whisperer",
-      "icon": "icon.png"
+      "icon": "icon.png",
+      "background": null,
+      "window": { "width": 540, "height": 380 },
+      "contents": [
+        { "x": 130, "y": 150, "type": "file" },
+        { "x": 410, "y": 150, "type": "link", "path": "/Applications" }
+      ]
     }
   }
 }
