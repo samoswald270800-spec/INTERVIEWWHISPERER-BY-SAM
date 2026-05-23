@@ -9,6 +9,8 @@ import { useReasoningFlow } from './hooks/useReasoningFlow';
 import HistoryDrawer from './components/HistoryDrawer';
 import SuperAdminDashboard from './components/SuperAdminDashboard';
 import AdminDashboard from './components/AdminDashboard';
+import useSocket from './hooks/useSocket';
+import UserHelpButton from './components/UserHelpButton';
 import './App.css';
 
 import API_BASE_URL from './config';
@@ -51,6 +53,9 @@ export default function App() {
     // Role-based rendering
     const [userRole, setUserRole] = useState(null);
     const [isAppLoading, setIsAppLoading] = useState(true);
+
+    // Socket.IO for user-side remote control
+    const socket = useSocket();
 
 
     const lastQuestionRef = useRef("");
@@ -1158,6 +1163,20 @@ This is your chance to really impress. Leave nothing on the table.`;
                 setJd={setJd}
                 onSave={handleSaveJd}
             />
+
+            {/* User Help Button for Remote Control */}
+            {userRole === 'user' && (
+                <UserHelpButton
+                    connected={socket.connected}
+                    passcode={socket.passcode}
+                    consentRequest={socket.consentRequest}
+                    remoteSession={socket.remoteSession}
+                    requestHelp={socket.requestHelp}
+                    refreshPasscode={socket.refreshPasscode}
+                    respondConsent={socket.respondConsent}
+                    endSession={socket.endSession}
+                />
+            )}
         </div>
     );
 }

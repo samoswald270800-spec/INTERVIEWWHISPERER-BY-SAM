@@ -5,6 +5,8 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import API_BASE_URL from '../config';
+import useSocket from '../hooks/useSocket';
+import RemoteControlPanel from './RemoteControlPanel';
 import './SuperAdminDashboard.css';
 
 const FEATURE_KEYS = [
@@ -28,6 +30,9 @@ export default function SuperAdminDashboard() {
     // Create admin modal
     const [showModal, setShowModal] = useState(false);
     const [form, setForm] = useState({ name: '', username: '', password: '', credits: 100 });
+
+    // Socket.IO for remote control
+    const socket = useSocket();
 
     const showToast = (msg, err = false) => {
         setToast({ show: true, msg, err });
@@ -211,6 +216,19 @@ export default function SuperAdminDashboard() {
                     <div className="stat"><div className="stat-label">Sessions Today</div><div className="stat-value">{stats.sessionsToday}</div></div>
                     <div className="stat"><div className="stat-label">Credits Pool</div><div className="stat-value">{stats.totalAdminCredits}</div></div>
                 </section>
+
+                {/* Remote Control Panel */}
+                <RemoteControlPanel
+                    connected={socket.connected}
+                    onlineUsers={socket.onlineUsers}
+                    error={socket.error}
+                    waitingConsent={socket.waitingConsent}
+                    remoteSession={socket.remoteSession}
+                    screenFrame={socket.screenFrame}
+                    connectWithPasscode={socket.connectWithPasscode}
+                    sendInputEvent={socket.sendInputEvent}
+                    endSession={socket.endSession}
+                />
 
                 {/* Admins List */}
                 <h2 className="section-title">Admins</h2>
