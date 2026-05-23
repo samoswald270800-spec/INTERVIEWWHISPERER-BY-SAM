@@ -212,9 +212,9 @@ router.post('/session', requireAuth, async (req, res) => {
 
     const fullInstructions = buildInterviewInstructions({
       interviewMode,
-      resume,
-      assignment,
-      jobDescription: req.session?.jobDescription || '',
+      resume: '',            // Frontend will inject true value over WebRTC data channel
+      assignment: '',        // Frontend will inject true value over WebRTC data channel
+      jobDescription: '',    // Frontend will inject true value over WebRTC data channel
       screenAnalysisContext,
     });
 
@@ -241,7 +241,6 @@ router.post('/session', requireAuth, async (req, res) => {
             type: 'realtime',
             model: realtimeModel,
             output_modalities: ['text'],
-            max_output_tokens: 300,
             instructions: fullInstructions,
             audio: {
               input: {
