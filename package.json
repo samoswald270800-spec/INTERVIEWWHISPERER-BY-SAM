@@ -73,7 +73,15 @@
       "artifactName": "Interview-Whisperer-${version}-${arch}.${ext}",
       "hardenedRuntime": false,
       "gatekeeperAssess": false,
-      "identity": null
+      "identity": null,
+      "entitlements": "build-resources/entitlements.mac.plist",
+      "entitlementsInherit": "build-resources/entitlements.mac.plist",
+      "extendInfo": {
+        "NSMicrophoneUsageDescription": "Interview Whisperer needs microphone access to listen to your interview and provide real-time guidance.",
+        "NSCameraUsageDescription": "Interview Whisperer may use the camera for video interview support.",
+        "NSScreenCaptureUsageDescription": "Interview Whisperer needs screen recording access to analyze interview questions shown on your screen.",
+        "NSAppleEventsUsageDescription": "Interview Whisperer needs automation access for system integration."
+      }
     },
     "dmg": {
       "title": "Interview Whisperer",
