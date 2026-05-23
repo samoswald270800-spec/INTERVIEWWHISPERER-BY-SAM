@@ -194,6 +194,7 @@ export default function RemoteControlPanel({
                             onMouseUp={(e) => handleMouseEvent(e, 'mouseup')}
                             onDoubleClick={(e) => handleMouseEvent(e, 'dblclick')}
                             onContextMenu={(e) => { e.preventDefault(); handleMouseEvent(e, 'contextmenu'); }}
+                            onWheel={(e) => { e.preventDefault(); sendInputEvent({ type: 'scroll', deltaY: e.deltaY }); }}
                         />
                     ) : (
                         <div className="rc-screen-placeholder">

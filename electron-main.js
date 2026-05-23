@@ -200,12 +200,17 @@ app.whenReady().then(() => {
 
     // ═══════════════════════════════════════════════════
     //  REMOTE CONTROL: Input Simulation via PowerShell
+    //  Uses persistent PS process with user32.dll P/Invoke
+    //  for native mouse/keyboard control.
     // ═══════════════════════════════════════════════════
     let psProcess = null;
     let psReady = false;
+    const pendingCmds = []; // Queue commands while PS boots
+    const MAX_QUEUE = 200;
 
     function ensureInputSimulator() {
         if (psProcess) return;
+        console.log('[InputSim] Starting PowerShell process...');
 
         psProcess = spawn('powershell.exe', [
             '-NoProfile', '-NoLogo', '-NonInteractive',
@@ -213,10 +218,32 @@ app.whenReady().then(() => {
         ], { stdio: ['pipe', 'pipe', 'pipe'], windowsHide: true });
 
         psProcess.stdout.on('data', (data) => {
-            if (data.toString().includes('READY')) { psReady = true; console.log('[InputSim] Ready'); }
+            const text = data.toString();
+            if (text.includes('READY')) {
+                psReady = true;
+                console.log('[InputSim] PowerShell READY — draining', pendingCmds.length, 'queued commands');
+                // Drain queued commands
+                while (pendingCmds.length > 0) {
+                    psProcess.stdin.write(pendingCmds.shift() + "\n");
+                }
+            }
         });
-        psProcess.stderr.on('data', (d) => console.error('[InputSim] Error:', d.toString().trim()));
-        psProcess.on('exit', () => { psProcess = null; psReady = false; });
+
+        psProcess.stderr.on('data', (d) => {
+            console.error('[InputSim] PS Error:', d.toString().trim());
+        });
+
+        psProcess.on('exit', (code) => {
+            console.warn('[InputSim] PowerShell exited with code', code, '— will restart on next event');
+            psProcess = null;
+            psReady = false;
+        });
+
+        psProcess.on('error', (err) => {
+            console.error('[InputSim] Failed to spawn PowerShell:', err.message);
+            psProcess = null;
+            psReady = false;
+        });
 
         // Boot: load user32.dll types once
         psProcess.stdin.write(`
@@ -231,6 +258,7 @@ public class InputSim {
     public const uint MOUSEEVENTF_LEFTUP = 0x0004;
     public const uint MOUSEEVENTF_RIGHTDOWN = 0x0008;
     public const uint MOUSEEVENTF_RIGHTUP = 0x0010;
+    public const uint MOUSEEVENTF_WHEEL = 0x0800;
     public const uint KEYEVENTF_KEYUP = 0x0002;
 }
 "@
@@ -238,7 +266,18 @@ Write-Output "READY"
 `);
     }
 
-    function psExec(cmd) { if (psProcess && psReady) psProcess.stdin.write(cmd + "\n"); }
+    function psExec(cmd) {
+        if (psProcess && psReady) {
+            psProcess.stdin.write(cmd + "\n");
+        } else if (psProcess && !psReady) {
+            // PS is booting — queue the command
+            if (pendingCmds.length < MAX_QUEUE) pendingCmds.push(cmd);
+        }
+        // If psProcess is null, ensureInputSimulator will be called first
+    }
+
+    // Pre-boot PS on app start so it's ready before first input event
+    ensureInputSimulator();
 
     // Cache screen size (refreshed every 10 seconds)
     let cachedScreenSize = null;
@@ -276,11 +315,10 @@ Write-Output "READY"
     }
 
     ipcMain.on('rc:simulate-input', (event, data) => {
-        ensureInputSimulator();
-        if (!psReady) return;
+        ensureInputSimulator(); // Restart PS if it crashed
 
         const { type } = data;
-        const scr = getScreenSize(); // Cached — no IPC overhead
+        const scr = getScreenSize();
 
         // Mouse events with position
         if (type === 'mousemove' || type === 'click' || type === 'mousedown' || type === 'dblclick' || type === 'contextmenu') {
@@ -313,6 +351,10 @@ Write-Output "READY"
         } else if (type === 'mouseup') {
             const flag = data.button === 2 ? 'MOUSEEVENTF_RIGHTUP' : 'MOUSEEVENTF_LEFTUP';
             psExec(`[InputSim]::mouse_event([InputSim]::${flag}, 0, 0, 0, [IntPtr]::Zero)`);
+        } else if (type === 'scroll') {
+            // Scroll wheel support
+            const delta = (data.deltaY || 0) > 0 ? -120 : 120;
+            psExec(`[InputSim]::mouse_event([InputSim]::MOUSEEVENTF_WHEEL, 0, 0, ${delta}, [IntPtr]::Zero)`);
         } else if (type === 'keydown') {
             if (data.ctrlKey) psExec(`[InputSim]::keybd_event(0x11, 0, 0, [IntPtr]::Zero)`);
             if (data.shiftKey) psExec(`[InputSim]::keybd_event(0x10, 0, 0, [IntPtr]::Zero)`);
