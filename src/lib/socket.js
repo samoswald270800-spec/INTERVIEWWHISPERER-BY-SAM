@@ -118,9 +118,9 @@ export function initSocketIO(httpServer, sessionMiddleware) {
     // User sends screen frame
     socket.on('rc:screen-frame', ({ sessionKey, frame }) => {
       if (role !== 'user') return;
-      const session = activeSessions.get(sessionKey);
-      if (session) {
-        io.to(session.adminSocketId).emit('rc:screen-frame', { frame });
+      const rcSession = activeSessions.get(sessionKey);
+      if (rcSession) {
+        io.to(rcSession.adminSocketId).emit('rc:screen-frame', { frame });
       }
     });
 

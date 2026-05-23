@@ -60,8 +60,10 @@ export async function createApp() {
   app.locals.forceLogoutAdmin = forceLogoutAdmin;
   app.locals.forceLogoutAllUsersUnderAdmin = forceLogoutAllUsersUnderAdmin;
 
-  // Session middleware
-  app.use(createSessionMiddleware());
+  // Session middleware — create once, reuse for Socket.IO
+  const sessionMw = createSessionMiddleware();
+  app.locals.sessionMiddleware = sessionMw;
+  app.use(sessionMw);
 
   console.log('🚀 Interview Whisperer Desktop App starting...');
 

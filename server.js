@@ -10,7 +10,6 @@ import http from 'http';
 import { createApp } from './src/app.js';
 import config from './src/config/index.js';
 import { initSocketIO } from './src/lib/socket.js';
-import { createSessionMiddleware } from './src/middleware/session.js';
 
 async function main() {
   try {
@@ -19,8 +18,8 @@ async function main() {
     // Create HTTP server (needed for Socket.IO)
     const httpServer = http.createServer(app);
 
-    // Share the session middleware with Socket.IO
-    const sessionMw = createSessionMiddleware();
+    // Reuse the SAME session middleware from Express for Socket.IO
+    const sessionMw = app.locals.sessionMiddleware;
     initSocketIO(httpServer, sessionMw);
 
     httpServer.listen(config.PORT, config.HOST, () => {
