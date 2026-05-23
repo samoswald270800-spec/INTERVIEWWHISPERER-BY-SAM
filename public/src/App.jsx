@@ -7,6 +7,8 @@ import SettingsPopover from './components/SettingsPopover';
 import { useAudioCapture } from './hooks/useAudioCapture';
 import { useReasoningFlow } from './hooks/useReasoningFlow';
 import HistoryDrawer from './components/HistoryDrawer';
+import SuperAdminDashboard from './components/SuperAdminDashboard';
+import AdminDashboard from './components/AdminDashboard';
 import './App.css';
 
 import API_BASE_URL from './config';
@@ -45,6 +47,10 @@ export default function App() {
     // History State
     const [history, setHistory] = useState([]);
     const [isHistoryOpen, setIsHistoryOpen] = useState(false);
+
+    // Role-based rendering
+    const [userRole, setUserRole] = useState(null);
+    const [isAppLoading, setIsAppLoading] = useState(true);
 
 
     const lastQuestionRef = useRef("");
@@ -184,6 +190,10 @@ export default function App() {
             if (!res.ok) throw new Error("Failed to fetch info");
             const data = await res.json();
 
+            // Set role for conditional rendering
+            if (data.role) setUserRole(data.role);
+            setIsAppLoading(false);
+
             if (data.permissions) setPermissions(data.permissions);
             if (data.lockedFeatures) setLockedFeatures(data.lockedFeatures);
             if (data.credits !== undefined) {
@@ -194,6 +204,7 @@ export default function App() {
             }
         } catch (err) {
             console.error("Fetch credits error:", err);
+            setIsAppLoading(false);
             setStatus("NETWORK ERROR");
         }
     };
@@ -984,6 +995,32 @@ This is your chance to really impress. Leave nothing on the table.`;
         }
     };
 
+    // Loading state
+    if (isAppLoading) {
+        return (
+            <div className="app-container">
+                <div className="void-bg">
+                    <div className="aurora"></div>
+                    <div className="noise"></div>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh', color: 'rgba(255,255,255,0.5)', fontFamily: 'var(--font-body)', fontSize: '14px', letterSpacing: '0.1em', textTransform: 'uppercase' }}>
+                    Loading...
+                </div>
+            </div>
+        );
+    }
+
+    // Role-based rendering: Super Admin Dashboard
+    if (userRole === 'super_admin') {
+        return <SuperAdminDashboard />;
+    }
+
+    // Role-based rendering: Admin Dashboard
+    if (userRole === 'admin') {
+        return <AdminDashboard />;
+    }
+
+    // Default: User interview UI
     return (
         <div className="app-container">
             <div className="void-bg">

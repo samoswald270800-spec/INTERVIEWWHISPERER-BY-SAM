@@ -276,6 +276,52 @@
       text-align: center;
     }
 
+    /* Role Tabs */
+    .role-tabs {
+      display: flex;
+      gap: 4px;
+      margin-bottom: 28px;
+      background: rgba(255, 255, 255, 0.03);
+      border-radius: 12px;
+      padding: 4px;
+      border: 1px solid var(--glass-border);
+    }
+
+    .role-tab {
+      flex: 1;
+      padding: 10px 8px;
+      border: none;
+      background: transparent;
+      color: var(--text-muted);
+      font-family: var(--font-body);
+      font-size: 12px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      cursor: pointer;
+      border-radius: 9px;
+      transition: all 0.3s;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+    }
+
+    .role-tab:hover {
+      color: var(--text-white);
+      background: rgba(255, 255, 255, 0.05);
+    }
+
+    .role-tab.active {
+      background: rgba(139, 92, 246, 0.15);
+      color: var(--lux-violet);
+      box-shadow: 0 0 12px rgba(139, 92, 246, 0.15);
+    }
+
+    .role-tab .tab-icon {
+      font-size: 14px;
+    }
+
     @media (max-width: 768px) {
       .login-container {
         flex-direction: column;
@@ -334,6 +380,18 @@
         <p>Access your interview assistant</p>
       </div>
 
+      <div class="role-tabs">
+        <button type="button" class="role-tab active" data-role="user" id="tabUser">
+          <span class="tab-icon">👤</span> User
+        </button>
+        <button type="button" class="role-tab" data-role="admin" id="tabAdmin">
+          <span class="tab-icon">🏢</span> Admin
+        </button>
+        <button type="button" class="role-tab" data-role="super_admin" id="tabSuperAdmin">
+          <span class="tab-icon">🛡️</span> Super
+        </button>
+      </div>
+
       <form id="loginForm">
         <div class="form-group">
           <label class="form-label">Username</label>
@@ -361,12 +419,32 @@
     // API Base URL
     const API_BASE = window.electron?.apiUrl || '';
 
+    // Role selection
+    let selectedRole = 'user';
+    const roleEndpoints = {
+      'user': '/api/auth/user',
+      'admin': '/api/auth/admin',
+      'super_admin': '/api/auth/super-admin'
+    };
+
     // DOM Elements
     const form = document.getElementById('loginForm');
     const loginBtn = document.getElementById('loginBtn');
     const usernameInput = document.getElementById('username');
     const passwordInput = document.getElementById('password');
     const errorEl = document.getElementById('error');
+    const roleTabs = document.querySelectorAll('.role-tab');
+
+    // Tab switching
+    roleTabs.forEach(tab => {
+      tab.addEventListener('click', () => {
+        roleTabs.forEach(t => t.classList.remove('active'));
+        tab.classList.add('active');
+        selectedRole = tab.dataset.role;
+        errorEl.classList.remove('show');
+        usernameInput.focus();
+      });
+    });
 
     // Login Handler
     form.addEventListener('submit', async (e) => {
@@ -379,7 +457,8 @@
       const password = passwordInput.value;
 
       try {
-        const res = await fetch(`${API_BASE}/api/auth/user`, {
+        const endpoint = roleEndpoints[selectedRole];
+        const res = await fetch(`${API_BASE}${endpoint}`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           credentials: 'include',

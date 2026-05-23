@@ -1,6 +1,6 @@
 /**
  * Express Application Setup
- * Desktop App Version - User Authentication Only
+ * Desktop App Version - Super Admin, Admin, and User
  */
 
 import express from 'express';
@@ -19,7 +19,14 @@ import {
   interviewRoutes,
   reasoningRoutes,
 } from './routes/index.js';
+import superAdminRoutes from './routes/super-admin.js';
+import adminRoutes from './routes/admin.js';
 import { loadDocuments } from './routes/interview.js';
+import {
+  forceLogoutUser,
+  forceLogoutAdmin,
+  forceLogoutAllUsersUnderAdmin,
+} from './lib/redis.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -49,6 +56,9 @@ export async function createApp() {
 
   // Store clients in app.locals
   app.locals.supabase = supabase;
+  app.locals.forceLogoutUser = forceLogoutUser;
+  app.locals.forceLogoutAdmin = forceLogoutAdmin;
+  app.locals.forceLogoutAllUsersUnderAdmin = forceLogoutAllUsersUnderAdmin;
 
   // Session middleware
   app.use(createSessionMiddleware());
@@ -79,6 +89,8 @@ export async function createApp() {
 
   // Mount protected API routes
   app.use('/api/user', userRoutes);
+  app.use('/api/super-admin', superAdminRoutes);
+  app.use('/api/admin', adminRoutes);
   app.use('/', interviewRoutes);
   app.use('/', reasoningRoutes);
 
