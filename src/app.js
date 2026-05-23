@@ -9,14 +9,12 @@ import fs from 'fs';
 import { fileURLToPath } from 'url';
 
 import config from './config/index.js';
-import { connectRedis, forceLogoutUser, forceLogoutAdmin, forceLogoutAllUsersUnderAdmin } from './lib/redis.js';
+import { connectRedis } from './lib/redis.js';
 import { initSupabase, getSupabase } from './lib/supabase.js';
 import { createSessionMiddleware, sessionAnnotator } from './middleware/session.js';
 import { requireAuth } from './middleware/auth.js';
 import {
   authRoutes,
-  superAdminRoutes,
-  adminRoutes,
   userRoutes,
   interviewRoutes,
   reasoningRoutes,
@@ -51,9 +49,6 @@ export async function createApp() {
 
   // Store clients in app.locals
   app.locals.supabase = supabase;
-  app.locals.forceLogoutUser = forceLogoutUser;
-  app.locals.forceLogoutAdmin = forceLogoutAdmin;
-  app.locals.forceLogoutAllUsersUnderAdmin = forceLogoutAllUsersUnderAdmin;
 
   // Session middleware
   app.use(createSessionMiddleware());
@@ -83,8 +78,6 @@ export async function createApp() {
   app.use(sessionAnnotator);
 
   // Mount protected API routes
-  app.use('/api/super-admin', superAdminRoutes);
-  app.use('/api/admin', adminRoutes);
   app.use('/api/user', userRoutes);
   app.use('/', interviewRoutes);
   app.use('/', reasoningRoutes);
