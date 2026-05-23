@@ -86,6 +86,13 @@ export default function useSocket(enabled = true) {
             setScreenFrame(frame);
         });
 
+        // Input event from admin → forward to Electron for native simulation
+        socket.on('rc:input-event', ({ event }) => {
+            if (window.electron?.simulateInput) {
+                window.electron.simulateInput(event);
+            }
+        });
+
         // Session ended
         socket.on('rc:session-ended', ({ reason }) => {
             console.log('[Socket] Session ended:', reason);

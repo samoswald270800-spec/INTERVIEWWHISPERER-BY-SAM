@@ -197,6 +197,124 @@ app.whenReady().then(() => {
         }
     });
 
+    // ═══════════════════════════════════════════════════
+    //  REMOTE CONTROL: Input Simulation via PowerShell
+    // ═══════════════════════════════════════════════════
+    let psProcess = null;
+    let psReady = false;
+
+    function ensureInputSimulator() {
+        if (psProcess) return;
+
+        const { spawn } = require('child_process');
+        psProcess = spawn('powershell.exe', [
+            '-NoProfile', '-NoLogo', '-NonInteractive',
+            '-ExecutionPolicy', 'Bypass', '-Command', '-'
+        ], { stdio: ['pipe', 'pipe', 'pipe'], windowsHide: true });
+
+        psProcess.stdout.on('data', (data) => {
+            if (data.toString().includes('READY')) { psReady = true; console.log('[InputSim] Ready'); }
+        });
+        psProcess.stderr.on('data', (d) => console.error('[InputSim] Error:', d.toString().trim()));
+        psProcess.on('exit', () => { psProcess = null; psReady = false; });
+
+        // Boot: load user32.dll types once
+        psProcess.stdin.write(`
+Add-Type @"
+using System;
+using System.Runtime.InteropServices;
+public class InputSim {
+    [DllImport("user32.dll")] public static extern bool SetCursorPos(int X, int Y);
+    [DllImport("user32.dll")] public static extern void mouse_event(uint dwFlags, int dx, int dy, uint dwData, IntPtr dwExtraInfo);
+    [DllImport("user32.dll")] public static extern void keybd_event(byte bVk, byte bScan, uint dwFlags, IntPtr dwExtraInfo);
+    public const uint MOUSEEVENTF_LEFTDOWN = 0x0002;
+    public const uint MOUSEEVENTF_LEFTUP = 0x0004;
+    public const uint MOUSEEVENTF_RIGHTDOWN = 0x0008;
+    public const uint MOUSEEVENTF_RIGHTUP = 0x0010;
+    public const uint KEYEVENTF_KEYUP = 0x0002;
+}
+"@
+Write-Output "READY"
+`);
+    }
+
+    function psExec(cmd) { if (psProcess && psReady) psProcess.stdin.write(cmd + '\n'); }
+
+    // VK code mapping
+    const VK = {
+        'Enter':0x0D,'Tab':0x09,'Escape':0x1B,'Backspace':0x08,'Delete':0x2E,
+        'Home':0x24,'End':0x23,'PageUp':0x21,'PageDown':0x22,
+        'ArrowUp':0x26,'ArrowDown':0x28,'ArrowLeft':0x25,'ArrowRight':0x27,
+        'Shift':0x10,'Control':0x11,'Alt':0x12,'Meta':0x5B,
+        'F1':0x70,'F2':0x71,'F3':0x72,'F4':0x73,'F5':0x74,'F6':0x75,
+        'F7':0x76,'F8':0x77,'F9':0x78,'F10':0x79,'F11':0x7A,'F12':0x7B,
+        ' ':0x20,'Space':0x20,
+    };
+
+    function getVK(key) {
+        if (VK[key]) return VK[key];
+        if (key && key.length === 1) {
+            const c = key.toUpperCase().charCodeAt(0);
+            if (c >= 65 && c <= 90) return c;  // A-Z
+            if (c >= 48 && c <= 57) return c;  // 0-9
+        }
+        return null;
+    }
+
+    ipcMain.on('rc:simulate-input', (event, data) => {
+        ensureInputSimulator();
+        if (!psReady) return;
+
+        const { type } = data;
+        const { screen: eScreen } = require('electron');
+        const scr = eScreen.getPrimaryDisplay().size;
+
+        if (type === 'mousemove' || type === 'click' || type === 'mousedown' || type === 'dblclick' || type === 'contextmenu') {
+            const px = Math.round(data.x * scr.width);
+            const py = Math.round(data.y * scr.height);
+            psExec(`[InputSim]::SetCursorPos(${px}, ${py})`);
+
+            if (type === 'click') {
+                if (data.button === 2) {
+                    psExec(`[InputSim]::mouse_event([InputSim]::MOUSEEVENTF_RIGHTDOWN, 0, 0, 0, [IntPtr]::Zero)`);
+                    psExec(`[InputSim]::mouse_event([InputSim]::MOUSEEVENTF_RIGHTUP, 0, 0, 0, [IntPtr]::Zero)`);
+                } else {
+                    psExec(`[InputSim]::mouse_event([InputSim]::MOUSEEVENTF_LEFTDOWN, 0, 0, 0, [IntPtr]::Zero)`);
+                    psExec(`[InputSim]::mouse_event([InputSim]::MOUSEEVENTF_LEFTUP, 0, 0, 0, [IntPtr]::Zero)`);
+                }
+            } else if (type === 'mousedown') {
+                psExec(`[InputSim]::mouse_event(${data.button === 2 ? '[InputSim]::MOUSEEVENTF_RIGHTDOWN' : '[InputSim]::MOUSEEVENTF_LEFTDOWN'}, 0, 0, 0, [IntPtr]::Zero)`);
+            } else if (type === 'dblclick') {
+                psExec(`[InputSim]::mouse_event([InputSim]::MOUSEEVENTF_LEFTDOWN, 0, 0, 0, [IntPtr]::Zero)`);
+                psExec(`[InputSim]::mouse_event([InputSim]::MOUSEEVENTF_LEFTUP, 0, 0, 0, [IntPtr]::Zero)`);
+                psExec(`[InputSim]::mouse_event([InputSim]::MOUSEEVENTF_LEFTDOWN, 0, 0, 0, [IntPtr]::Zero)`);
+                psExec(`[InputSim]::mouse_event([InputSim]::MOUSEEVENTF_LEFTUP, 0, 0, 0, [IntPtr]::Zero)`);
+            } else if (type === 'contextmenu') {
+                psExec(`[InputSim]::mouse_event([InputSim]::MOUSEEVENTF_RIGHTDOWN, 0, 0, 0, [IntPtr]::Zero)`);
+                psExec(`[InputSim]::mouse_event([InputSim]::MOUSEEVENTF_RIGHTUP, 0, 0, 0, [IntPtr]::Zero)`);
+            }
+        } else if (type === 'mouseup') {
+            psExec(`[InputSim]::mouse_event(${data.button === 2 ? '[InputSim]::MOUSEEVENTF_RIGHTUP' : '[InputSim]::MOUSEEVENTF_LEFTUP'}, 0, 0, 0, [IntPtr]::Zero)`);
+        } else if (type === 'keydown') {
+            if (data.ctrlKey) psExec(`[InputSim]::keybd_event(0x11, 0, 0, [IntPtr]::Zero)`);
+            if (data.shiftKey) psExec(`[InputSim]::keybd_event(0x10, 0, 0, [IntPtr]::Zero)`);
+            if (data.altKey) psExec(`[InputSim]::keybd_event(0x12, 0, 0, [IntPtr]::Zero)`);
+            const vk = getVK(data.key);
+            if (vk) psExec(`[InputSim]::keybd_event(${vk}, 0, 0, [IntPtr]::Zero)`);
+        } else if (type === 'keyup') {
+            const vk = getVK(data.key);
+            if (vk) psExec(`[InputSim]::keybd_event(${vk}, 0, [InputSim]::KEYEVENTF_KEYUP, [IntPtr]::Zero)`);
+            if (data.ctrlKey) psExec(`[InputSim]::keybd_event(0x11, 0, [InputSim]::KEYEVENTF_KEYUP, [IntPtr]::Zero)`);
+            if (data.shiftKey) psExec(`[InputSim]::keybd_event(0x10, 0, [InputSim]::KEYEVENTF_KEYUP, [IntPtr]::Zero)`);
+            if (data.altKey) psExec(`[InputSim]::keybd_event(0x12, 0, [InputSim]::KEYEVENTF_KEYUP, [IntPtr]::Zero)`);
+        }
+    });
+
+    // Cleanup PS process on quit
+    app.on('before-quit', () => {
+        if (psProcess) { psProcess.stdin.end(); psProcess.kill(); }
+    });
+
     app.on('activate', () => {
         if (BrowserWindow.getAllWindows().length === 0) createWindow();
     });
