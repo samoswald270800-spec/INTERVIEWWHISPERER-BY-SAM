@@ -13,6 +13,7 @@ import {
   redisClient,
 } from '../lib/redis.js';
 import { authenticateUser, logAudit } from '../services/auth.js';
+import { resolveUserPermissions } from '../services/permissions.js';
 
 const router = express.Router();
 
@@ -123,19 +124,33 @@ router.get('/me', async (req, res) => {
   const supabase = req.app.locals.supabase;
 
   let credits = req.session.credits || 0;
-  let permissions = req.session.permissions || { canExpand: true, canAnalyze: true };
+  let userPerms = req.session.permissions || {};
+  let adminPerms = {};
 
   if (supabase && req.session.supabaseId) {
     const { data } = await supabase
       .from('users')
-      .select('credits, permissions')
+      .select('credits, permissions, admin_id')
       .eq('id', req.session.supabaseId)
       .single();
     if (data) {
       credits = data.credits;
-      permissions = data.permissions || permissions;
+      userPerms = data.permissions || userPerms;
+
+      // Fetch admin permissions to check for admin-level locks
+      if (data.admin_id) {
+        const { data: adminData } = await supabase
+          .from('admins')
+          .select('permissions')
+          .eq('id', data.admin_id)
+          .single();
+        if (adminData) adminPerms = adminData.permissions || {};
+      }
     }
   }
+
+  // Resolve final permissions + locked features (respects admin locks)
+  const { permissions, lockedFeatures } = resolveUserPermissions(userPerms, adminPerms);
 
   return res.json({
     userId: req.session.userId,
@@ -145,6 +160,7 @@ router.get('/me', async (req, res) => {
     adminName: req.session.adminName,
     credits,
     permissions,
+    lockedFeatures,
   });
 });
 
