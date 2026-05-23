@@ -546,7 +546,7 @@ export default function App() {
                 });
             }
         }
-        else if (type === "response.text.delta") {
+        else if (type === "response.text.delta" || type === "response.output_text.delta") {
             for (let char of event.delta) {
                 typeQueueRef.current.push(char);
             }
