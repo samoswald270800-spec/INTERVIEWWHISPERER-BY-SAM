@@ -8,8 +8,8 @@
 
 import { useRef, useState, useCallback } from 'react';
 
-const DEFAULT_FPS = 5;  // 5 FPS = smooth Zoom-level updates
-const JPEG_QUALITY = 0.4; // Lower = smaller frames = faster transfer
+const DEFAULT_FPS = 10; // 10 FPS = ultra-smooth, 100ms between frames
+const JPEG_QUALITY = 0.3; // Lower quality offsets 2x more frames for bandwidth
 
 export default function useScreenCapture({ onFrame, fps = DEFAULT_FPS }) {
     const [isCapturing, setIsCapturing] = useState(false);

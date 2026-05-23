@@ -113,7 +113,7 @@ export default function RemoteControlPanel({
             if (!coords) return;
             cursorPosRef.current = coords;
             sendInputEvent({ type: 'mousemove', ...coords });
-        }, 25), // 40 events/sec — smooth without flooding
+        }, 16), // 60 events/sec — buttery smooth cursor
         [getRelativeCoords, sendInputEvent]
     );
 
