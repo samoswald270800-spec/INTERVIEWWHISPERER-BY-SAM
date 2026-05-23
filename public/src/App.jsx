@@ -135,10 +135,17 @@ export default function App() {
 
         // Call backend to end session and calculate final credits
         try {
-            await fetch(`${API_BASE_URL}/session/end`, {
+            const res = await fetch(`${API_BASE_URL}/session/end`, {
                 method: 'POST',
                 credentials: 'include',
             });
+            const data = await res.json();
+            if (data.creditsUsed > 0) {
+                console.log(`Session ended. Credits used: ${data.creditsUsed}`);
+            }
+
+            // Auto-save history on session end
+            saveHistory();
         } catch (e) {
             console.warn('Failed to end session on backend:', e);
         }
