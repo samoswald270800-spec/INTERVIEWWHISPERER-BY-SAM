@@ -20,7 +20,8 @@ import { requireAuth } from '../middleware/auth.js';
 import { checkAnalyzeRateLimit } from '../middleware/rateLimit.js';
 import { getTranscript, storeTranscript, storeScreenAnalysis } from '../lib/redis.js';
 import { buildInterviewInstructions, VISION_PROMPT } from '../utils/prompts.js';
-import { startSession, endSession, getActiveSession } from '../services/credits.js';
+import { startSession, endSession, getActiveSession, chargeScreenAnalysis } from '../services/credits.js';
+import { resolveUserPermissions, resolveAdminPermissions } from '../services/permissions.js';
 import { sanitizeText } from '../utils/sanitize.js';
 
 const router = express.Router();
@@ -180,35 +181,78 @@ router.post('/api/search', requireAuth, async (req, res) => {
  */
 router.post('/session', requireAuth, async (req, res) => {
   try {
-    const supabase = req.app.locals.supabase;
-    if (!supabase) return res.status(503).json({ error: 'Database not configured' });
-
-    const userId = req.session.supabaseId;
-    const adminId = req.session.adminId;
-
-    // 1. Enforce single active session & deduct initial credit
-    // startSession returns { success, session, error }
-    const result = await startSession(supabase, userId, adminId);
-    if (!result.success) {
-      console.warn(`[Session] Start failed for user ${userId}:`, result.error);
-      return res.status(400).json({ error: result.error });
-    }
-
-    const dbSession = result.session;
-    console.log(`→ Session ${dbSession.id} created for user ${userId}`);
-
-    // 2. Build instructions for OpenAI
     const mode = (req.body?.mode || 'smart').toString().toLowerCase();
     const interviewMode = (req.body?.interviewMode || 'smart').toString().toLowerCase();
     const architecture = (req.body?.architecture || 'live').toString().toLowerCase();
-    const screenAnalysisContext = req.session?.screenAnalysisContext || '';
+    const supabase = req.app.locals.supabase;
 
-    // Select model based on architecture
+    // Select model and credit rate based on architecture
     // gpt-realtime = standard, gpt-realtime-2 = GPT-5 class reasoning (Turbo)
     const isTurbo = architecture === 'turbo';
     const realtimeModel = isTurbo ? 'gpt-realtime-2' : 'gpt-realtime';
+    const creditMultiplier = isTurbo ? 2 : 1;
 
-    console.log(`[Session] architecture: ${architecture}, model: ${realtimeModel}`);
+    console.log('→ Creating realtime session with mode:', mode, 'interview mode:', interviewMode, 'architecture:', architecture, 'model:', realtimeModel);
+
+    // For users AND admins: check credits and create session record
+    const role = req.session.role;
+    const accountId = req.session.supabaseId;
+
+    // Server-side permission enforcement (cannot be bypassed by stale frontend)
+    if (supabase && accountId && (role === 'user' || role === 'admin')) {
+      const permKey = isTurbo ? 'canTurbo' : (architecture === 'reasoning' ? 'canReasoning' : null);
+      if (permKey) {
+        let resolved;
+        if (role === 'user') {
+          const { data: userData } = await supabase.from('users').select('permissions, admin_id').eq('id', accountId).single();
+          let adminPerms = {};
+          if (userData?.admin_id) {
+            const { data: adminData } = await supabase.from('admins').select('permissions').eq('id', userData.admin_id).single();
+            adminPerms = adminData?.permissions || {};
+          }
+          resolved = resolveUserPermissions(userData?.permissions || {}, adminPerms);
+        } else {
+          const { data: adminData } = await supabase.from('admins').select('permissions').eq('id', accountId).single();
+          resolved = resolveAdminPermissions(adminData?.permissions || {});
+        }
+        if (resolved.permissions[permKey] === false) {
+          console.log(`[Session] Blocked: ${role} ${accountId} lacks ${permKey} permission`);
+          return res.status(403).json({ error: `${architecture} mode is not available for your account.`, code: 'FEATURE_LOCKED' });
+        }
+      }
+    }
+
+    if (supabase && accountId && (role === 'user' || role === 'admin')) {
+      // Check if there's already an active session (prevent duplicate charges)
+      const existingSession = await getActiveSession(supabase, accountId, role);
+      if (existingSession) {
+        console.log(`[Session] ${role} ${accountId} has active session ${existingSession.id}, reusing`);
+        req.session.activeSessionId = existingSession.id;
+      } else {
+        const ownerId = role === 'user' ? req.session.adminId : accountId;
+
+        // Start new session (checks credits and creates record)
+        const sessionResult = await startSession(supabase, accountId, ownerId, role, creditMultiplier);
+
+        if (!sessionResult.success) {
+          console.log(`[Session] Credit check failed for ${req.session.userId}: ${sessionResult.error}`);
+          return res.status(402).json({
+            error: sessionResult.error,
+            code: 'INSUFFICIENT_CREDITS'
+          });
+        }
+        req.session.activeSessionId = sessionResult.session.id;
+        console.log(`[Session] Created session ${sessionResult.session.id} for ${role} ${req.session.userId}`);
+      }
+
+
+      // Save session to persist activeSessionId
+      await new Promise((resolve, reject) => {
+        req.session.save((err) => err ? reject(err) : resolve());
+      });
+    }
+
+    const screenAnalysisContext = req.session?.screenAnalysisContext || '';
 
     const fullInstructions = buildInterviewInstructions({
       interviewMode,

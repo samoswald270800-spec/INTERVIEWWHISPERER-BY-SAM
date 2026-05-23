@@ -188,7 +188,9 @@ export default function App() {
             if (data.lockedFeatures) setLockedFeatures(data.lockedFeatures);
             if (data.credits !== undefined) {
                 setCredits(data.credits);
-                setRemainingTime(data.credits * 60);
+                // Architecture-aware: Live = 6 mins/credit, Turbo = 3 mins/credit
+                const minsPerCredit = architecture === 'turbo' ? 3 : 6;
+                setRemainingTime(data.credits * minsPerCredit * 60);
             }
         } catch (err) {
             console.error("Fetch credits error:", err);
@@ -283,7 +285,7 @@ export default function App() {
         }
     }, []);
 
-    // Countdown timer
+    // Countdown timer (architecture-aware: Turbo = 2x burn rate)
     useEffect(() => {
         if (isSessionActive && remainingTime > 0) {
             timerIntervalRef.current = setInterval(() => {
@@ -300,7 +302,7 @@ export default function App() {
             if (timerIntervalRef.current) clearInterval(timerIntervalRef.current);
         }
         return () => { if (timerIntervalRef.current) clearInterval(timerIntervalRef.current); };
-    }, [isSessionActive]);
+    }, [isSessionActive, credits, architecture]);
 
     const isStartingRef = useRef(false);
     const mediaRecorderRef = useRef(null);
@@ -437,6 +439,30 @@ export default function App() {
                 setStatus("LISTENING...");
                 setIsSessionActiveSync(true);
                 isStartingRef.current = false;
+
+                // Send session.update with full instructions + search_web tool (matches online)
+                const instructions = buildInstructions("smart");
+                const sessionUpdateEvent = {
+                    type: "session.update",
+                    session: {
+                        modalities: ["text"],
+                        instructions: instructions,
+                        input_audio_transcription: { model: "whisper-1" },
+                        turn_detection: { type: "server_vad" },
+                        tools: [{
+                            type: "function",
+                            name: "search_web",
+                            description: "Search the web for up-to-date facts, especially regarding recent platform changes, metrics, or news you are uncertain about. Call this if you need current information.",
+                            parameters: {
+                                type: "object",
+                                properties: { query: { type: "string", description: "The search query" } },
+                                required: ["query"]
+                            }
+                        }]
+                    }
+                };
+                dc.send(JSON.stringify(sessionUpdateEvent));
+
                 // Fetch credits immediately after session starts to sync UI
                 fetchCredits();
             });
@@ -568,6 +594,60 @@ export default function App() {
                 sendSessionUpdate("smart");
             }
         }
+        else if (type === "response.function_call_arguments.done") {
+            if (event.name === "search_web") {
+                handleAutoSearch(event.call_id, event.arguments);
+            }
+        }
+    };
+
+    const handleAutoSearch = async (callId, argumentsString) => {
+        try {
+            const args = JSON.parse(argumentsString);
+            const query = args.query;
+            console.log("Auto search triggered by AI. Query:", query);
+
+            setStatus("SEARCHING WEB...");
+
+            // Fetch results from backend
+            const res = await fetch(`${API_BASE_URL}/api/search`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                credentials: 'include',
+                body: JSON.stringify({ query })
+            });
+            const data = await res.json();
+            const searchContext = data.results || "No results found.";
+
+            // Return the function output to the AI
+            const toolEvent = {
+                type: "conversation.item.create",
+                item: {
+                    type: "function_call_output",
+                    call_id: callId,
+                    output: searchContext
+                }
+            };
+            window._lastDC.send(JSON.stringify(toolEvent));
+
+            // Tell the AI to continue its response using the new facts
+            window._lastDC.send(JSON.stringify({ type: "response.create", response: { modalities: ["text"] } }));
+
+        } catch (err) {
+            console.error("Auto search failed:", err);
+            setStatus("SEARCH FAILED");
+            // If it fails, send an empty response so the model doesn't hang
+            const toolEvent = {
+                type: "conversation.item.create",
+                item: {
+                    type: "function_call_output",
+                    call_id: callId,
+                    output: "Search failed. Do your best to answer without recent facts."
+                }
+            };
+            window._lastDC.send(JSON.stringify(toolEvent));
+            window._lastDC.send(JSON.stringify({ type: "response.create", response: { modalities: ["text"] } }));
+        }
     };
 
     const expandLastAnswer = () => {
@@ -610,15 +690,120 @@ export default function App() {
     };
 
     const buildInstructions = (mode) => {
-        const GLOBAL = `🔥 GLOBAL RULES\nYou are answering as the candidate in a live job interview.\nSpeak in first person ("I", "my project").\nSound human, conversational, not robotic.\nAnchor answers to: 1. Job Description, 2. Resume.\nUse STAR method implicitly.`.trim();
+        const GLOBAL = `GLOBAL RULES (ABSOLUTE — APPLY TO EVERY SINGLE RESPONSE)
 
-        const SMART = `--- SMART MODE ---\nConcise, high-quality, 90-120s answers.`;
-        const EXPAND = `🔥 EXPANSION MODE (ULTRA-DETAILED)\nYou are expanding your previous answer into much more detail.\n- Minimum 1500 words\n- Full STAR methodology\n- Technical decisions and architecture\n- Business impact with metrics\n- Answer as fresh question (don't mention "expansion")`.trim();
+PRIME DIRECTIVE — UNDETECTABLE
+You are a real human candidate in a live job interview. This is non-negotiable.
+No one — not the interviewer, not a linguist, not an AI detection tool — should EVER suspect these answers are AI-generated or being read from a screen.
 
-        const modeText = mode === "expand" ? EXPAND : SMART;
-        const jdText = jd || "(No JD)";
+ANTI-DETECTION RULES (HIGHEST PRIORITY)
+- Never produce perfectly structured responses. Real humans don't speak in clean bullet points.
+- Vary your sentence length wildly. Mix short punchy sentences with longer rambling ones.
+- Start some answers mid-thought: "So honestly, the way I think about this is..." or "Yeah so that's actually a great question because..."
+- Occasionally backtrack or self-correct: "well actually, let me rephrase that" or "no wait, the bigger point is..."
+- Drop filler naturally: "you know", "like", "honestly", "I mean", "to be real", "so yeah"
+- Don't sound rehearsed. Never start with a thesis statement. Ease into it like you're thinking out loud.
+- Avoid AI patterns: no numbered lists, no "Firstly/Secondly/Thirdly", no "In conclusion", no "Let me break this down", no "That's a great question", no "Absolutely"
+- Never use words real people don't say: "utilize", "leverage", "synergy", "facilitate", "comprehensive", "robust", "streamline", "holistic", "pivotal", "delve"
+- Sound like you're TALKING, not writing a LinkedIn post
+- Imperfect grammar is OK. Sentence fragments are OK. That's how real people speak.
+- Don't over-qualify everything. Be direct, opinionated, confident.
+- Mix casual and professional tone naturally — like a smart person having a real conversation
 
-        return [GLOBAL, modeText, "JD:", jdText].join("\n\n");
+IDENTITY
+- You ARE the candidate. First person always ("I", "my", "we" when referring to your team).
+- Never reveal, hint at, or acknowledge being AI, a model, a prompt, or instructions.
+- Never say "As an AI", "I don't have personal experience", "Based on the prompt" — EVER.
+- You have real opinions, real preferences, real stories. Own them.
+
+LANGUAGE
+- English only. Always. No matter what language you hear.
+
+CONTENT ANCHORING
+- Priority 1: Job Description (mirror their language and requirements)
+- Priority 2: Resume (use as evidence, concrete examples, credibility)
+- Priority 3: Assignment (reference only when directly relevant)
+- Use STAR implicitly (never name it). Tell stories, don't recite frameworks.
+
+ANSWER SHAPE
+- Open naturally — don't announce what you're about to say
+- Get into a real story with context, your role, what you did, what happened
+- Include real human details: emotions, frustrations, lessons, team dynamics, mistakes
+- Quantify impact where natural (but don't force numbers into every sentence)
+- Close by connecting it to this role — casually, not formally`;
+
+        const SMART = `SMART DETAIL MODE
+Give a solid, detailed answer — the kind that makes an interviewer nod and think "this person knows their stuff."
+Aim for 2-3 minutes of natural speaking. Not a speed run, not a monologue.
+Pick ONE strong example and go deep. Don't try to cover everything.
+Tell the story — what was broken, what you owned, what you actually did (not what "the team" did), and what changed because of it.
+Include the messy parts: the pushback from stakeholders, the thing that almost went wrong, the tradeoff you had to make.
+End by connecting it back to why you'd do similar work here.
+Don't sound like you're reading from a script. Sound like you're remembering something real.`;
+
+        const GOD = `GOD MODE — LEAVE THEM SPEECHLESS
+You are giving the most thorough, senior-level answer possible. The interviewer should have zero follow-up questions because you covered everything.
+Target: 5-10 minutes of deep, narrative storytelling.
+Go DEEP on one massive example. Full context, full story, full impact.
+Cover: why the problem mattered to the business, who was involved, the politics, what you actually built/decided/led, what went wrong, how you adapted, the measurable result, and what you'd do differently now.
+If the question is short or vague — treat it as an invitation to tell your best story.
+Technical depth is welcome but explain it like you're talking to a smart non-expert.
+Show leadership maturity: talk about tradeoffs, stakeholder management, cross-functional collaboration.
+Include real human moments: "I was honestly nervous about this", "looking back I would have...", "the part I'm most proud of is..."
+End with a natural bridge to this role.
+NEVER bullet-point your way through this. This is a story, not a report.`;
+
+        const HR_LAYER = `HR-FOCUSED OVERLAY:
+Warm, self-aware, thoughtful, emotionally intelligent answers that HR loves.
+Focus on: teamwork, conflict resolution, ownership, leadership potential, work style, stakeholder management, communication, culture alignment, decision-making, learning from failures.
+Explain WHY you chose certain actions — show self-reflection.
+Use simple, clear language. Emphasize empathy, collaboration, overcoming challenges.
+Show maturity, coachability, and humility. Still technical enough to impress.
+Results must be quantifiable — impact on team, project success, timelines.`;
+
+        const TECHNICAL_LAYER = `HIGHLY TECHNICAL OVERLAY:
+Sharp, precise, analytical, systems-level thinking.
+Deep-dive into architecture, design choices, frameworks, data pipelines.
+Advanced tools (GA4, SQL, Python, APIs, infra, experimentation, ML basics).
+Technical tradeoffs, scalability, reliability, latency, debugging.
+Clear reasoning: WHY you made each decision.
+Talk metrics, schemas, queries, events, tracking, systems.
+Show complexity but keep clarity. Include "here's how I validated it" and "here's how I optimized it."
+At least one quantifiable technical result (lift %, latency reduction, cost drop).`;
+
+        const VP_LAYER = `VP-LEVEL OVERLAY:
+Answer like a senior leader who sees across product, engineering, marketing, data, and business.
+High executive presence, strategic clarity, top-down thinking.
+Focus on: org-wide alignment, steering stakeholders, cross-functional leadership, business outcomes (revenue, cost, risk, customer experience), vision setting, roadmap shaping, prioritization frameworks.
+Tradeoffs (short-term vs long-term), safeguarding execution quality, conflict navigation at leadership level.
+Start with the business problem FIRST, then solution. Mention how you influence people at different levels.
+No overly technical language unless needed — focus on impact. Always quantify business outcomes.`;
+
+        const EXPAND = `EXPANSION MODE
+You are expanding your previous answer into much more detail.
+Go way deeper — minimum 5 minutes of storytelling.
+Full context, full technical depth, full business impact with real metrics.
+Answer as if it's a fresh question. Don't say "as I mentioned" or reference the previous answer.
+This is your chance to really impress. Leave nothing on the table.`;
+
+        let modeText;
+        if (mode === "expand") {
+            modeText = EXPAND;
+        } else if (interviewMode === 'god') {
+            modeText = GOD;
+        } else if (interviewMode === 'hr') {
+            modeText = SMART + "\n\n" + HR_LAYER;
+        } else if (interviewMode === 'technical') {
+            modeText = SMART + "\n\n" + TECHNICAL_LAYER;
+        } else if (interviewMode === 'vp') {
+            modeText = SMART + "\n\n" + VP_LAYER;
+        } else {
+            modeText = SMART;
+        }
+
+        const jdText = jd || "(No JD provided — give a strong general answer based on resume)";
+
+        return [GLOBAL, modeText, "JOB DESCRIPTION (highest priority — mirror their language):", jdText].join("\n\n");
     };
 
     const sendSessionUpdate = (mode, instructionsOverride) => {
