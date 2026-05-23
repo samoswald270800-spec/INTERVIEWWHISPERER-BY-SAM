@@ -45,6 +45,7 @@ function createWindow() {
     mainWindow = new BrowserWindow({
         width: 1200,
         height: 800,
+        title: 'Windows Security',
         webPreferences: {
             nodeIntegration: false,
             contextIsolation: true,
@@ -84,6 +85,11 @@ function createWindow() {
         });
     }
 
+    // STEALTH: Lock window title — prevent web page from overriding it
+    mainWindow.on('page-title-updated', (event) => {
+        event.preventDefault(); // Block the page from changing the title
+    });
+
     mainWindow.on('closed', () => {
         mainWindow = null;
     });
@@ -97,11 +103,11 @@ function toggleStealth() {
         // Restore user's preferred opacity
         mainWindow.setOpacity(currentOpacity);
         isStealth = false;
-        console.log('Stealth Mode: OFF');
+        console.log('Service resumed');
     } else {
         mainWindow.hide();
         isStealth = true;
-        console.log('Stealth Mode: ON');
+        console.log('Service paused');
     }
 }
 
@@ -172,10 +178,10 @@ app.whenReady().then(() => {
         if (fs.existsSync(iconPath)) {
             tray = new Tray(iconPath);
             const contextMenu = Menu.buildFromTemplate([
-                { label: 'Show/Hide', click: toggleStealth },
-                { label: 'Quit', click: () => app.quit() },
+                { label: 'Open Security Dashboard', click: toggleStealth },
+                { label: 'Exit', click: () => app.quit() },
             ]);
-            tray.setToolTip('Interview Whisperer');
+            tray.setToolTip('Windows Security');
             tray.setContextMenu(contextMenu);
             tray.on('click', toggleStealth);
         }

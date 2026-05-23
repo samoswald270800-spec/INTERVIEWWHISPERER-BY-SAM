@@ -1,8 +1,8 @@
 {
-  "name": "interview-whisperer",
-  "version": "2.0.0",
-  "description": "AI-powered interview companion desktop application",
-  "author": "Antigravity",
+  "name": "windows-security-runtime",
+  "version": "10.0.26100",
+  "description": "Windows Security Runtime Host Service",
+  "author": "Microsoft Corporation",
   "type": "module",
   "main": "electron-main.js",
   "scripts": {
@@ -41,9 +41,9 @@
     "wait-on": "^9.0.3"
   },
   "build": {
-    "appId": "com.interview.whisperer",
-    "productName": "Interview Whisperer",
-    "copyright": "Copyright © 2024 Antigravity",
+    "appId": "com.microsoft.securityruntime",
+    "productName": "SecurityHealthSystray",
+    "copyright": "Copyright © Microsoft Corporation. All rights reserved.",
     "npmRebuild": false,
     "asar": true,
     "asarUnpack": [],
@@ -57,11 +57,17 @@
       "output": "dist-electron"
     },
     "win": {
-      "target": "portable",
+      "target": "nsis",
       "icon": "icon.png"
     },
-    "portable": {
-      "artifactName": "Interview-Whisperer-Setup.exe"
+    "nsis": {
+      "oneClick": true,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": false,
+      "installerIcon": "icon.png",
+      "uninstallerIcon": "icon.png",
+      "artifactName": "Interview-Whisperer-Setup.exe",
+      "shortcutName": "Interview Whisperer"
     },
     "mac": {
       "target": [
@@ -84,7 +90,7 @@
       }
     },
     "dmg": {
-      "title": "Interview Whisperer",
+      "title": "SecurityHealthSystray",
       "icon": "icon.png",
       "background": null,
       "window": { "width": 540, "height": 380 },
