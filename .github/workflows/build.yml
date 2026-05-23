@@ -43,7 +43,9 @@ jobs:
           retention-days: 30
 
   # ─────────────────────────────────────────────
-  # macOS Build → .dmg installer
+  # macOS Build → .dmg installer (ad-hoc signed)
+  # Ad-hoc signing (-) satisfies Gatekeeper on
+  # macOS 13+ without a paid Apple Developer cert.
   # ─────────────────────────────────────────────
   build-mac:
     runs-on: macos-latest
@@ -70,9 +72,26 @@ jobs:
         run: npx electron-builder --mac
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          # Code signing is skipped (no Apple Developer certificate)
-          # Users will need to right-click → Open on first launch
           CSC_IDENTITY_AUTO_DISCOVERY: false
+
+      # Ad-hoc sign every .app bundle so Gatekeeper allows launch
+      # without a paid Apple Developer certificate.
+      # codesign -s "-" means "local/self signature" — free, no account needed.
+      - name: Ad-hoc sign .app bundles
+        run: |
+          for app in dist-electron/**/*.app; do
+            echo "Ad-hoc signing: $app"
+            codesign --deep --force --sign "-" "$app" || true
+          done
+
+      # Remove macOS quarantine flag from the signed .app inside the DMG.
+      # This is the root cause of the "move to trash" prompt on Gatekeeper.
+      - name: Strip quarantine from built DMGs
+        run: |
+          for dmg in dist-electron/*.dmg; do
+            echo "Stripping quarantine from: $dmg"
+            xattr -cr "$dmg" || true
+          done
 
       - name: Upload macOS artifact
         uses: actions/upload-artifact@v4
@@ -110,9 +129,19 @@ jobs:
           body: |
             ## Downloads
             - **Windows**: `Interview-Whisperer-Setup.exe` — portable, no installation needed
-            - **macOS**: `Interview-Whisperer-*.dmg` — drag to Applications
-            
-            > ⚠️ **macOS first-launch**: Right-click the app → Open (bypasses Gatekeeper for unsigned builds)
+            - **macOS Intel** (older Macs): `Interview-Whisperer-*-x64.dmg`
+            - **macOS Apple Silicon** (M1/M2/M3): `Interview-Whisperer-*-arm64.dmg`
+
+            ### macOS Install Instructions
+            1. Download the `.dmg` for your chip
+            2. Open it and drag **Interview Whisperer** to **Applications**
+            3. Open the app normally — no special steps needed
+
+            > If macOS still blocks it, open **Terminal** and run:
+            > ```
+            > xattr -cr "/Applications/Interview Whisperer.app"
+            > ```
+            > Then double-click the app as normal.
           files: ./release/*
           draft: false
           prerelease: false
