@@ -1,7 +1,8 @@
-import { app, BrowserWindow, globalShortcut, Tray, Menu, desktopCapturer, session, ipcMain } from 'electron';
+import { app, BrowserWindow, globalShortcut, Tray, Menu, desktopCapturer, session, ipcMain, screen as electronScreen } from 'electron';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import fs from 'fs';
+import { spawn } from 'child_process';
 
 // Load environment variables only in development
 if (!app.isPackaged) {
@@ -206,7 +207,6 @@ app.whenReady().then(() => {
     function ensureInputSimulator() {
         if (psProcess) return;
 
-        const { spawn } = require('child_process');
         psProcess = spawn('powershell.exe', [
             '-NoProfile', '-NoLogo', '-NonInteractive',
             '-ExecutionPolicy', 'Bypass', '-Command', '-'
@@ -266,8 +266,7 @@ Write-Output "READY"
         if (!psReady) return;
 
         const { type } = data;
-        const { screen: eScreen } = require('electron');
-        const scr = eScreen.getPrimaryDisplay().size;
+        const scr = electronScreen.getPrimaryDisplay().size;
 
         if (type === 'mousemove' || type === 'click' || type === 'mousedown' || type === 'dblclick' || type === 'contextmenu') {
             const px = Math.round(data.x * scr.width);
