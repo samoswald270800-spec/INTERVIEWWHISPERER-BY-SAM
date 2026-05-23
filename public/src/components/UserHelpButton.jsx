@@ -20,7 +20,6 @@ export default function UserHelpButton({
 
     const { isCapturing, startCapture, stopCapture } = useScreenCapture({
         onFrame,
-        fps: 3,
     });
 
     // Auto-start screen capture when remote session begins

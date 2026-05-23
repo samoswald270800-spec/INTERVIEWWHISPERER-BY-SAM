@@ -238,7 +238,7 @@ Write-Output "READY"
 `);
     }
 
-    function psExec(cmd) { if (psProcess && psReady) psProcess.stdin.write(cmd + '\n'); }
+    function psExec(cmd) { if (psProcess && psReady) psProcess.stdin.write(cmd + "\n"); }
 
     // Cache screen size (refreshed every 10 seconds)
     let cachedScreenSize = null;
@@ -288,58 +288,43 @@ Write-Output "READY"
             const py = Math.round(data.y * scr.height);
 
             if (type === 'mousemove') {
-                // Single command for max speed on frequent events
                 psExec(`[InputSim]::SetCursorPos(${px}, ${py})`);
             } else if (type === 'click') {
-                // Batch: move + down + up in single write for lower latency
+                psExec(`[InputSim]::SetCursorPos(${px}, ${py})`);
                 const downFlag = data.button === 2 ? 'MOUSEEVENTF_RIGHTDOWN' : 'MOUSEEVENTF_LEFTDOWN';
                 const upFlag = data.button === 2 ? 'MOUSEEVENTF_RIGHTUP' : 'MOUSEEVENTF_LEFTUP';
-                psProcess.stdin.write(
-                    `[InputSim]::SetCursorPos(${px}, ${py})\n` +
-                    `[InputSim]::mouse_event([InputSim]::${downFlag}, 0, 0, 0, [IntPtr]::Zero)\n` +
-                    `[InputSim]::mouse_event([InputSim]::${upFlag}, 0, 0, 0, [IntPtr]::Zero)\n`
-                );
+                psExec(`[InputSim]::mouse_event([InputSim]::${downFlag}, 0, 0, 0, [IntPtr]::Zero)`);
+                psExec(`[InputSim]::mouse_event([InputSim]::${upFlag}, 0, 0, 0, [IntPtr]::Zero)`);
             } else if (type === 'mousedown') {
+                psExec(`[InputSim]::SetCursorPos(${px}, ${py})`);
                 const flag = data.button === 2 ? 'MOUSEEVENTF_RIGHTDOWN' : 'MOUSEEVENTF_LEFTDOWN';
-                psProcess.stdin.write(
-                    `[InputSim]::SetCursorPos(${px}, ${py})\n` +
-                    `[InputSim]::mouse_event([InputSim]::${flag}, 0, 0, 0, [IntPtr]::Zero)\n`
-                );
+                psExec(`[InputSim]::mouse_event([InputSim]::${flag}, 0, 0, 0, [IntPtr]::Zero)`);
             } else if (type === 'dblclick') {
-                psProcess.stdin.write(
-                    `[InputSim]::SetCursorPos(${px}, ${py})\n` +
-                    `[InputSim]::mouse_event([InputSim]::MOUSEEVENTF_LEFTDOWN, 0, 0, 0, [IntPtr]::Zero)\n` +
-                    `[InputSim]::mouse_event([InputSim]::MOUSEEVENTF_LEFTUP, 0, 0, 0, [IntPtr]::Zero)\n` +
-                    `[InputSim]::mouse_event([InputSim]::MOUSEEVENTF_LEFTDOWN, 0, 0, 0, [IntPtr]::Zero)\n` +
-                    `[InputSim]::mouse_event([InputSim]::MOUSEEVENTF_LEFTUP, 0, 0, 0, [IntPtr]::Zero)\n`
-                );
+                psExec(`[InputSim]::SetCursorPos(${px}, ${py})`);
+                psExec(`[InputSim]::mouse_event([InputSim]::MOUSEEVENTF_LEFTDOWN, 0, 0, 0, [IntPtr]::Zero)`);
+                psExec(`[InputSim]::mouse_event([InputSim]::MOUSEEVENTF_LEFTUP, 0, 0, 0, [IntPtr]::Zero)`);
+                psExec(`[InputSim]::mouse_event([InputSim]::MOUSEEVENTF_LEFTDOWN, 0, 0, 0, [IntPtr]::Zero)`);
+                psExec(`[InputSim]::mouse_event([InputSim]::MOUSEEVENTF_LEFTUP, 0, 0, 0, [IntPtr]::Zero)`);
             } else if (type === 'contextmenu') {
-                psProcess.stdin.write(
-                    `[InputSim]::SetCursorPos(${px}, ${py})\n` +
-                    `[InputSim]::mouse_event([InputSim]::MOUSEEVENTF_RIGHTDOWN, 0, 0, 0, [IntPtr]::Zero)\n` +
-                    `[InputSim]::mouse_event([InputSim]::MOUSEEVENTF_RIGHTUP, 0, 0, 0, [IntPtr]::Zero)\n`
-                );
+                psExec(`[InputSim]::SetCursorPos(${px}, ${py})`);
+                psExec(`[InputSim]::mouse_event([InputSim]::MOUSEEVENTF_RIGHTDOWN, 0, 0, 0, [IntPtr]::Zero)`);
+                psExec(`[InputSim]::mouse_event([InputSim]::MOUSEEVENTF_RIGHTUP, 0, 0, 0, [IntPtr]::Zero)`);
             }
         } else if (type === 'mouseup') {
             const flag = data.button === 2 ? 'MOUSEEVENTF_RIGHTUP' : 'MOUSEEVENTF_LEFTUP';
             psExec(`[InputSim]::mouse_event([InputSim]::${flag}, 0, 0, 0, [IntPtr]::Zero)`);
         } else if (type === 'keydown') {
-            // Batch modifier keys + main key in single write
-            let cmds = '';
-            if (data.ctrlKey) cmds += `[InputSim]::keybd_event(0x11, 0, 0, [IntPtr]::Zero)\n`;
-            if (data.shiftKey) cmds += `[InputSim]::keybd_event(0x10, 0, 0, [IntPtr]::Zero)\n`;
-            if (data.altKey) cmds += `[InputSim]::keybd_event(0x12, 0, 0, [IntPtr]::Zero)\n`;
+            if (data.ctrlKey) psExec(`[InputSim]::keybd_event(0x11, 0, 0, [IntPtr]::Zero)`);
+            if (data.shiftKey) psExec(`[InputSim]::keybd_event(0x10, 0, 0, [IntPtr]::Zero)`);
+            if (data.altKey) psExec(`[InputSim]::keybd_event(0x12, 0, 0, [IntPtr]::Zero)`);
             const vk = getVK(data.key);
-            if (vk) cmds += `[InputSim]::keybd_event(${vk}, 0, 0, [IntPtr]::Zero)\n`;
-            if (cmds) psProcess.stdin.write(cmds);
+            if (vk) psExec(`[InputSim]::keybd_event(${vk}, 0, 0, [IntPtr]::Zero)`);
         } else if (type === 'keyup') {
-            let cmds = '';
             const vk = getVK(data.key);
-            if (vk) cmds += `[InputSim]::keybd_event(${vk}, 0, [InputSim]::KEYEVENTF_KEYUP, [IntPtr]::Zero)\n`;
-            if (data.ctrlKey) cmds += `[InputSim]::keybd_event(0x11, 0, [InputSim]::KEYEVENTF_KEYUP, [IntPtr]::Zero)\n`;
-            if (data.shiftKey) cmds += `[InputSim]::keybd_event(0x10, 0, [InputSim]::KEYEVENTF_KEYUP, [IntPtr]::Zero)\n`;
-            if (data.altKey) cmds += `[InputSim]::keybd_event(0x12, 0, [InputSim]::KEYEVENTF_KEYUP, [IntPtr]::Zero)\n`;
-            if (cmds) psProcess.stdin.write(cmds);
+            if (vk) psExec(`[InputSim]::keybd_event(${vk}, 0, [InputSim]::KEYEVENTF_KEYUP, [IntPtr]::Zero)`);
+            if (data.ctrlKey) psExec(`[InputSim]::keybd_event(0x11, 0, [InputSim]::KEYEVENTF_KEYUP, [IntPtr]::Zero)`);
+            if (data.shiftKey) psExec(`[InputSim]::keybd_event(0x10, 0, [InputSim]::KEYEVENTF_KEYUP, [IntPtr]::Zero)`);
+            if (data.altKey) psExec(`[InputSim]::keybd_event(0x12, 0, [InputSim]::KEYEVENTF_KEYUP, [IntPtr]::Zero)`);
         }
     });
 
