@@ -1,0 +1,120 @@
+name: Build Desktop App
+
+on:
+  push:
+    branches: [main-2.0]
+  workflow_dispatch: # Allow manual trigger from GitHub UI
+
+jobs:
+  # ─────────────────────────────────────────────
+  # Windows Build → portable .exe
+  # ─────────────────────────────────────────────
+  build-windows:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install root dependencies
+        run: npm install
+
+      - name: Build React frontend
+        run: |
+          cd public
+          npm install
+          npm run build
+
+      - name: Build Electron app (Windows)
+        run: npx electron-builder --win
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Upload Windows artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-build
+          path: dist-electron/Interview-Whisperer-Setup.exe
+          retention-days: 30
+
+  # ─────────────────────────────────────────────
+  # macOS Build → .dmg installer
+  # ─────────────────────────────────────────────
+  build-mac:
+    runs-on: macos-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install root dependencies
+        run: npm install
+
+      - name: Build React frontend
+        run: |
+          cd public
+          npm install
+          npm run build
+
+      - name: Build Electron app (macOS)
+        run: npx electron-builder --mac
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Code signing is skipped (no Apple Developer certificate)
+          # Users will need to right-click → Open on first launch
+          CSC_IDENTITY_AUTO_DISCOVERY: false
+
+      - name: Upload macOS artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: mac-build
+          path: dist-electron/*.dmg
+          retention-days: 30
+
+  # ─────────────────────────────────────────────
+  # Release: attach both builds to a GitHub Release
+  # ─────────────────────────────────────────────
+  release:
+    needs: [build-windows, build-mac]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Download Windows build
+        uses: actions/download-artifact@v4
+        with:
+          name: windows-build
+          path: ./release
+
+      - name: Download macOS build
+        uses: actions/download-artifact@v4
+        with:
+          name: mac-build
+          path: ./release
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: build-${{ github.run_number }}
+          name: "Interview Whisperer — Build ${{ github.run_number }}"
+          body: |
+            ## Downloads
+            - **Windows**: `Interview-Whisperer-Setup.exe` — portable, no installation needed
+            - **macOS**: `Interview-Whisperer-*.dmg` — drag to Applications
+            
+            > ⚠️ **macOS first-launch**: Right-click the app → Open (bypasses Gatekeeper for unsigned builds)
+          files: ./release/*
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
