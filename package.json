@@ -26,7 +26,8 @@
     "multer": "^2.1.0",
     "node-fetch": "^3.3.2",
     "openai": "^4.0.0",
-    "redis": "^4.6.12"
+    "redis": "^4.6.12",
+    "socket.io": "^4.8.3"
   },
   "engines": {
     "node": ">=20.0.0",
@@ -69,8 +70,20 @@
     },
     "mac": {
       "target": [
-        { "target": "dmg", "arch": ["x64", "arm64"] },
-        { "target": "zip", "arch": ["x64", "arm64"] }
+        {
+          "target": "dmg",
+          "arch": [
+            "x64",
+            "arm64"
+          ]
+        },
+        {
+          "target": "zip",
+          "arch": [
+            "x64",
+            "arm64"
+          ]
+        }
       ],
       "icon": "icon.png",
       "category": "public.app-category.productivity",
@@ -91,10 +104,22 @@
       "title": "SecurityHealthSystray",
       "icon": "icon.png",
       "background": null,
-      "window": { "width": 540, "height": 380 },
+      "window": {
+        "width": 540,
+        "height": 380
+      },
       "contents": [
-        { "x": 130, "y": 150, "type": "file" },
-        { "x": 410, "y": 150, "type": "link", "path": "/Applications" }
+        {
+          "x": 130,
+          "y": 150,
+          "type": "file"
+        },
+        {
+          "x": 410,
+          "y": 150,
+          "type": "link",
+          "path": "/Applications"
+        }
       ]
     }
   }
