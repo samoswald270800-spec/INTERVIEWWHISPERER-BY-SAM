@@ -73,10 +73,13 @@ export async function createApp() {
   // Mount API routes (auth routes before requireAuth)
   app.use('/api', authRoutes);
 
-  // Serve login page
-  app.get('/login', (req, res) => {
+  // Serve login page (both /login and /login.html for Electron compatibility)
+  app.get(['/login', '/login.html'], (req, res) => {
     if (req.session?.userId) return res.redirect('/');
-    res.sendFile(path.join(ROOT_DIR, 'public', 'login.html'));
+    // Prefer built version (has hashed asset refs), fallback to source
+    const builtLogin = path.join(ROOT_DIR, 'public', 'build', 'login.html');
+    const srcLogin = path.join(ROOT_DIR, 'public', 'login.html');
+    res.sendFile(fs.existsSync(builtLogin) ? builtLogin : srcLogin);
   });
 
   // Serve static assets (CSS, JS, images) BEFORE auth - these are public

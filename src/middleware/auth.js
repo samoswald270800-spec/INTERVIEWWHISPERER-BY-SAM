@@ -11,6 +11,7 @@ export async function requireAuth(req, res, next) {
   // Public paths that unauthenticated visitors can access
   const isPublicPath = (
     req.path === '/login' ||
+    req.path === '/login.html' ||
     req.path === '/api/login' ||
     req.path === '/' ||
     req.path === '/landing.html' ||
