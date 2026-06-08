@@ -103,7 +103,7 @@ export async function createApp() {
   app.get('*', (req, res) => {
     // For API routes that don't exist, return 404 JSON
     if (req.path.startsWith('/api') || req.path.startsWith('/session') ||
-      req.path.startsWith('/set-jd') || req.path.startsWith('/analyze-screen')) {
+      req.path.startsWith('/set-jd') || req.path.startsWith('/get-jd') || req.path.startsWith('/analyze-screen')) {
       return res.status(404).json({ error: 'Not found' });
     }
     // For all other routes, serve the React SPA (already protected by auth)

@@ -73,6 +73,14 @@ router.post('/set-jd', (req, res) => {
   return res.json({ ok: true, length: sanitizedJd.length });
 });
 
+/**
+ * GET /get-jd - Retrieve stored Job Description
+ */
+router.get('/get-jd', (req, res) => {
+  const jd = req.session?.jobDescription || '';
+  return res.json({ ok: true, jd });
+});
+
 async function searchDuckDuckGo(query) {
   const response = await fetch(`https://html.duckduckgo.com/html/?q=${encodeURIComponent(query)}`, {
     headers: {
@@ -256,9 +264,9 @@ router.post('/session', requireAuth, async (req, res) => {
 
     const fullInstructions = buildInterviewInstructions({
       interviewMode,
-      resume: '',            // Frontend will inject true value over WebRTC data channel
-      assignment: '',        // Frontend will inject true value over WebRTC data channel
-      jobDescription: '',    // Frontend will inject true value over WebRTC data channel
+      resume: '',
+      assignment: '',
+      jobDescription: getJobDescription(req),  // Read stored JD from session
       screenAnalysisContext,
     });
 

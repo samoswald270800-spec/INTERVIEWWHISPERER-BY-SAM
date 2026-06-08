@@ -285,10 +285,17 @@ export default function App() {
         setStatus("SYSTEM READY");
     };
 
-    // Initialize: Permissions, Credits, Opacity, History
+    // Initialize: Permissions, Credits, Opacity, History, and load saved JD
     useEffect(() => {
         fetchCredits();
         fetchHistory();
+
+        // Load saved JD from backend (so JD persists across sessions)
+        fetch(`${API_BASE_URL}/get-jd`, { credentials: 'include' })
+            .then(r => r.json())
+            .then(data => {
+                if (data.jd && !jd) setJd(data.jd);
+            }).catch(() => {});
 
         // Load persisted opacity
         const savedOpacity = localStorage.getItem('app_opacity');
@@ -300,6 +307,21 @@ export default function App() {
             }
         }
     }, []);
+
+    // Auto-sync JD to backend (debounced) so server always has the latest JD
+    useEffect(() => {
+        const timer = setTimeout(() => {
+            if (jd) {
+                fetch(`${API_BASE_URL}/set-jd`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    credentials: 'include',
+                    body: JSON.stringify({ jd }),
+                }).catch(() => {});
+            }
+        }, 2000); // 2s debounce
+        return () => clearTimeout(timer);
+    }, [jd]);
 
     // Countdown timer (architecture-aware: Turbo = 2x burn rate)
     useEffect(() => {
