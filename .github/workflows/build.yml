@@ -1,13 +1,19 @@
 name: Build Desktop App
 
+# Manual only — click "Run workflow" in the Actions tab to build installers.
+# (No auto-build on every push, to conserve GitHub Actions minutes.)
 on:
-  push:
-    branches: [main-2.0]
-  workflow_dispatch: # Allow manual trigger from GitHub UI
+  workflow_dispatch:
+
+permissions:
+  contents: write
 
 jobs:
   # ─────────────────────────────────────────────
-  # Windows Build → installer .exe
+  # Windows → installer .exe, uploaded straight to
+  # the GitHub Release. We do NOT use upload-artifact:
+  # Release assets don't count against the 500 MB
+  # Actions storage quota, artifacts do.
   # ─────────────────────────────────────────────
   build-windows:
     runs-on: windows-latest
@@ -33,35 +39,42 @@ jobs:
       - name: Build Electron app (Windows)
         run: npx electron-builder --win --x64 --publish never
 
-      - name: Upload Windows artifact
-        uses: actions/upload-artifact@v4
+      - name: Publish Windows installer to Release
+        uses: softprops/action-gh-release@v2
         with:
-          name: windows-build
-          path: dist-electron/Interview-Whisperer-Setup.exe
-          retention-days: 30
+          tag_name: build-${{ github.run_number }}
+          name: "Interview Whisperer — Build ${{ github.run_number }}"
+          body: |
+            ## Downloads
+            - **Windows**: `Interview-Whisperer-Setup.exe`
+            - **macOS Apple Silicon** (M1/M2/M3/M4): `Interview-Whisperer-*-arm64.dmg`
+
+            ### Windows: if you see "Windows protected your PC"
+            Click **More info** → **Run anyway**.
+
+            ### macOS: if it won't open
+            Right-click the app → **Open** → **Open**. If still blocked, run in Terminal:
+            `xattr -cr "/Applications/Interview Whisperer.app"`
+
+            ### macOS permissions (first remote session)
+            Allow **Screen Recording** and **Accessibility** in
+            System Settings → Privacy & Security, then reopen the app.
+          files: dist-electron/Interview-Whisperer-Setup.exe
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   # ─────────────────────────────────────────────
-  # macOS Build → Apple Silicon (arm64) .dmg.
-  # Built on macos-latest so the native input engine
-  # (nut-js/libnut) matches the CPU. Covers all Macs
-  # from ~2020 onward.
-  #
-  # NOTE: An Intel (x64) build on macos-13 was removed
-  # because GitHub was not scheduling Intel-mac runners
-  # for this account (jobs sat queued indefinitely and
-  # blocked the release). To re-add Intel later, add a
-  # second matrix entry { runner: macos-13, arch: x64 }
-  # — it must build on its own Intel runner so the
-  # native binary matches.
+  # macOS Apple Silicon (arm64) → .dmg, appended to
+  # the SAME Release. Runs after Windows so both jobs
+  # write the same release tag without racing.
+  # (Built on macos-latest so the native input engine
+  # matches the CPU. Covers Macs from ~2020 onward.)
   # ─────────────────────────────────────────────
   build-mac:
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - runner: macos-latest
-            arch: arm64
-    runs-on: ${{ matrix.runner }}
+    needs: build-windows
+    runs-on: macos-latest
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -81,14 +94,12 @@ jobs:
           npm install
           npm run build
 
-      - name: Build Electron app (macOS ${{ matrix.arch }})
-        run: npx electron-builder --mac --${{ matrix.arch }} --publish never
+      - name: Build Electron app (macOS arm64)
+        run: npx electron-builder --mac --arm64 --publish never
         env:
           CSC_IDENTITY_AUTO_DISCOVERY: false
 
-      # Ad-hoc sign every .app bundle so Gatekeeper allows launch
-      # without a paid Apple Developer certificate.
-      # codesign -s "-" means "local/self signature" — free, no account needed.
+      # Ad-hoc sign so Gatekeeper allows launch without a paid Apple cert.
       - name: Ad-hoc sign .app bundles
         run: |
           for app in dist-electron/**/*.app; do
@@ -96,8 +107,6 @@ jobs:
             codesign --deep --force --sign "-" "$app" || true
           done
 
-      # Remove macOS quarantine flag from the signed .app inside the DMG.
-      # This is the root cause of the "move to trash" prompt on Gatekeeper.
       - name: Strip quarantine from built DMGs
         run: |
           for dmg in dist-electron/*.dmg; do
@@ -105,53 +114,12 @@ jobs:
             xattr -cr "$dmg" || true
           done
 
-      - name: Upload macOS artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: mac-build-${{ matrix.arch }}
-          path: dist-electron/*.dmg
-          retention-days: 30
-
-  # ─────────────────────────────────────────────
-  # Release: attach every build to a GitHub Release
-  # ─────────────────────────────────────────────
-  release:
-    needs: [build-windows, build-mac]
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write
-    steps:
-      - name: Download all build artifacts
-        uses: actions/download-artifact@v4
-        with:
-          path: ./release
-
-      - name: Create GitHub Release
+      - name: Publish macOS installer to Release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: build-${{ github.run_number }}
           name: "Interview Whisperer — Build ${{ github.run_number }}"
-          body: |
-            ## Downloads
-            - **Windows**: `Interview-Whisperer-Setup.exe`
-            - **macOS Apple Silicon** (M1/M2/M3/M4): `Interview-Whisperer-*-arm64.dmg`
-
-            ### macOS Install Instructions
-            1. Download the `.dmg` for your chip
-            2. Open it and drag **Interview Whisperer** to **Applications**
-            3. Open the app normally
-
-            > If macOS still blocks it, open **Terminal** and run:
-            > ```
-            > xattr -cr "/Applications/Interview Whisperer.app"
-            > ```
-            > Then double-click the app as normal.
-
-            ### Remote control on macOS
-            The first time an admin connects, macOS asks to allow
-            **Accessibility** access (System Settings → Privacy & Security →
-            Accessibility). Approve it once so clicks/keystrokes work.
-          files: ./release/**/*
+          files: dist-electron/*.dmg
           draft: false
           prerelease: false
         env:
