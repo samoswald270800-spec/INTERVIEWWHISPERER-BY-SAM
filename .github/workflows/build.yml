@@ -41,13 +41,18 @@ jobs:
           retention-days: 30
 
   # ─────────────────────────────────────────────
-  # macOS Build → .dmg per architecture.
-  # Each arch builds on its OWN runner so the native
-  # input engine (nut-js/libnut) matches the CPU:
-  #   - macos-latest  → Apple Silicon (arm64)
-  #   - macos-13      → Intel (x64)
-  # Building x64 on an arm64 host would bundle the
-  # wrong-arch native binary and break Mac control.
+  # macOS Build → Apple Silicon (arm64) .dmg.
+  # Built on macos-latest so the native input engine
+  # (nut-js/libnut) matches the CPU. Covers all Macs
+  # from ~2020 onward.
+  #
+  # NOTE: An Intel (x64) build on macos-13 was removed
+  # because GitHub was not scheduling Intel-mac runners
+  # for this account (jobs sat queued indefinitely and
+  # blocked the release). To re-add Intel later, add a
+  # second matrix entry { runner: macos-13, arch: x64 }
+  # — it must build on its own Intel runner so the
+  # native binary matches.
   # ─────────────────────────────────────────────
   build-mac:
     strategy:
@@ -56,8 +61,6 @@ jobs:
         include:
           - runner: macos-latest
             arch: arm64
-          - runner: macos-13
-            arch: x64
     runs-on: ${{ matrix.runner }}
     steps:
       - name: Checkout code
@@ -131,7 +134,6 @@ jobs:
           body: |
             ## Downloads
             - **Windows**: `Interview-Whisperer-Setup.exe`
-            - **macOS Intel** (older Macs): `Interview-Whisperer-*-x64.dmg`
             - **macOS Apple Silicon** (M1/M2/M3/M4): `Interview-Whisperer-*-arm64.dmg`
 
             ### macOS Install Instructions
