@@ -3,24 +3,49 @@
  * Floating help button + passcode + consent dialog + auto screen capture
  */
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import useScreenCapture from '../hooks/useScreenCapture';
 import './UserHelpButton.css';
 
+// If WebRTC hasn't connected within this window, fall back to MJPEG.
+const WEBRTC_CONNECT_TIMEOUT = 8000;
+
 export default function UserHelpButton({
     connected, passcode, consentRequest, remoteSession,
+    webrtcState, startWebRTC,
     requestHelp, refreshPasscode, respondConsent, sendScreenFrame, endSession
 }) {
     const [expanded, setExpanded] = useState(false);
 
-    // Screen capture — fires onFrame when active
+    // Latest WebRTC state, readable from timers without re-subscribing
+    const webrtcStateRef = useRef(webrtcState);
+    webrtcStateRef.current = webrtcState;
+    const fallbackTimerRef = useRef(null);
+    const fallbackFnRef = useRef(null);
+
+    // MJPEG fallback frame → socket
     const onFrame = useCallback((frame) => {
         sendScreenFrame(frame);
     }, [sendScreenFrame]);
 
-    const { isCapturing, startCapture, stopCapture } = useScreenCapture({
+    // Primary path: hand the raw stream to WebRTC, then arm a fallback watchdog
+    const onStream = useCallback((stream) => {
+        startWebRTC(stream);
+        clearTimeout(fallbackTimerRef.current);
+        fallbackTimerRef.current = setTimeout(() => {
+            const s = webrtcStateRef.current;
+            if (s !== 'connected' && s !== 'completed') {
+                console.warn('[RemoteControl] WebRTC did not connect in time — starting MJPEG fallback');
+                fallbackFnRef.current?.();
+            }
+        }, WEBRTC_CONNECT_TIMEOUT);
+    }, [startWebRTC]);
+
+    const { isCapturing, startCapture, startMjpegFallback, stopCapture } = useScreenCapture({
         onFrame,
+        onStream,
     });
+    fallbackFnRef.current = startMjpegFallback;
 
     // Auto-start screen capture when remote session begins
     useEffect(() => {
@@ -28,19 +53,36 @@ export default function UserHelpButton({
             startCapture();
         }
         if (!remoteSession?.controlled && isCapturing) {
+            clearTimeout(fallbackTimerRef.current);
             stopCapture();
         }
     }, [remoteSession?.controlled, isCapturing, startCapture, stopCapture]);
 
+    // If WebRTC connection outright fails, switch to MJPEG immediately
+    useEffect(() => {
+        if (!isCapturing) return;
+        if (webrtcState === 'connected' || webrtcState === 'completed') {
+            clearTimeout(fallbackTimerRef.current);
+        } else if (webrtcState === 'failed') {
+            startMjpegFallback();
+        }
+    }, [webrtcState, isCapturing, startMjpegFallback]);
+
     // Stop capture on unmount
     useEffect(() => {
-        return () => { stopCapture(); };
+        return () => {
+            clearTimeout(fallbackTimerRef.current);
+            stopCapture();
+        };
     }, [stopCapture]);
 
     const handleEndSession = () => {
+        clearTimeout(fallbackTimerRef.current);
         stopCapture();
         endSession();
     };
+
+    const streaming = webrtcState === 'connected' || webrtcState === 'completed' || isCapturing;
 
     // Consent dialog overlay
     if (consentRequest) {
@@ -69,7 +111,7 @@ export default function UserHelpButton({
         return (
             <div className="uh-active-bar">
                 <span className="uh-active-dot"></span>
-                <span>Admin is viewing your screen {isCapturing ? '(streaming)' : '(starting...)'}</span>
+                <span>Admin is viewing your screen {streaming ? '(streaming)' : '(starting...)'}</span>
                 <button className="uh-btn uh-btn-end" onClick={handleEndSession}>End</button>
             </div>
         );

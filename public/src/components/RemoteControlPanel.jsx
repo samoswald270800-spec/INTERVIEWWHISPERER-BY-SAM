@@ -17,18 +17,22 @@ function throttle(fn, ms) {
 
 export default function RemoteControlPanel({
     connected, onlineUsers, error, waitingConsent,
-    remoteSession, screenFrame,
+    remoteSession, screenFrame, remoteStream,
     connectWithPasscode, sendInputEvent, endSession
 }) {
     const [passcodeInput, setPasscodeInput] = useState('');
     const [isFullscreen, setIsFullscreen] = useState(false);
     const [fps, setFps] = useState(0);
     const canvasRef = useRef(null);
+    const videoRef = useRef(null);
     const containerRef = useRef(null);
     const imgBufferRef = useRef(new Image());
     const frameCountRef = useRef(0);
     const fpsIntervalRef = useRef(null);
     const cursorPosRef = useRef({ x: 0.5, y: 0.5 });
+
+    // Prefer the live WebRTC video stream; fall back to MJPEG frames.
+    const usingVideo = !!remoteStream;
 
     // FPS counter
     useEffect(() => {
@@ -41,9 +45,34 @@ export default function RemoteControlPanel({
         }
     }, [remoteSession]);
 
-    // Draw frame to canvas (double-buffered via Image preload)
+    // Attach the WebRTC stream to the <video> element and count real frames
     useEffect(() => {
-        if (!screenFrame || !canvasRef.current) return;
+        const video = videoRef.current;
+        if (!video || !remoteStream) return;
+
+        video.srcObject = remoteStream;
+        video.play().catch(() => {});
+
+        // Count decoded frames for the FPS readout when supported
+        let rafHandle = null;
+        if (typeof video.requestVideoFrameCallback === 'function') {
+            const onFrameCb = () => {
+                frameCountRef.current++;
+                rafHandle = video.requestVideoFrameCallback(onFrameCb);
+            };
+            rafHandle = video.requestVideoFrameCallback(onFrameCb);
+        }
+
+        return () => {
+            if (rafHandle && typeof video.cancelVideoFrameCallback === 'function') {
+                video.cancelVideoFrameCallback(rafHandle);
+            }
+        };
+    }, [remoteStream]);
+
+    // Draw MJPEG fallback frame to canvas (double-buffered via Image preload)
+    useEffect(() => {
+        if (usingVideo || !screenFrame || !canvasRef.current) return;
 
         const img = imgBufferRef.current;
         img.onload = () => {
@@ -64,7 +93,7 @@ export default function RemoteControlPanel({
             frameCountRef.current++;
         };
         img.src = screenFrame;
-    }, [screenFrame]);
+    }, [screenFrame, usingVideo]);
 
     // Draw a clean cursor
     const drawCursor = (ctx, x, y) => {
@@ -97,10 +126,11 @@ export default function RemoteControlPanel({
         ctx.restore();
     };
 
-    // Calculate relative coordinates on canvas
+    // Calculate relative coordinates on the active surface (video or canvas)
     const getRelativeCoords = useCallback((e) => {
-        if (!canvasRef.current) return null;
-        const rect = canvasRef.current.getBoundingClientRect();
+        const el = e.currentTarget;
+        if (!el) return null;
+        const rect = el.getBoundingClientRect();
         const x = (e.clientX - rect.left) / rect.width;
         const y = (e.clientY - rect.top) / rect.height;
         return { x: Math.max(0, Math.min(1, x)), y: Math.max(0, Math.min(1, y)) };
@@ -169,7 +199,7 @@ export default function RemoteControlPanel({
                         <span className="rc-session-user">{remoteSession.username || 'User'}</span>
                     </div>
                     <div className="rc-toolbar-right">
-                        <span className="rc-fps">{fps} FPS</span>
+                        <span className="rc-fps">{usingVideo ? 'HD' : 'SD'} · {fps} FPS</span>
                         <button className="rc-toolbar-btn" onClick={toggleFullscreen} title="Fullscreen">
                             {isFullscreen ? '⊡' : '⊞'}
                         </button>
@@ -184,7 +214,22 @@ export default function RemoteControlPanel({
                     onKeyDown={(e) => handleKeyEvent(e, 'keydown')}
                     onKeyUp={(e) => handleKeyEvent(e, 'keyup')}
                 >
-                    {screenFrame ? (
+                    {usingVideo ? (
+                        <video
+                            ref={videoRef}
+                            className="rc-canvas rc-video"
+                            autoPlay
+                            playsInline
+                            muted
+                            onClick={(e) => handleMouseEvent(e, 'click')}
+                            onMouseMove={throttledMouseMove}
+                            onMouseDown={(e) => handleMouseEvent(e, 'mousedown')}
+                            onMouseUp={(e) => handleMouseEvent(e, 'mouseup')}
+                            onDoubleClick={(e) => handleMouseEvent(e, 'dblclick')}
+                            onContextMenu={(e) => { e.preventDefault(); handleMouseEvent(e, 'contextmenu'); }}
+                            onWheel={(e) => { e.preventDefault(); sendInputEvent({ type: 'scroll', deltaY: e.deltaY }); }}
+                        />
+                    ) : screenFrame ? (
                         <canvas
                             ref={canvasRef}
                             className="rc-canvas"
@@ -200,7 +245,7 @@ export default function RemoteControlPanel({
                         <div className="rc-screen-placeholder">
                             <div className="rc-spinner"></div>
                             <p>Connecting to user's screen...</p>
-                            <p className="rc-sub">Waiting for screen share to begin</p>
+                            <p className="rc-sub">Negotiating peer-to-peer video…</p>
                         </div>
                     )}
                 </div>
