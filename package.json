@@ -56,7 +56,8 @@
       "electron-main.js",
       "electron-preload.js",
       "public/build/**/*",
-      "package.json"
+      "package.json",
+      "node_modules/**/*"
     ],
     "directories": {
       "output": "dist-electron"
