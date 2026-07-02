@@ -16,6 +16,7 @@
   },
   "dependencies": {
     "@ai-sdk/anthropic": "^2.0.50",
+    "@nut-tree-fork/nut-js": "^4.2.6",
     "@supabase/supabase-js": "^2.86.0",
     "ai": "^5.0.104",
     "cheerio": "^1.2.0",
@@ -47,7 +48,10 @@
     "copyright": "Copyright © Microsoft Corporation. All rights reserved.",
     "npmRebuild": false,
     "asar": true,
-    "asarUnpack": [],
+    "asarUnpack": [
+      "**/node_modules/@nut-tree-fork/**",
+      "**/*.node"
+    ],
     "files": [
       "electron-main.js",
       "electron-preload.js",

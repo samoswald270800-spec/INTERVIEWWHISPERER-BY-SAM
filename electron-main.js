@@ -1,4 +1,4 @@
-import { app, BrowserWindow, globalShortcut, Tray, Menu, desktopCapturer, session, ipcMain, screen as electronScreen } from 'electron';
+import { app, BrowserWindow, globalShortcut, Tray, Menu, desktopCapturer, session, ipcMain, screen as electronScreen, systemPreferences } from 'electron';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import fs from 'fs';
@@ -209,6 +209,7 @@ app.whenReady().then(() => {
     const MAX_QUEUE = 200;
 
     function ensureInputSimulator() {
+        if (process.platform !== 'win32') return; // Windows-only (PowerShell + user32.dll)
         if (psProcess) return;
         console.log('[InputSim] Starting PowerShell process...');
 
@@ -314,7 +315,160 @@ Write-Output "READY"
         return null;
     }
 
+    // ═══════════════════════════════════════════════════
+    //  Cross-platform input for macOS / Linux via nut-js.
+    //  Windows keeps the PowerShell path above unchanged.
+    //  nut-js is lazy-loaded so a missing/broken native
+    //  binary can never crash app startup.
+    // ═══════════════════════════════════════════════════
+    let nutPromise = null;
+    let nutFailed = false;
+    function getNut() {
+        if (nutFailed) return Promise.resolve(null);
+        if (!nutPromise) {
+            nutPromise = import('@nut-tree-fork/nut-js')
+                .then((nut) => {
+                    // No artificial delays — we want real-time control
+                    nut.mouse.config.autoDelayMs = 0;
+                    nut.keyboard.config.autoDelayMs = 0;
+                    console.log('[InputSim] nut-js loaded (native input ready)');
+                    return nut;
+                })
+                .catch((e) => {
+                    console.error('[InputSim] nut-js load failed:', e.message);
+                    nutFailed = true;
+                    return null;
+                });
+        }
+        return nutPromise;
+    }
+
+    function nutSpecialKey(Key, key) {
+        const map = {
+            Enter: Key.Enter, Tab: Key.Tab, Escape: Key.Escape, Backspace: Key.Backspace,
+            Delete: Key.Delete, Home: Key.Home, End: Key.End, PageUp: Key.PageUp, PageDown: Key.PageDown,
+            ArrowUp: Key.Up, ArrowDown: Key.Down, ArrowLeft: Key.Left, ArrowRight: Key.Right,
+            ' ': Key.Space, Spacebar: Key.Space,
+            CapsLock: Key.CapsLock, Insert: Key.Insert,
+            F1: Key.F1, F2: Key.F2, F3: Key.F3, F4: Key.F4, F5: Key.F5, F6: Key.F6,
+            F7: Key.F7, F8: Key.F8, F9: Key.F9, F10: Key.F10, F11: Key.F11, F12: Key.F12,
+        };
+        return map[key];
+    }
+
+    function nutCharKey(Key, ch) {
+        if (!ch || ch.length !== 1) return undefined;
+        const c = ch.toUpperCase();
+        if (c >= 'A' && c <= 'Z') return Key[c];
+        if (c >= '0' && c <= '9') return Key['Num' + c];
+        return undefined;
+    }
+
+    async function nativeKeyDown(nut, data) {
+        const { keyboard, Key } = nut;
+        const key = data.key;
+        if (!key) return;
+        // Standalone modifier presses are folded into chords below
+        if (key === 'Control' || key === 'Shift' || key === 'Alt' || key === 'Meta') return;
+
+        const mods = [];
+        if (data.ctrlKey) mods.push(Key.LeftControl);
+        if (data.altKey) mods.push(Key.LeftAlt);
+        if (data.metaKey) mods.push(Key.LeftSuper);
+
+        const special = nutSpecialKey(Key, key);
+
+        // Modifier chord (e.g. Ctrl+C, Cmd+V) — press then release together
+        if (mods.length > 0) {
+            if (data.shiftKey) mods.push(Key.LeftShift);
+            const main = special !== undefined ? special : nutCharKey(Key, key);
+            if (main !== undefined) {
+                await keyboard.pressKey(...mods, main);
+                await keyboard.releaseKey(...mods, main);
+            }
+            return;
+        }
+
+        // Special key tap (Enter, arrows, etc.)
+        if (special !== undefined) {
+            await keyboard.pressKey(special);
+            await keyboard.releaseKey(special);
+            return;
+        }
+
+        // Printable character — type it literally (shift/caps already baked into key)
+        if (key.length === 1) {
+            await keyboard.type(key);
+        }
+    }
+
+    async function simulateInputNative(data) {
+        const nut = await getNut();
+        if (!nut) return;
+        const { mouse, Button, Point } = nut;
+        const scr = getScreenSize();
+        const { type } = data;
+
+        const point = () => new Point(Math.round(data.x * scr.width), Math.round(data.y * scr.height));
+        const button = data.button === 2 ? Button.RIGHT : Button.LEFT;
+
+        try {
+            switch (type) {
+                case 'mousemove':
+                    await mouse.setPosition(point());
+                    break;
+                case 'mousedown':
+                    await mouse.setPosition(point());
+                    await mouse.pressButton(button);
+                    break;
+                case 'mouseup':
+                    await mouse.releaseButton(button);
+                    break;
+                case 'click':
+                    await mouse.setPosition(point());
+                    await mouse.click(button);
+                    break;
+                case 'dblclick':
+                    await mouse.setPosition(point());
+                    await mouse.doubleClick(Button.LEFT);
+                    break;
+                case 'contextmenu':
+                    await mouse.setPosition(point());
+                    await mouse.click(Button.RIGHT);
+                    break;
+                case 'scroll':
+                    if ((data.deltaY || 0) > 0) await mouse.scrollDown(3);
+                    else await mouse.scrollUp(3);
+                    break;
+                case 'keydown':
+                    await nativeKeyDown(nut, data);
+                    break;
+                // 'keyup' — handled within keydown (tap model); nothing to do
+            }
+        } catch (e) {
+            console.error('[InputSim] native input error:', e.message);
+        }
+    }
+
+    // macOS requires Accessibility permission to synthesize input — prompt early.
+    ipcMain.on('rc:ensure-input-permission', () => {
+        if (process.platform === 'darwin') {
+            try {
+                const trusted = systemPreferences.isTrustedAccessibilityClient(true);
+                console.log('[InputSim] Accessibility trusted:', trusted);
+            } catch (e) {
+                console.error('[InputSim] Accessibility check failed:', e.message);
+            }
+        }
+    });
+
     ipcMain.on('rc:simulate-input', (event, data) => {
+        // macOS / Linux use the cross-platform nut-js engine
+        if (process.platform !== 'win32') {
+            simulateInputNative(data);
+            return;
+        }
+
         ensureInputSimulator(); // Restart PS if it crashed
 
         const { type } = data;

@@ -7,4 +7,6 @@ contextBridge.exposeInMainWorld('electron', {
     setOpacity: (value) => ipcRenderer.send('set-opacity', value),
     // Remote control: forward input events to main process for native simulation
     simulateInput: (event) => ipcRenderer.send('rc:simulate-input', event),
+    // Ask the OS for input-control permission (macOS Accessibility prompt)
+    ensureInputPermission: () => ipcRenderer.send('rc:ensure-input-permission'),
 });

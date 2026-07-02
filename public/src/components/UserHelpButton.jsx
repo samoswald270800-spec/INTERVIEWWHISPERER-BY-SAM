@@ -50,6 +50,9 @@ export default function UserHelpButton({
     // Auto-start screen capture when remote session begins
     useEffect(() => {
         if (remoteSession?.controlled && !isCapturing) {
+            // On macOS this triggers the one-time Accessibility permission prompt
+            // so the admin's clicks/keystrokes can actually control this machine.
+            window.electron?.ensureInputPermission?.();
             startCapture();
         }
         if (!remoteSession?.controlled && isCapturing) {
