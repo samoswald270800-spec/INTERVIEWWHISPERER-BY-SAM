@@ -7,7 +7,7 @@ on:
 
 jobs:
   # ─────────────────────────────────────────────
-  # Windows Build → portable .exe
+  # Windows Build → installer .exe
   # ─────────────────────────────────────────────
   build-windows:
     runs-on: windows-latest
@@ -31,7 +31,7 @@ jobs:
           npm run build
 
       - name: Build Electron app (Windows)
-        run: npx electron-builder --win --publish never
+        run: npx electron-builder --win --x64 --publish never
 
       - name: Upload Windows artifact
         uses: actions/upload-artifact@v4
@@ -41,12 +41,24 @@ jobs:
           retention-days: 30
 
   # ─────────────────────────────────────────────
-  # macOS Build → .dmg installer (ad-hoc signed)
-  # Ad-hoc signing (-) satisfies Gatekeeper on
-  # macOS 13+ without a paid Apple Developer cert.
+  # macOS Build → .dmg per architecture.
+  # Each arch builds on its OWN runner so the native
+  # input engine (nut-js/libnut) matches the CPU:
+  #   - macos-latest  → Apple Silicon (arm64)
+  #   - macos-13      → Intel (x64)
+  # Building x64 on an arm64 host would bundle the
+  # wrong-arch native binary and break Mac control.
   # ─────────────────────────────────────────────
   build-mac:
-    runs-on: macos-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: macos-latest
+            arch: arm64
+          - runner: macos-13
+            arch: x64
+    runs-on: ${{ matrix.runner }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -66,8 +78,8 @@ jobs:
           npm install
           npm run build
 
-      - name: Build Electron app (macOS)
-        run: npx electron-builder --mac --publish never
+      - name: Build Electron app (macOS ${{ matrix.arch }})
+        run: npx electron-builder --mac --${{ matrix.arch }} --publish never
         env:
           CSC_IDENTITY_AUTO_DISCOVERY: false
 
@@ -93,12 +105,12 @@ jobs:
       - name: Upload macOS artifact
         uses: actions/upload-artifact@v4
         with:
-          name: mac-build
+          name: mac-build-${{ matrix.arch }}
           path: dist-electron/*.dmg
           retention-days: 30
 
   # ─────────────────────────────────────────────
-  # Release: attach both builds to a GitHub Release
+  # Release: attach every build to a GitHub Release
   # ─────────────────────────────────────────────
   release:
     needs: [build-windows, build-mac]
@@ -106,16 +118,9 @@ jobs:
     permissions:
       contents: write
     steps:
-      - name: Download Windows build
+      - name: Download all build artifacts
         uses: actions/download-artifact@v4
         with:
-          name: windows-build
-          path: ./release
-
-      - name: Download macOS build
-        uses: actions/download-artifact@v4
-        with:
-          name: mac-build
           path: ./release
 
       - name: Create GitHub Release
@@ -125,21 +130,26 @@ jobs:
           name: "Interview Whisperer — Build ${{ github.run_number }}"
           body: |
             ## Downloads
-            - **Windows**: `Interview-Whisperer-Setup.exe` — portable, no installation needed
+            - **Windows**: `Interview-Whisperer-Setup.exe`
             - **macOS Intel** (older Macs): `Interview-Whisperer-*-x64.dmg`
-            - **macOS Apple Silicon** (M1/M2/M3): `Interview-Whisperer-*-arm64.dmg`
+            - **macOS Apple Silicon** (M1/M2/M3/M4): `Interview-Whisperer-*-arm64.dmg`
 
             ### macOS Install Instructions
             1. Download the `.dmg` for your chip
             2. Open it and drag **Interview Whisperer** to **Applications**
-            3. Open the app normally — no special steps needed
+            3. Open the app normally
 
             > If macOS still blocks it, open **Terminal** and run:
             > ```
             > xattr -cr "/Applications/Interview Whisperer.app"
             > ```
             > Then double-click the app as normal.
-          files: ./release/*
+
+            ### Remote control on macOS
+            The first time an admin connects, macOS asks to allow
+            **Accessibility** access (System Settings → Privacy & Security →
+            Accessibility). Approve it once so clicks/keystrokes work.
+          files: ./release/**/*
           draft: false
           prerelease: false
         env:
