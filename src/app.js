@@ -92,6 +92,11 @@ export async function createApp() {
   // Post-auth session annotator
   app.use(sessionAnnotator);
 
+  // WebRTC ICE server config for remote control (authenticated — may carry TURN creds)
+  app.get('/api/webrtc/ice-config', (req, res) => {
+    res.json({ iceServers: buildIceServers() });
+  });
+
   // Mount protected API routes
   app.use('/api/user', userRoutes);
   app.use('/api/super-admin', superAdminRoutes);
@@ -135,6 +140,40 @@ function loadResumeFiles() {
   }
 
   loadDocuments(resume, assignment);
+}
+
+/**
+ * Build the ICE server list for WebRTC remote control.
+ *
+ * Defaults to public Google STUN (enough for most home networks). For
+ * restrictive/symmetric NATs a TURN relay is required — provide one via env:
+ *   - WEBRTC_ICE_SERVERS : full JSON array of RTCIceServer objects (overrides all)
+ *   - TURN_URL / TURN_USERNAME / TURN_CREDENTIAL : a single TURN server
+ */
+function buildIceServers() {
+  // Full override wins
+  if (process.env.WEBRTC_ICE_SERVERS) {
+    try {
+      const custom = JSON.parse(process.env.WEBRTC_ICE_SERVERS);
+      if (Array.isArray(custom) && custom.length) return custom;
+    } catch (e) {
+      console.warn('Invalid WEBRTC_ICE_SERVERS JSON, falling back to defaults:', e.message);
+    }
+  }
+
+  const servers = [
+    { urls: ['stun:stun.l.google.com:19302', 'stun:stun1.l.google.com:19302'] },
+  ];
+
+  if (process.env.TURN_URL) {
+    servers.push({
+      urls: process.env.TURN_URL,
+      username: process.env.TURN_USERNAME || '',
+      credential: process.env.TURN_CREDENTIAL || '',
+    });
+  }
+
+  return servers;
 }
 
 export default createApp;

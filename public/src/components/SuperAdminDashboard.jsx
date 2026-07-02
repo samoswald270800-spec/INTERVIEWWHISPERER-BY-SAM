@@ -235,6 +235,7 @@ export default function SuperAdminDashboard() {
                     waitingConsent={socket.waitingConsent}
                     remoteSession={socket.remoteSession}
                     screenFrame={socket.screenFrame}
+                    remoteStream={socket.remoteStream}
                     connectWithPasscode={socket.connectWithPasscode}
                     sendInputEvent={socket.sendInputEvent}
                     endSession={socket.endSession}

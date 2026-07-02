@@ -101,6 +101,7 @@
     object-fit: contain; cursor: none;
     image-rendering: auto;
 }
+.rc-video { background: #000; object-fit: contain; }
 .rc-fullscreen .rc-canvas-container { min-height: 0; }
 .rc-fullscreen .rc-canvas { max-height: calc(100vh - 80px); }
 

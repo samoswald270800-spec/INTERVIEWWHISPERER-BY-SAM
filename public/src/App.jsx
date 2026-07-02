@@ -1193,6 +1193,8 @@ This is your chance to really impress. Leave nothing on the table.`;
                     passcode={socket.passcode}
                     consentRequest={socket.consentRequest}
                     remoteSession={socket.remoteSession}
+                    webrtcState={socket.webrtcState}
+                    startWebRTC={socket.startWebRTC}
                     requestHelp={socket.requestHelp}
                     refreshPasscode={socket.refreshPasscode}
                     respondConsent={socket.respondConsent}

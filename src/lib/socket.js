@@ -174,6 +174,20 @@ export function initSocketIO(httpServer, sessionMiddleware) {
     });
 
     // ══════════════════════════════════════
+    //  WEBRTC SIGNALING (primary video path)
+    //  Server only forwards SDP/ICE between the two
+    //  peers — the actual video stream is peer-to-peer.
+    // ══════════════════════════════════════
+    socket.on('rc:webrtc-signal', ({ sessionKey, data }) => {
+      const sess = activeSessions.get(sessionKey);
+      if (!sess) return;
+      // Only the two participants of this session may exchange signals
+      if (socket.id !== sess.adminSocketId && socket.id !== sess.userSocketId) return;
+      const targetSocketId = socket.id === sess.adminSocketId ? sess.userSocketId : sess.adminSocketId;
+      io.to(targetSocketId).emit('rc:webrtc-signal', { sessionKey, data });
+    });
+
+    // ══════════════════════════════════════
     //  SHARED EVENTS
     // ══════════════════════════════════════
 
