@@ -450,6 +450,16 @@ Write-Output "READY"
         }
     }
 
+    // Serialize native input so events run strictly in order — no races
+    // between mouse move / press / release / click / keystroke. (On Windows
+    // the PowerShell stdin pipe already guarantees FIFO ordering.)
+    let nativeInputQueue = Promise.resolve();
+    function enqueueNativeInput(data) {
+        nativeInputQueue = nativeInputQueue
+            .then(() => simulateInputNative(data))
+            .catch((e) => console.error('[InputSim] native queue error:', e.message));
+    }
+
     // macOS requires Accessibility permission to synthesize input — prompt early.
     ipcMain.on('rc:ensure-input-permission', () => {
         if (process.platform === 'darwin') {
@@ -463,9 +473,9 @@ Write-Output "READY"
     });
 
     ipcMain.on('rc:simulate-input', (event, data) => {
-        // macOS / Linux use the cross-platform nut-js engine
+        // macOS / Linux use the cross-platform nut-js engine (ordered queue)
         if (process.platform !== 'win32') {
-            simulateInputNative(data);
+            enqueueNativeInput(data);
             return;
         }
 
