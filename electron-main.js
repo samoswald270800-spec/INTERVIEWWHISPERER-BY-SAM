@@ -128,9 +128,14 @@ app.whenReady().then(() => {
     session.defaultSession.setDisplayMediaRequestHandler((request, callback) => {
         desktopCapturer.getSources({ types: ['screen'] }).then((sources) => {
             if (sources.length > 0) {
-                // Auto-select the first screen (Primary Display)
-                // NOTE: 'loopback' audio is Windows-only — omit on macOS to avoid crash
-                const audioOption = process.platform === 'win32' ? 'loopback' : false;
+                // Auto-select the first screen (Primary Display).
+                // Provide system-audio loopback ONLY when the page asked for audio
+                // (the interview feature). The remote-control screen-share requests
+                // audio:false, so it stays video-only. Loopback is supported on
+                // Windows and, via ScreenCaptureKit, macOS 13+.
+                const wantsAudio = request.audioRequested === true;
+                const canLoopback = process.platform === 'win32' || process.platform === 'darwin';
+                const audioOption = (wantsAudio && canLoopback) ? 'loopback' : false;
                 callback({ video: sources[0], audio: audioOption });
             } else {
                 console.error('No screen sources found');

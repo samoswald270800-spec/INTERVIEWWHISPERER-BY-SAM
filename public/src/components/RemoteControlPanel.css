@@ -92,7 +92,7 @@
 .rc-canvas-container {
     position: relative; background: #0a0a0a;
     display: flex; align-items: center; justify-content: center;
-    min-height: 420px; outline: none; cursor: none; flex: 1;
+    min-height: 420px; outline: none; flex: 1;
 }
 .rc-canvas-container:focus { outline: none; }
 .rc-canvas {
@@ -101,7 +101,9 @@
     object-fit: contain; cursor: none;
     image-rendering: auto;
 }
-.rc-video { background: #000; object-fit: contain; }
+/* Live WebRTC video: keep a visible, precise cursor so the operator can aim.
+   (The canvas above hides the cursor because it draws its own in MJPEG mode.) */
+.rc-video { background: #000; object-fit: contain; cursor: crosshair; }
 .rc-fullscreen .rc-canvas-container { min-height: 0; }
 .rc-fullscreen .rc-canvas { max-height: calc(100vh - 80px); }
 
