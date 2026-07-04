@@ -1,9 +1,13 @@
 name: Build Desktop App
 
-# Manual only — click "Run workflow" in the Actions tab to build installers.
-# (No auto-build on every push, to conserve GitHub Actions minutes.)
+# Build installers on demand — either click "Run workflow" in the Actions
+# tab, or push a git tag like "release-1" (used to kick off builds
+# programmatically). No auto-build on ordinary pushes, to conserve minutes.
 on:
   workflow_dispatch:
+  push:
+    tags:
+      - 'release-*'
 
 permissions:
   contents: write
