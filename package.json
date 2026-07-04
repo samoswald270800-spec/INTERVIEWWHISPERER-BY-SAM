@@ -102,6 +102,7 @@
         "NSMicrophoneUsageDescription": "Interview Whisperer needs microphone access to listen to your interview and provide real-time guidance.",
         "NSCameraUsageDescription": "Interview Whisperer may use the camera for video interview support.",
         "NSScreenCaptureUsageDescription": "Interview Whisperer needs screen recording access to analyze interview questions shown on your screen.",
+        "NSAudioCaptureUsageDescription": "Interview Whisperer captures your computer's audio to hear the interviewer's questions and provide real-time guidance.",
         "NSAppleEventsUsageDescription": "Interview Whisperer needs automation access for system integration."
       }
     },

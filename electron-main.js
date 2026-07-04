@@ -17,6 +17,13 @@ if (!app.isPackaged) {
 // FIX: Disable HTTP cache to prevent "Access Denied" errors and blank pages
 app.commandLine.appendSwitch('disable-http-cache');
 
+// macOS: enable system-audio (loopback) capture so the app can hear the
+// interviewer's voice coming from a video/call. Requires macOS 13+ and the
+// NSAudioCaptureUsageDescription Info.plist key (set in package.json).
+if (process.platform === 'darwin') {
+    app.commandLine.appendSwitch('enable-features', 'MacLoopbackAudioForScreenShare,MacSckSystemAudioLoopbackOverride');
+}
+
 // Handle __dirname in ESM
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
