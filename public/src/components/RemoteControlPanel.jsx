@@ -30,6 +30,7 @@ export default function RemoteControlPanel({
     const frameCountRef = useRef(0);
     const fpsIntervalRef = useRef(null);
     const cursorPosRef = useRef({ x: 0.5, y: 0.5 });
+    const surfaceRef = useRef(null);
 
     // Prefer the live WebRTC video stream; fall back to MJPEG frames.
     const usingVideo = !!remoteStream;
@@ -43,6 +44,13 @@ export default function RemoteControlPanel({
             }, 1000);
             return () => clearInterval(fpsIntervalRef.current);
         }
+    }, [remoteSession]);
+
+    // Grab keyboard focus when a session becomes active so keystrokes are captured
+    useEffect(() => {
+        if (!remoteSession) return;
+        const t = setTimeout(() => surfaceRef.current?.focus({ preventScroll: true }), 150);
+        return () => clearTimeout(t);
     }, [remoteSession]);
 
     // Attach the WebRTC stream to the <video> element and count real frames
@@ -171,6 +179,8 @@ export default function RemoteControlPanel({
 
     const handleMouseEvent = useCallback((e, type) => {
         e.preventDefault();
+        // Grab keyboard focus so typing/shortcuts reach the remote machine.
+        surfaceRef.current?.focus({ preventScroll: true });
         const coords = getRelativeCoords(e);
         if (!coords) return;
         cursorPosRef.current = coords;
@@ -232,6 +242,7 @@ export default function RemoteControlPanel({
                 </div>
                 <div
                     className="rc-canvas-container"
+                    ref={surfaceRef}
                     tabIndex={0}
                     onKeyDown={(e) => handleKeyEvent(e, 'keydown')}
                     onKeyUp={(e) => handleKeyEvent(e, 'keyup')}

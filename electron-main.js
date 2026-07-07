@@ -386,9 +386,15 @@ Write-Output "READY"
         if (key === 'Control' || key === 'Shift' || key === 'Alt' || key === 'Meta') return;
 
         const mods = [];
-        if (data.ctrlKey) mods.push(Key.LeftControl);
+        // On a Windows target, the Mac operator's Cmd (metaKey) should act as
+        // Ctrl so copy/paste/select-all etc. work; elsewhere Cmd maps to Super.
+        if (process.platform === 'win32') {
+            if (data.ctrlKey || data.metaKey) mods.push(Key.LeftControl);
+        } else {
+            if (data.ctrlKey) mods.push(Key.LeftControl);
+            if (data.metaKey) mods.push(Key.LeftSuper);
+        }
         if (data.altKey) mods.push(Key.LeftAlt);
-        if (data.metaKey) mods.push(Key.LeftSuper);
 
         const special = nutSpecialKey(Key, key);
 
@@ -416,11 +422,30 @@ Write-Output "READY"
         }
     }
 
+    // nut-js reports the screen in its OWN coordinate space (physical pixels on
+    // Windows), which is exactly what mouse.setPosition expects. Using this
+    // instead of Electron's DIP size keeps the pointer aligned on scaled
+    // (125%/150%) Windows displays. Falls back to the Electron size if needed.
+    let nutScreenCache = null;
+    let nutScreenAt = 0;
+    async function getNutScreen(nut) {
+        const now = Date.now();
+        if (nutScreenCache && now - nutScreenAt < 10000) return nutScreenCache;
+        try {
+            const w = await nut.screen.width();
+            const h = await nut.screen.height();
+            if (w && h) { nutScreenCache = { width: w, height: h }; nutScreenAt = now; }
+        } catch (e) {
+            console.warn('[InputSim] nut screen size failed, using Electron size:', e.message);
+        }
+        return nutScreenCache || getScreenSize();
+    }
+
     async function simulateInputNative(data) {
         const nut = await getNut();
         if (!nut) return;
         const { mouse, Button, Point } = nut;
-        const scr = getScreenSize();
+        const scr = await getNutScreen(nut);
         const { type } = data;
 
         const point = () => new Point(Math.round(data.x * scr.width), Math.round(data.y * scr.height));
