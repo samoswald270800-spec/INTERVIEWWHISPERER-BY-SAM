@@ -17,12 +17,11 @@ if (!app.isPackaged) {
 // FIX: Disable HTTP cache to prevent "Access Denied" errors and blank pages
 app.commandLine.appendSwitch('disable-http-cache');
 
-// macOS: enable system-audio (loopback) capture so the app can hear the
-// interviewer's voice coming from a video/call. Requires macOS 13+ and the
-// NSAudioCaptureUsageDescription Info.plist key (set in package.json).
-if (process.platform === 'darwin') {
-    app.commandLine.appendSwitch('enable-features', 'MacLoopbackAudioForScreenShare,MacSckSystemAudioLoopbackOverride');
-}
+// macOS system-audio (loopback) capture is handled natively by Electron 39+
+// (Apple CoreAudio Tap, the default). It only needs audio:'loopback' in the
+// display-media handler + the NSAudioCaptureUsageDescription Info.plist key
+// (set in package.json) + macOS 13+. Do NOT force the older ScreenCaptureKit
+// feature flags here — on Electron 39 they conflict and break capture.
 
 // Handle __dirname in ESM
 const __filename = fileURLToPath(import.meta.url);

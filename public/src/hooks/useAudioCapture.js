@@ -14,10 +14,17 @@ export const useAudioCapture = () => {
         // Capture ONLY the computer's system audio — the interviewer's voice coming
         // from the video/call. No microphone. The screen video track is just the
         // required vehicle for loopback audio; we don't send it anywhere meaningful.
-        const stream = await navigator.mediaDevices.getDisplayMedia({
-            video: true,
-            audio: true,
-        });
+        let stream;
+        try {
+            stream = await navigator.mediaDevices.getDisplayMedia({
+                video: true,
+                audio: true,
+            });
+        } catch (err) {
+            // Surface the real error name (NotAllowedError = permission,
+            // NotReadableError = capture couldn't start) to aid diagnosis.
+            throw new Error(`${err.name || 'CaptureError'}: ${err.message || 'could not start capture'}`);
+        }
 
         // There must be a system-audio track. If not, this build/OS can't capture
         // system audio (e.g. old build, or Screen Recording / Audio not allowed).
