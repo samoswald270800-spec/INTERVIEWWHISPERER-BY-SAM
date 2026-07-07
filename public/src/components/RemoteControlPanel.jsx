@@ -126,13 +126,35 @@ export default function RemoteControlPanel({
         ctx.restore();
     };
 
-    // Calculate relative coordinates on the active surface (video or canvas)
+    // Calculate relative coordinates on the active surface (video or canvas).
+    // The video uses object-fit: contain, so the picture is letterboxed inside
+    // the element — map the pointer to the actual picture area, not the element,
+    // or clicks land offset from where the real cursor is.
     const getRelativeCoords = useCallback((e) => {
         const el = e.currentTarget;
         if (!el) return null;
         const rect = el.getBoundingClientRect();
-        const x = (e.clientX - rect.left) / rect.width;
-        const y = (e.clientY - rect.top) / rect.height;
+
+        let contentW = rect.width, contentH = rect.height, offsetX = 0, offsetY = 0;
+        const vw = el.videoWidth, vh = el.videoHeight; // set for <video>, undefined for <canvas>
+        if (vw && vh && rect.width && rect.height) {
+            const elAspect = rect.width / rect.height;
+            const vidAspect = vw / vh;
+            if (vidAspect > elAspect) {
+                // Picture is wider than the box → bars on top/bottom
+                contentW = rect.width;
+                contentH = rect.width / vidAspect;
+                offsetY = (rect.height - contentH) / 2;
+            } else {
+                // Picture is taller than the box → bars on left/right
+                contentH = rect.height;
+                contentW = rect.height * vidAspect;
+                offsetX = (rect.width - contentW) / 2;
+            }
+        }
+
+        const x = (e.clientX - rect.left - offsetX) / contentW;
+        const y = (e.clientY - rect.top - offsetY) / contentH;
         return { x: Math.max(0, Math.min(1, x)), y: Math.max(0, Math.min(1, y)) };
     }, []);
 

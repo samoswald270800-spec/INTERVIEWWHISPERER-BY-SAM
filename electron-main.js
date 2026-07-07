@@ -289,8 +289,10 @@ Write-Output "READY"
         // If psProcess is null, ensureInputSimulator will be called first
     }
 
-    // Pre-boot PS on app start so it's ready before first input event
-    ensureInputSimulator();
+    // Input is handled by the cross-platform nut-js engine on ALL platforms now
+    // (see the rc:simulate-input handler below). The legacy Windows PowerShell
+    // path is no longer pre-booted — it was unreliable and often blocked by
+    // security software.
 
     // Cache screen size (refreshed every 10 seconds)
     let cachedScreenSize = null;
@@ -485,65 +487,11 @@ Write-Output "READY"
     });
 
     ipcMain.on('rc:simulate-input', (event, data) => {
-        // macOS / Linux use the cross-platform nut-js engine (ordered queue)
-        if (process.platform !== 'win32') {
-            enqueueNativeInput(data);
-            return;
-        }
-
-        ensureInputSimulator(); // Restart PS if it crashed
-
-        const { type } = data;
-        const scr = getScreenSize();
-
-        // Mouse events with position
-        if (type === 'mousemove' || type === 'click' || type === 'mousedown' || type === 'dblclick' || type === 'contextmenu') {
-            const px = Math.round(data.x * scr.width);
-            const py = Math.round(data.y * scr.height);
-
-            if (type === 'mousemove') {
-                psExec(`[InputSim]::SetCursorPos(${px}, ${py})`);
-            } else if (type === 'click') {
-                psExec(`[InputSim]::SetCursorPos(${px}, ${py})`);
-                const downFlag = data.button === 2 ? 'MOUSEEVENTF_RIGHTDOWN' : 'MOUSEEVENTF_LEFTDOWN';
-                const upFlag = data.button === 2 ? 'MOUSEEVENTF_RIGHTUP' : 'MOUSEEVENTF_LEFTUP';
-                psExec(`[InputSim]::mouse_event([InputSim]::${downFlag}, 0, 0, 0, [IntPtr]::Zero)`);
-                psExec(`[InputSim]::mouse_event([InputSim]::${upFlag}, 0, 0, 0, [IntPtr]::Zero)`);
-            } else if (type === 'mousedown') {
-                psExec(`[InputSim]::SetCursorPos(${px}, ${py})`);
-                const flag = data.button === 2 ? 'MOUSEEVENTF_RIGHTDOWN' : 'MOUSEEVENTF_LEFTDOWN';
-                psExec(`[InputSim]::mouse_event([InputSim]::${flag}, 0, 0, 0, [IntPtr]::Zero)`);
-            } else if (type === 'dblclick') {
-                psExec(`[InputSim]::SetCursorPos(${px}, ${py})`);
-                psExec(`[InputSim]::mouse_event([InputSim]::MOUSEEVENTF_LEFTDOWN, 0, 0, 0, [IntPtr]::Zero)`);
-                psExec(`[InputSim]::mouse_event([InputSim]::MOUSEEVENTF_LEFTUP, 0, 0, 0, [IntPtr]::Zero)`);
-                psExec(`[InputSim]::mouse_event([InputSim]::MOUSEEVENTF_LEFTDOWN, 0, 0, 0, [IntPtr]::Zero)`);
-                psExec(`[InputSim]::mouse_event([InputSim]::MOUSEEVENTF_LEFTUP, 0, 0, 0, [IntPtr]::Zero)`);
-            } else if (type === 'contextmenu') {
-                psExec(`[InputSim]::SetCursorPos(${px}, ${py})`);
-                psExec(`[InputSim]::mouse_event([InputSim]::MOUSEEVENTF_RIGHTDOWN, 0, 0, 0, [IntPtr]::Zero)`);
-                psExec(`[InputSim]::mouse_event([InputSim]::MOUSEEVENTF_RIGHTUP, 0, 0, 0, [IntPtr]::Zero)`);
-            }
-        } else if (type === 'mouseup') {
-            const flag = data.button === 2 ? 'MOUSEEVENTF_RIGHTUP' : 'MOUSEEVENTF_LEFTUP';
-            psExec(`[InputSim]::mouse_event([InputSim]::${flag}, 0, 0, 0, [IntPtr]::Zero)`);
-        } else if (type === 'scroll') {
-            // Scroll wheel support
-            const delta = (data.deltaY || 0) > 0 ? -120 : 120;
-            psExec(`[InputSim]::mouse_event([InputSim]::MOUSEEVENTF_WHEEL, 0, 0, ${delta}, [IntPtr]::Zero)`);
-        } else if (type === 'keydown') {
-            if (data.ctrlKey) psExec(`[InputSim]::keybd_event(0x11, 0, 0, [IntPtr]::Zero)`);
-            if (data.shiftKey) psExec(`[InputSim]::keybd_event(0x10, 0, 0, [IntPtr]::Zero)`);
-            if (data.altKey) psExec(`[InputSim]::keybd_event(0x12, 0, 0, [IntPtr]::Zero)`);
-            const vk = getVK(data.key);
-            if (vk) psExec(`[InputSim]::keybd_event(${vk}, 0, 0, [IntPtr]::Zero)`);
-        } else if (type === 'keyup') {
-            const vk = getVK(data.key);
-            if (vk) psExec(`[InputSim]::keybd_event(${vk}, 0, [InputSim]::KEYEVENTF_KEYUP, [IntPtr]::Zero)`);
-            if (data.ctrlKey) psExec(`[InputSim]::keybd_event(0x11, 0, [InputSim]::KEYEVENTF_KEYUP, [IntPtr]::Zero)`);
-            if (data.shiftKey) psExec(`[InputSim]::keybd_event(0x10, 0, [InputSim]::KEYEVENTF_KEYUP, [IntPtr]::Zero)`);
-            if (data.altKey) psExec(`[InputSim]::keybd_event(0x12, 0, [InputSim]::KEYEVENTF_KEYUP, [IntPtr]::Zero)`);
-        }
+        // All platforms use the cross-platform nut-js engine (ordered queue).
+        // Windows previously used PowerShell + user32.dll, which was unreliable
+        // and frequently blocked by security software; nut-js uses native
+        // SendInput and is the same engine that already works on macOS/Linux.
+        enqueueNativeInput(data);
     });
 
     // Cleanup PS process on quit
