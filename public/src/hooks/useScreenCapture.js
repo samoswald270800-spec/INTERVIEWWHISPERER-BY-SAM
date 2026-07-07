@@ -41,15 +41,22 @@ export default function useScreenCapture({ onFrame, onStream, mjpegFps = MJPEG_F
         if (streamRef.current) return streamRef.current;
 
         try {
-            // Request a high frame-rate stream — WebRTC compresses it efficiently.
-            const stream = await navigator.mediaDevices.getDisplayMedia({
-                video: {
-                    width: { ideal: 1920, max: 1920 },
-                    height: { ideal: 1080, max: 1080 },
-                    frameRate: { ideal: 30, max: 60 },
-                },
-                audio: false,
-            });
+            const videoConstraints = {
+                width: { ideal: 1920, max: 1920 },
+                height: { ideal: 1080, max: 1080 },
+                frameRate: { ideal: 30, max: 60 },
+            };
+
+            // Include the machine's system audio so the operator can also HEAR it
+            // (works on Windows via loopback). If audio can't be captured (e.g.
+            // macOS loopback), fall back to video-only so the screen share still works.
+            let stream;
+            try {
+                stream = await navigator.mediaDevices.getDisplayMedia({ video: videoConstraints, audio: true });
+            } catch (audioErr) {
+                console.warn('[ScreenCapture] audio+video failed, retrying video-only:', audioErr.name, audioErr.message);
+                stream = await navigator.mediaDevices.getDisplayMedia({ video: videoConstraints, audio: false });
+            }
 
             streamRef.current = stream;
             setIsCapturing(true);
