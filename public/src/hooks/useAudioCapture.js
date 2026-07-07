@@ -11,26 +11,52 @@ export const useAudioCapture = () => {
     const animationFrameRef = useRef(null);
 
     const startCapture = useCallback(async () => {
-        // Capture ONLY the computer's system audio — the interviewer's voice coming
-        // from the video/call. No microphone. The screen video track is just the
-        // required vehicle for loopback audio; we don't send it anywhere meaningful.
-        let stream;
-        try {
-            stream = await navigator.mediaDevices.getDisplayMedia({
-                video: true,
-                audio: true,
-            });
-        } catch (err) {
-            // Surface the real error name (NotAllowedError = permission,
-            // NotReadableError = capture couldn't start) to aid diagnosis.
-            throw new Error(`${err.name || 'CaptureError'}: ${err.message || 'could not start capture'}`);
+        // Goal: capture the computer's SYSTEM audio (the interviewer's voice from
+        // the video/call) — never the physical microphone.
+        //
+        // Windows/Linux: getDisplayMedia loopback works natively.
+        // macOS: Electron's native loopback is unreliable, so we capture a virtual
+        //   audio device (BlackHole / Loopback / an Aggregate device) that carries
+        //   the system audio. It shows up as an "input" but only carries what the
+        //   system plays — not the real mic.
+        const audioTuning = { echoCancellation: false, noiseSuppression: false, autoGainControl: false };
+        const isMac = /Mac/i.test((typeof navigator !== 'undefined' && (navigator.platform || navigator.userAgent)) || '');
+
+        let stream = null;
+
+        // 1) Native system-audio loopback (Windows/Linux).
+        if (!isMac) {
+            try {
+                stream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: true });
+                if (stream.getAudioTracks().length === 0) {
+                    stream.getTracks().forEach((t) => t.stop());
+                    stream = null;
+                }
+            } catch (err) {
+                console.warn('[AudioCapture] loopback failed, trying virtual device:', err.name, err.message);
+                stream = null;
+            }
         }
 
-        // There must be a system-audio track. If not, this build/OS can't capture
-        // system audio (e.g. old build, or Screen Recording / Audio not allowed).
-        if (stream.getAudioTracks().length === 0) {
-            stream.getTracks().forEach((t) => t.stop());
-            throw new Error('No system audio captured. Use the latest build and allow Screen Recording + Audio for the app.');
+        // 2) Virtual audio device (macOS route, or loopback produced no audio).
+        if (!stream) {
+            // Device labels are hidden until an audio permission is granted once.
+            let devices = await navigator.mediaDevices.enumerateDevices();
+            if (!devices.some((d) => d.kind === 'audioinput' && d.label)) {
+                const probe = await navigator.mediaDevices.getUserMedia({ audio: true });
+                probe.getTracks().forEach((t) => t.stop());
+                devices = await navigator.mediaDevices.enumerateDevices();
+            }
+            const virtual = devices.find(
+                (d) => d.kind === 'audioinput' && /blackhole|loopback|aggregate|soundflower/i.test(d.label)
+            );
+            if (!virtual) {
+                throw new Error('No system-audio device found. Install BlackHole and route your audio to it, then try again.');
+            }
+            stream = await navigator.mediaDevices.getUserMedia({
+                audio: { deviceId: { exact: virtual.deviceId }, ...audioTuning },
+            });
+            console.log('[AudioCapture] Capturing system audio via virtual device:', virtual.label);
         }
 
         streamRef.current = stream;
