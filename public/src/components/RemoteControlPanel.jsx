@@ -23,6 +23,7 @@ export default function RemoteControlPanel({
     const [passcodeInput, setPasscodeInput] = useState('');
     const [isFullscreen, setIsFullscreen] = useState(false);
     const [fps, setFps] = useState(0);
+    const [audioOn, setAudioOn] = useState(false); // hear the controlled machine's audio
     const canvasRef = useRef(null);
     const videoRef = useRef(null);
     const containerRef = useRef(null);
@@ -232,6 +233,15 @@ export default function RemoteControlPanel({
                     </div>
                     <div className="rc-toolbar-right">
                         <span className="rc-fps">{usingVideo ? 'HD' : 'SD'} · {fps} FPS</span>
+                        {usingVideo && (
+                            <button
+                                className="rc-toolbar-btn"
+                                onClick={() => setAudioOn((v) => !v)}
+                                title={audioOn ? 'Mute user audio' : 'Hear user audio'}
+                            >
+                                {audioOn ? '🔊' : '🔇'}
+                            </button>
+                        )}
                         <button className="rc-toolbar-btn" onClick={toggleFullscreen} title="Fullscreen">
                             {isFullscreen ? '⊡' : '⊞'}
                         </button>
@@ -253,7 +263,7 @@ export default function RemoteControlPanel({
                             className="rc-canvas rc-video"
                             autoPlay
                             playsInline
-                            muted
+                            muted={!audioOn}
                             onClick={(e) => handleMouseEvent(e, 'click')}
                             onMouseMove={throttledMouseMove}
                             onMouseDown={(e) => handleMouseEvent(e, 'mousedown')}
