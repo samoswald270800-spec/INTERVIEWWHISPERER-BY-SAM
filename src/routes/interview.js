@@ -298,6 +298,11 @@ router.post('/session', requireAuth, async (req, res) => {
               input: {
                 transcription: {
                   model: 'gpt-4o-transcribe',
+                  // Pin transcription to English. Without this, the model
+                  // auto-detects the language and — on compressed/accented/noisy
+                  // interview audio — frequently flips to a random language and
+                  // emits gibberish. The interview is English-only.
+                  language: 'en',
                 },
                 turn_detection: {
                   type: 'server_vad',
