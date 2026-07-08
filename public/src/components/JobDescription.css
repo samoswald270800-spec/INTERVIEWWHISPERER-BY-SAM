@@ -31,7 +31,7 @@
     bottom: 64px;
     right: 0;
     width: 380px;
-    height: 480px;
+    height: 540px;
     background: #080808;
     border: 1px solid var(--glass-border);
     border-radius: 20px;
@@ -63,21 +63,31 @@
     opacity: 1;
 }
 
-textarea#jd {
+.ctx-label {
+    font-size: 11px;
+    font-weight: 700;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin-bottom: 6px;
+}
+
+.ctx-textarea {
     flex: 1;
+    min-height: 90px;
     background: rgba(255, 255, 255, 0.02);
     border: 1px solid var(--glass-border);
     border-radius: 14px;
-    padding: 16px;
+    padding: 14px;
     color: var(--text-white);
     font-family: var(--font-body);
     font-size: 13px;
     line-height: 1.6;
     resize: none;
-    margin-bottom: 16px;
+    margin-bottom: 14px;
 }
 
-textarea#jd:focus {
+.ctx-textarea:focus {
     border-color: var(--theme-primary);
     background: rgba(255, 255, 255, 0.03);
 }

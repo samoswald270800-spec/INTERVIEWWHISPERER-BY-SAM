@@ -13,7 +13,7 @@ import multer from 'multer';
 import config from '../config/index.js';
 import { requireAuth } from '../middleware/auth.js';
 import { buildInterviewInstructions } from '../utils/prompts.js';
-import { getResume, getAssignment, getJobDescription } from './interview.js';
+import { getResume, getSessionResume, getAssignment, getJobDescription } from './interview.js';
 
 const router = express.Router();
 
@@ -84,7 +84,7 @@ router.post('/api/reasoning/transcribe', requireAuth, upload.single('audio'), as
  */
 router.post('/api/reasoning/answer', requireAuth, async (req, res) => {
   try {
-    const { transcript, interviewMode = 'smart', jd } = req.body || {};
+    const { transcript, interviewMode = 'smart', jd, resume } = req.body || {};
 
     if (!transcript || typeof transcript !== 'string' || !transcript.trim()) {
       return res.status(400).json({ error: 'transcript is required.' });
@@ -92,10 +92,11 @@ router.post('/api/reasoning/answer', requireAuth, async (req, res) => {
 
     console.log(`[Reasoning] Answering transcript (mode=${interviewMode}): "${transcript.slice(0, 100)}..."`);
 
-    // Build the same system prompt used by the Live architecture
+    // Build the same system prompt used by the Live architecture.
+    // Prefer the resume the frontend sent; fall back to the session/file resume.
     const systemPrompt = buildInterviewInstructions({
       interviewMode,
-      resume: getResume(),
+      resume: resume || getSessionResume(req) || getResume(),
       assignment: getAssignment(),
       jobDescription: jd || getJobDescription(req),
       screenAnalysisContext: req.session?.screenAnalysisContext || '',

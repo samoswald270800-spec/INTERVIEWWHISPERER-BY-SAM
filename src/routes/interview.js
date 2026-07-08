@@ -60,6 +60,9 @@ export function loadDocuments(resumeText, assignmentText) {
 export function getResume() { return resume; }
 export function getAssignment() { return assignment; }
 export function getJobDescription(req) { return (req?.session?.jobDescription) || ''; }
+// Per-session resume (entered from the frontend). Falls back to the shared
+// file-loaded resume when the user hasn't pasted their own.
+export function getSessionResume(req) { return (req?.session?.resume) || resume || ''; }
 
 /**
  * POST /set-jd - Update Job Description
@@ -79,6 +82,26 @@ router.post('/set-jd', (req, res) => {
 router.get('/get-jd', (req, res) => {
   const jd = req.session?.jobDescription || '';
   return res.json({ ok: true, jd });
+});
+
+/**
+ * POST /set-resume - Update the candidate's resume (entered from the frontend)
+ */
+router.post('/set-resume', (req, res) => {
+  const rawResume = (req.body?.resume || '').toString();
+  // Sanitize input: strip HTML/scripts and enforce a sane length cap
+  const sanitizedResume = sanitizeText(rawResume, 20000);
+  // Store per-session so each user has their own resume
+  if (req.session) req.session.resume = sanitizedResume;
+  return res.json({ ok: true, length: sanitizedResume.length });
+});
+
+/**
+ * GET /get-resume - Retrieve the stored resume
+ */
+router.get('/get-resume', (req, res) => {
+  const resumeText = req.session?.resume || '';
+  return res.json({ ok: true, resume: resumeText });
 });
 
 async function searchDuckDuckGo(query) {
@@ -264,8 +287,8 @@ router.post('/session', requireAuth, async (req, res) => {
 
     const fullInstructions = buildInterviewInstructions({
       interviewMode,
-      resume: '',
-      assignment: '',
+      resume: getSessionResume(req),  // Ground answers in the candidate's resume
+      assignment: getAssignment(),
       jobDescription: getJobDescription(req),  // Read stored JD from session
       screenAnalysisContext,
     });

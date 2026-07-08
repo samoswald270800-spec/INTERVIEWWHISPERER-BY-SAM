@@ -60,6 +60,7 @@ export function useReasoningFlow({
     isTypingRef,
     processTypeQueue,
     getJd,
+    getResume,
     getInterviewMode,
     isSessionActiveRef,
 }) {
@@ -259,6 +260,7 @@ export function useReasoningFlow({
                     transcript: expandPrompt || transcript,
                     interviewMode: getInterviewMode(),
                     jd: getJd(),
+                    resume: getResume ? getResume() : '',
                 }),
             });
 
@@ -332,7 +334,7 @@ export function useReasoningFlow({
                 setTimeout(() => startListening(), 2000);
             }
         }
-    }, [setStatus, setIsProcessing, setCanExpand, processTypeQueue, getJd, getInterviewMode]);
+    }, [setStatus, setIsProcessing, setCanExpand, processTypeQueue, getJd, getResume, getInterviewMode]);
 
     // ─────────────────────────────────────────────
     //  EXPAND: Re-answer with deeper prompt

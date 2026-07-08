@@ -2,12 +2,12 @@ import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import './JobDescription.css';
 
-export default function JobDescription({ jd, setJd, onSave }) {
+export default function JobDescription({ jd, setJd, resume, setResume, onSave }) {
     const [isOpen, setIsOpen] = useState(false);
     const [isSaved, setIsSaved] = useState(false);
 
     const handleSave = async () => {
-        const success = await onSave(jd);
+        const success = await onSave(jd, resume);
         if (success) {
             setIsSaved(true);
             setTimeout(() => {
@@ -32,18 +32,31 @@ export default function JobDescription({ jd, setJd, onSave }) {
                             <span>Context</span>
                             <span className={`saved-tag ${isSaved ? 'visible' : ''}`}>Saved</span>
                         </div>
+
+                        <label className="ctx-label" htmlFor="jd">Job Description</label>
                         <textarea
                             id="jd"
-                            placeholder="Paste job description..."
+                            className="ctx-textarea"
+                            placeholder="Paste the job description..."
                             value={jd}
                             onChange={(e) => setJd(e.target.value)}
                         />
+
+                        <label className="ctx-label" htmlFor="resume">Resume</label>
+                        <textarea
+                            id="resume"
+                            className="ctx-textarea"
+                            placeholder="Paste your resume — real projects, tools, numbers. Answers ground in this."
+                            value={resume}
+                            onChange={(e) => setResume(e.target.value)}
+                        />
+
                         <button className="save-btn" onClick={handleSave}>Save Context</button>
                     </motion.div>
                 )}
             </AnimatePresence>
 
-            <button className="jd-btn" onClick={() => setIsOpen(!isOpen)} title="Job Context">
+            <button className="jd-btn" onClick={() => setIsOpen(!isOpen)} title="Job Description & Resume">
                 <svg className="icon" viewBox="0 0 24 24">
                     <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
                     <polyline points="14 2 14 8 20 8"></polyline>
