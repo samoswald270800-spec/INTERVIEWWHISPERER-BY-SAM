@@ -465,8 +465,11 @@ export default function App() {
             const pc = new RTCPeerConnection();
             window._lastPC = pc;
 
-            // Add audio tracks
-            audioStream.getTracks().forEach(track => pc.addTrack(track, audioStream));
+            // Add ONLY the audio track. getDisplayMedia also returns a video track
+            // (needed to capture system audio on some platforms), but the realtime
+            // API is audio-only — negotiating a video track is wasteful and can
+            // muddy the connection.
+            audioStream.getAudioTracks().forEach(track => pc.addTrack(track, audioStream));
 
             // Setup data channel
             const dc = pc.createDataChannel("oai-events");
@@ -479,14 +482,34 @@ export default function App() {
                 isStartingRef.current = false;
 
                 // Send session.update with full instructions + search_web tool (matches online)
+                //
+                // NOTE: This MUST use the GA Realtime schema (nested `audio.input`,
+                // `output_modalities`) to match the session the backend created via
+                // /client_secrets. The old beta schema (`modalities`,
+                // top-level `input_audio_transcription`/`turn_detection`) is silently
+                // rejected by a GA session, which left transcription unconfigured
+                // (auto-detected language → gibberish) and the tools/instructions
+                // never applied. Transcription is pinned to English here too.
                 const instructions = buildInstructions("smart");
                 const sessionUpdateEvent = {
                     type: "session.update",
                     session: {
-                        modalities: ["text"],
+                        type: "realtime",
+                        output_modalities: ["text"],
                         instructions: instructions,
-                        input_audio_transcription: { model: "whisper-1" },
-                        turn_detection: { type: "server_vad" },
+                        audio: {
+                            input: {
+                                transcription: { model: "gpt-4o-transcribe", language: "en" },
+                                turn_detection: {
+                                    type: "server_vad",
+                                    threshold: 0.5,
+                                    prefix_padding_ms: 300,
+                                    silence_duration_ms: 1200,
+                                    create_response: true,
+                                    interrupt_response: true,
+                                },
+                            },
+                        },
                         tools: [{
                             type: "function",
                             name: "search_web",
@@ -849,7 +872,9 @@ This is your chance to really impress. Leave nothing on the table.`;
         const instructions = instructionsOverride || buildInstructions(mode);
         const event = {
             type: "session.update",
-            session: { instructions }
+            // GA Realtime schema (nested under `type: "realtime"`) so mid-session
+            // instruction swaps (mode change, JD save, expand) actually apply.
+            session: { type: "realtime", instructions }
         };
         window._lastDC.send(JSON.stringify(event));
     };

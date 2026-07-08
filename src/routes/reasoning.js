@@ -32,7 +32,8 @@ const upload = multer({
  *
  * Body: multipart/form-data
  *   audio  — the recorded audio blob
- *   lang   — (optional) language hint, defaults to "en"
+ *
+ * Transcription is always forced to English (interview audio is English-only).
  */
 router.post('/api/reasoning/transcribe', requireAuth, upload.single('audio'), async (req, res) => {
   try {
@@ -52,10 +53,14 @@ router.post('/api/reasoning/transcribe', requireAuth, upload.single('audio'), as
     // Create a File-like object from the buffer (required by OpenAI Node SDK v4+)
     const audioFile = new File([req.file.buffer], filename, { type: req.file.mimetype });
 
+    // Force English + greedy decoding. Interview audio is English-only; letting
+    // Whisper auto-detect (or run with a non-zero temperature) makes it flip to a
+    // random language and hallucinate gibberish on short/quiet/noisy clips.
     const transcription = await openai.audio.transcriptions.create({
       file: audioFile,
       model: 'whisper-1',
-      language: req.body?.lang || 'en',
+      language: 'en',
+      temperature: 0,
     });
 
     console.log(`[Reasoning] Transcript: "${transcription.text}"`);
