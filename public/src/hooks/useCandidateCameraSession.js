@@ -20,6 +20,7 @@ export default function useCandidateCameraSession() {
 
     const socketRef = useRef(null);
     const peerRef = useRef(null);
+    const candidateStreamRef = useRef(null);
     const sessionRef = useRef(null);
     const pendingIceRef = useRef([]);
     const adminMicRef = useRef(null);
@@ -43,6 +44,7 @@ export default function useCandidateCameraSession() {
             peerRef.current = null;
         }
         pendingIceRef.current = [];
+        candidateStreamRef.current = null;
         setCandidateStream(null);
         setWebrtcState('new');
         setQuality(null);
@@ -103,7 +105,15 @@ export default function useCandidateCameraSession() {
             if (receiver && 'jitterBufferTarget' in receiver) {
                 try { receiver.jitterBufferTarget = track.kind === 'video' ? 75 : 60; } catch { /* browser-managed fallback */ }
             }
-            const inbound = streams?.[0] || new MediaStream([track]);
+            const tracksById = new Map(
+                (candidateStreamRef.current?.getTracks() || [])
+                    .filter((current) => current.readyState !== 'ended')
+                    .map((current) => [current.id, current]),
+            );
+            streams?.[0]?.getTracks().forEach((current) => tracksById.set(current.id, current));
+            tracksById.set(track.id, track);
+            const inbound = new MediaStream([...tracksById.values()]);
+            candidateStreamRef.current = inbound;
             setCandidateStream(inbound);
             if (track.kind === 'video') {
                 const boundSessionId = sessionRef.current?.sessionId;

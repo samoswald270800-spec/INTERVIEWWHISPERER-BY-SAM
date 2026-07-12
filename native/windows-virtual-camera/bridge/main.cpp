@@ -30,9 +30,20 @@ std::mutex gFrameMutex;
 std::condition_variable gFrameReady;
 LatestFrame gLatestFrame;
 
-bool ReadExact(std::istream& input, void* destination, std::size_t bytes) {
-    input.read(static_cast<char*>(destination), static_cast<std::streamsize>(bytes));
-    return input.good() || input.gcount() == static_cast<std::streamsize>(bytes);
+bool ReadExact(HANDLE input, void* destination, std::size_t bytes) {
+    auto* cursor = static_cast<std::uint8_t*>(destination);
+    while (bytes > 0) {
+        DWORD received = 0;
+        const DWORD chunk = static_cast<DWORD>(std::min<std::size_t>(bytes, MAXDWORD));
+        if (!ReadFile(input, cursor, chunk, &received, nullptr)) return false;
+        if (received == 0) {
+            SetLastError(ERROR_HANDLE_EOF);
+            return false;
+        }
+        cursor += received;
+        bytes -= received;
+    }
+    return true;
 }
 
 bool WriteExact(HANDLE pipe, const void* source, std::size_t bytes) {
@@ -142,20 +153,48 @@ int wmain(int argc, wchar_t* argv[]) {
     std::ios::sync_with_stdio(false);
     std::cin.tie(nullptr);
 
+    const HANDLE input = GetStdHandle(STD_INPUT_HANDLE);
+    if (!input || input == INVALID_HANDLE_VALUE) {
+        std::cerr << "Standard input is unavailable" << std::endl;
+        return 1;
+    }
+
     std::thread pipeThread(PipeServer);
     std::cout << "READY" << std::endl;
     LatestFrame incoming;
+    int exitCode = 0;
     while (gRunning.load()) {
         FrameHeader header{};
-        if (!ReadExact(std::cin, &header, sizeof(header))) break;
+        if (!ReadExact(input, &header, sizeof(header))) {
+            const DWORD error = GetLastError();
+            if (error != ERROR_BROKEN_PIPE && error != ERROR_HANDLE_EOF) {
+                std::cerr << "Could not read a complete frame header (Windows error "
+                          << error << ")" << std::endl;
+                exitCode = 2;
+            }
+            break;
+        }
         if (!IsValidFrameHeader(header)) {
-            std::cerr << "Invalid frame packet" << std::endl;
+            std::cerr << "Invalid frame packet: magic=" << header.magic
+                      << " version=" << header.version
+                      << " headerSize=" << header.headerSize
+                      << " format=" << header.format
+                      << " width=" << header.width
+                      << " height=" << header.height
+                      << " dataSize=" << header.dataSize
+                      << " planeCount=" << header.planeCount << std::endl;
+            exitCode = 3;
             break;
         }
 
         incoming.header = header;
         incoming.bytes.resize(header.dataSize);
-        if (!ReadExact(std::cin, incoming.bytes.data(), incoming.bytes.size())) break;
+        if (!ReadExact(input, incoming.bytes.data(), incoming.bytes.size())) {
+            std::cerr << "Frame payload ended before " << header.dataSize
+                      << " bytes were received (Windows error " << GetLastError() << ")" << std::endl;
+            exitCode = 4;
+            break;
+        }
 
         {
             std::lock_guard lock(gFrameMutex);
@@ -169,7 +208,16 @@ int wmain(int argc, wchar_t* argv[]) {
 
     gRunning.store(false);
     gFrameReady.notify_all();
+    const HANDLE wakePipe = CreateFileW(
+        kFramePipeName,
+        GENERIC_READ,
+        0,
+        nullptr,
+        OPEN_EXISTING,
+        0,
+        nullptr);
+    if (wakePipe != INVALID_HANDLE_VALUE) CloseHandle(wakePipe);
     CancelSynchronousIo(pipeThread.native_handle());
     if (pipeThread.joinable()) pipeThread.join();
-    return 0;
+    return exitCode;
 }
