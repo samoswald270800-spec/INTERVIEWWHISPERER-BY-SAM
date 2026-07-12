@@ -36,9 +36,14 @@ export default function CandidateCameraPanel() {
         live: 'Candidate live',
         failed: 'Connection failed',
     }[camera.candidateState] || camera.candidateState;
+    const sourceFps = camera.sourceQuality?.encodedFps || camera.sourceQuality?.captureFps || 0;
+    const fpsLabel = sourceFps ? `${camera.quality?.fps || 0}/${sourceFps} fps received/source` : `${camera.quality?.fps || 0} fps`;
+    const limitationLabel = camera.sourceQuality?.limitation && camera.sourceQuality.limitation !== 'none'
+        ? ` | ${camera.sourceQuality.limitation} limited`
+        : '';
     const qualityLabel = camera.quality?.width
-        ? `${camera.quality.width}x${camera.quality.height} | ${camera.quality.fps || 0} fps | ${camera.quality.mbps === null ? 'measuring bitrate' : `${camera.quality.mbps.toFixed(1)} Mbps`} | ${camera.quality.jitterMs} ms jitter`
-        : `720p target | up to 60 fps | ${camera.webrtcState}`;
+        ? `${camera.quality.width}x${camera.quality.height} | ${fpsLabel} | ${camera.quality.mbps === null ? 'measuring bitrate' : `${camera.quality.mbps.toFixed(1)} Mbps`} | ${camera.quality.jitterMs} ms jitter${limitationLabel}`
+        : `720p | 30 fps target | low latency | ${camera.webrtcState}`;
 
     return (
         <section className="candidate-relay-panel">
@@ -110,12 +115,26 @@ export default function CandidateCameraPanel() {
                                 <span>Zoom / Teams camera</span>
                                 <button
                                     className={virtualCamera.running ? 'control-active' : ''}
-                                    disabled={!camera.candidateStream || (!virtualCamera.running && !virtualCamera.status?.driverInstalled)}
-                                    onClick={() => virtualCamera.running ? virtualCamera.stop() : virtualCamera.start()}
+                                    disabled={virtualCamera.installing || (virtualCamera.running
+                                        ? false
+                                        : virtualCamera.status?.driverInstalled
+                                            ? !camera.candidateStream
+                                            : !virtualCamera.status?.installAvailable)}
+                                    onClick={() => virtualCamera.running
+                                        ? virtualCamera.stop()
+                                        : virtualCamera.status?.driverInstalled
+                                            ? virtualCamera.start()
+                                            : virtualCamera.install()}
                                 >
                                     {virtualCamera.running
                                         ? 'Virtual camera on'
-                                        : virtualCamera.status?.driverInstalled ? 'Start virtual camera' : 'Native component required'}
+                                        : virtualCamera.installing
+                                            ? 'Installing...'
+                                            : virtualCamera.status?.driverInstalled
+                                                ? 'Start virtual camera'
+                                                : virtualCamera.status?.installAvailable
+                                                    ? 'Install virtual camera'
+                                                    : 'Native component required'}
                                 </button>
                                 <small>{virtualCamera.error || virtualCamera.status?.message || 'Checking the Windows virtual camera component...'}</small>
                             </div>

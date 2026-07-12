@@ -40,6 +40,7 @@ let isStealth = false;
 let currentOpacity = 1.0;
 let virtualCameraBridgeProcess = null;
 let virtualCameraBackpressured = false;
+let virtualCameraFrameSender = null;
 let virtualCameraSequence = 0n;
 
 function nativeResourcePath(...parts) {
@@ -57,29 +58,80 @@ function fourCC(value) {
 
 function virtualCameraStatus() {
     const bridgePath = nativeResourcePath('windows-virtual-camera', 'WhisperVirtualCameraBridge.exe');
-    const installedMarker = nativeResourcePath('windows-virtual-camera', 'virtual-camera-installed.json');
+    const managerPath = nativeResourcePath('windows-virtual-camera', 'WhisperVirtualCameraManager.exe');
+    const sourcePath = nativeResourcePath('windows-virtual-camera', 'WhisperVirtualCameraSource.dll');
+    const programData = process.env.ProgramData || 'C:\\ProgramData';
+    const installedMarker = path.join(programData, 'InterviewWhisperer', 'VirtualCamera', 'virtual-camera-installed.json');
     const bridgeReady = process.platform === 'win32' && fs.existsSync(bridgePath);
-    const driverInstalled = bridgeReady && fs.existsSync(installedMarker);
+    const managerReady = process.platform === 'win32' && fs.existsSync(managerPath);
+    const sourceReady = process.platform === 'win32' && fs.existsSync(sourcePath);
+    const driverInstalled = bridgeReady && sourceReady && fs.existsSync(installedMarker);
+    const installAvailable = bridgeReady && managerReady && sourceReady;
+
+    let message = 'The Windows virtual camera components have not been built yet.';
+    if (driverInstalled) message = 'Whisper Virtual Camera is ready for Zoom and Teams.';
+    else if (installAvailable) message = 'Install the native camera once, then restart Zoom or Teams.';
+    else if (bridgeReady && !sourceReady) message = 'The frame relay is ready; the signed Media Foundation source still needs to be built.';
 
     return {
         platform: process.platform,
         supported: process.platform === 'win32',
         deviceName: 'Whisper Virtual Camera',
         bridgePath,
+        managerPath,
+        sourcePath,
         bridgeReady,
+        managerReady,
+        sourceReady,
+        installAvailable,
         driverInstalled,
-        message: driverInstalled
-            ? 'Whisper Virtual Camera is ready for Zoom and Teams.'
-            : 'The browser relay is ready; the signed Windows Media Foundation camera component still needs to be built and installed.',
+        message,
     };
 }
 
+function runVirtualCameraManager(action) {
+    return new Promise((resolve) => {
+        const status = virtualCameraStatus();
+        if (!status.managerReady || !status.sourceReady) {
+            resolve({ ok: false, message: status.message });
+            return;
+        }
+
+        const managerPath = status.managerPath.replaceAll("'", "''");
+        const command = `$process = Start-Process -FilePath '${managerPath}' -ArgumentList '${action}' -Verb RunAs -WindowStyle Hidden -PassThru -Wait; exit $process.ExitCode`;
+        const installer = spawn('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', command], {
+            stdio: 'ignore',
+            windowsHide: true,
+        });
+        let settled = false;
+        const finish = (result) => {
+            if (settled) return;
+            settled = true;
+            resolve(result);
+        };
+        installer.on('error', (error) => finish({ ok: false, message: error.message }));
+        installer.on('exit', (code) => {
+            const nextStatus = virtualCameraStatus();
+            const ok = code === 0 && (action === '--remove' || nextStatus.driverInstalled);
+            finish({ ok, status: nextStatus, message: ok ? nextStatus.message : 'Windows virtual camera setup did not complete.' });
+        });
+    });
+}
+
 function stopVirtualCameraBridge() {
-    if (!virtualCameraBridgeProcess) return;
-    try { virtualCameraBridgeProcess.stdin.end(); } catch { /* process already closed */ }
-    try { virtualCameraBridgeProcess.kill(); } catch { /* process already closed */ }
+    if (virtualCameraBridgeProcess) {
+        try { virtualCameraBridgeProcess.stdin.end(); } catch { /* process already closed */ }
+        try { virtualCameraBridgeProcess.kill(); } catch { /* process already closed */ }
+    }
     virtualCameraBridgeProcess = null;
     virtualCameraBackpressured = false;
+    virtualCameraFrameSender = null;
+}
+
+function signalVirtualCameraFrameReady(sender = virtualCameraFrameSender) {
+    virtualCameraFrameSender = null;
+    if (!sender || sender.isDestroyed()) return;
+    sender.send('virtual-camera:frame-ready');
 }
 
 function encodeVirtualCameraFrame(frame) {
@@ -304,6 +356,8 @@ app.whenReady().then(() => {
     }));
 
     ipcMain.handle('virtual-camera:get-status', () => virtualCameraStatus());
+    ipcMain.handle('virtual-camera:install', () => runVirtualCameraManager('--install'));
+    ipcMain.handle('virtual-camera:remove', () => runVirtualCameraManager('--remove'));
     ipcMain.handle('virtual-camera:start', (_event, options = {}) => {
         const status = virtualCameraStatus();
         if (!status.bridgeReady || !status.driverInstalled) return { ok: false, message: status.message };
@@ -320,32 +374,49 @@ app.whenReady().then(() => {
             console.error('[VirtualCamera] Bridge failed to start:', error.message);
             virtualCameraBridgeProcess = null;
             virtualCameraBackpressured = false;
+            signalVirtualCameraFrameReady();
         });
         virtualCameraBridgeProcess.on('exit', () => {
             virtualCameraBridgeProcess = null;
             virtualCameraBackpressured = false;
+            signalVirtualCameraFrameReady();
         });
         virtualCameraBridgeProcess.stdin.on('error', (error) => {
             if (error.code !== 'EPIPE') console.error('[VirtualCamera] Frame pipe error:', error.message);
         });
-        virtualCameraBridgeProcess.stdin.on('drain', () => { virtualCameraBackpressured = false; });
+        virtualCameraBridgeProcess.stdin.on('drain', () => {
+            virtualCameraBackpressured = false;
+            signalVirtualCameraFrameReady();
+        });
         return { ok: true, width, height, fps };
     });
     ipcMain.handle('virtual-camera:stop', () => {
         stopVirtualCameraBridge();
         return { ok: true };
     });
-    ipcMain.on('virtual-camera:frame', (_event, frame) => {
+    ipcMain.on('virtual-camera:frame', (event, frame) => {
         const input = virtualCameraBridgeProcess?.stdin;
-        if (!input?.writable || virtualCameraBackpressured) return;
+        if (!input?.writable) {
+            signalVirtualCameraFrameReady(event.sender);
+            return;
+        }
+        if (virtualCameraBackpressured) {
+            virtualCameraFrameSender = event.sender;
+            return;
+        }
         const packet = encodeVirtualCameraFrame(frame);
-        if (!packet) return;
+        if (!packet) {
+            signalVirtualCameraFrameReady(event.sender);
+            return;
+        }
 
         input.cork();
         const headerReady = input.write(packet.header);
         const frameReady = input.write(packet.data);
         input.uncork();
         virtualCameraBackpressured = !headerReady || !frameReady;
+        if (virtualCameraBackpressured) virtualCameraFrameSender = event.sender;
+        else signalVirtualCameraFrameReady(event.sender);
     });
 
     // ═══════════════════════════════════════════════════

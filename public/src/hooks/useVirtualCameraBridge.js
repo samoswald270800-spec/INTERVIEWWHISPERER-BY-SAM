@@ -1,13 +1,19 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 
-const TARGET_FPS = 60;
+const TARGET_FPS = 30;
+const DIRECT_COPY_FRAME_FORMATS = new Set(['I420', 'NV12']);
 
 export default function useVirtualCameraBridge(candidateStream) {
     const [status, setStatus] = useState(null);
     const [running, setRunning] = useState(false);
+    const [installing, setInstalling] = useState(false);
     const [error, setError] = useState('');
     const runningRef = useRef(false);
     const readerRef = useRef(null);
+    const frameReadyRef = useRef(true);
+    const usesFrameAcknowledgementsRef = useRef(false);
+    const unsubscribeFrameReadyRef = useRef(null);
+    const lastForwardedTimestampRef = useRef(0);
 
     const refreshStatus = useCallback(async () => {
         if (!window.electron?.virtualCamera?.getStatus) {
@@ -34,10 +40,36 @@ export default function useVirtualCameraBridge(candidateStream) {
 
     useEffect(() => { refreshStatus(); }, [refreshStatus]);
 
+    const install = useCallback(async () => {
+        if (!window.electron?.virtualCamera?.install) {
+            setError('Open this control in the Windows desktop app.');
+            return false;
+        }
+        setInstalling(true);
+        setError('');
+        try {
+            const result = await window.electron.virtualCamera.install();
+            const nextStatus = result?.status || await refreshStatus();
+            setStatus(nextStatus);
+            if (!result?.ok) setError(result?.message || 'Virtual camera installation did not complete.');
+            return Boolean(result?.ok);
+        } catch (installError) {
+            setError(installError.message || 'Virtual camera installation failed.');
+            return false;
+        } finally {
+            setInstalling(false);
+        }
+    }, [refreshStatus]);
+
     const stop = useCallback(async () => {
         runningRef.current = false;
         try { await readerRef.current?.cancel(); } catch { /* reader already closed */ }
         readerRef.current = null;
+        unsubscribeFrameReadyRef.current?.();
+        unsubscribeFrameReadyRef.current = null;
+        frameReadyRef.current = true;
+        usesFrameAcknowledgementsRef.current = false;
+        lastForwardedTimestampRef.current = 0;
         await window.electron?.virtualCamera?.stop?.().catch(() => {});
         setRunning(false);
     }, []);
@@ -71,34 +103,51 @@ export default function useVirtualCameraBridge(candidateStream) {
         const reader = processor.readable.getReader();
         readerRef.current = reader;
         runningRef.current = true;
+        frameReadyRef.current = true;
+        lastForwardedTimestampRef.current = 0;
+        usesFrameAcknowledgementsRef.current = typeof window.electron.virtualCamera.onFrameReady === 'function';
+        if (usesFrameAcknowledgementsRef.current) {
+            unsubscribeFrameReadyRef.current = window.electron.virtualCamera.onFrameReady(() => {
+                frameReadyRef.current = true;
+            });
+        }
         setRunning(true);
 
         const pump = async () => {
+            const minimumFrameIntervalUs = 1_000_000 / TARGET_FPS;
             while (runningRef.current) {
                 const { done, value: frame } = await reader.read();
                 if (done || !frame) break;
                 try {
-                    let format = 'NV12';
-                    let copyOptions = { format };
+                    const timestamp = Number(frame.timestamp) || Math.round(performance.now() * 1000);
+                    const previousTimestamp = lastForwardedTimestampRef.current;
+                    if (previousTimestamp && timestamp - previousTimestamp < minimumFrameIntervalUs * 0.9) continue;
+                    if (usesFrameAcknowledgementsRef.current && !frameReadyRef.current) continue;
+
+                    let format = frame.format;
+                    let copyOptions;
                     let size;
-                    try {
-                        size = frame.allocationSize(copyOptions);
-                    } catch {
-                        format = frame.format;
-                        copyOptions = undefined;
+                    if (DIRECT_COPY_FRAME_FORMATS.has(format)) {
                         size = frame.allocationSize();
+                    } else {
+                        format = 'NV12';
+                        copyOptions = { format };
+                        size = frame.allocationSize(copyOptions);
                     }
                     const bytes = new Uint8Array(size);
                     const layout = await frame.copyTo(bytes, copyOptions);
+                    if (usesFrameAcknowledgementsRef.current) frameReadyRef.current = false;
                     window.electron.virtualCamera.sendFrame({
                         format,
                         width: frame.codedWidth,
                         height: frame.codedHeight,
-                        timestamp: frame.timestamp || 0,
+                        timestamp,
                         layout: layout.map((plane) => ({ offset: plane.offset, stride: plane.stride })),
                         data: bytes,
                     });
+                    lastForwardedTimestampRef.current = timestamp;
                 } catch (frameError) {
+                    frameReadyRef.current = true;
                     console.warn('[VirtualCamera] frame copy failed:', frameError.message);
                 } finally {
                     frame.close();
@@ -113,5 +162,5 @@ export default function useVirtualCameraBridge(candidateStream) {
         return true;
     }, [candidateStream, refreshStatus, stop]);
 
-    return { status, running, error, start, stop, refreshStatus };
+    return { status, running, installing, error, install, start, stop, refreshStatus };
 }

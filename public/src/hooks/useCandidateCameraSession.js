@@ -14,6 +14,7 @@ export default function useCandidateCameraSession() {
     const [candidateStream, setCandidateStream] = useState(null);
     const [webrtcState, setWebrtcState] = useState('new');
     const [quality, setQuality] = useState(null);
+    const [sourceQuality, setSourceQuality] = useState(null);
     const [relayAudioEnabled, setRelayAudioEnabled] = useState(false);
     const [error, setError] = useState('');
 
@@ -45,6 +46,7 @@ export default function useCandidateCameraSession() {
         setCandidateStream(null);
         setWebrtcState('new');
         setQuality(null);
+        setSourceQuality(null);
     }, []);
 
     const stopRelayAudio = useCallback(async (renegotiate = true) => {
@@ -87,6 +89,7 @@ export default function useCandidateCameraSession() {
         const peer = new RTCPeerConnection({
             iceServers: sessionRef.current?.iceServers || [],
             bundlePolicy: 'max-bundle',
+            rtcpMuxPolicy: 'require',
             iceCandidatePoolSize: 4,
         });
         addRelayTracks(peer);
@@ -96,6 +99,10 @@ export default function useCandidateCameraSession() {
         };
         peer.ontrack = ({ track, streams }) => {
             if (track.kind !== 'video' && track.kind !== 'audio') return;
+            const receiver = peer.getReceivers().find((current) => current.track === track);
+            if (receiver && 'jitterBufferTarget' in receiver) {
+                try { receiver.jitterBufferTarget = track.kind === 'video' ? 75 : 60; } catch { /* browser-managed fallback */ }
+            }
             const inbound = streams?.[0] || new MediaStream([track]);
             setCandidateStream(inbound);
             if (track.kind === 'video') {
@@ -123,22 +130,40 @@ export default function useCandidateCameraSession() {
 
                             const previous = previousVideoStatsRef.current;
                             let megabitsPerSecond = null;
+                            let measuredFps = Math.max(0, inboundVideo.framesPerSecond || 0);
+                            let packetLossPercent = 0;
                             if (previous && inboundVideo.timestamp > previous.timestamp) {
-                                const bits = (inboundVideo.bytesReceived - previous.bytesReceived) * 8;
                                 const seconds = (inboundVideo.timestamp - previous.timestamp) / 1000;
+                                const bits = (inboundVideo.bytesReceived - previous.bytesReceived) * 8;
                                 megabitsPerSecond = Math.max(0, bits / seconds / 1_000_000);
+                                if (Number.isFinite(inboundVideo.framesDecoded)) {
+                                    measuredFps = Math.max(0, (inboundVideo.framesDecoded - previous.framesDecoded) / seconds);
+                                }
+                                const receivedDelta = Math.max(0, (inboundVideo.packetsReceived || 0) - previous.packetsReceived);
+                                const lostDelta = Math.max(0, (inboundVideo.packetsLost || 0) - previous.packetsLost);
+                                if (receivedDelta + lostDelta > 0) {
+                                    packetLossPercent = (lostDelta / (receivedDelta + lostDelta)) * 100;
+                                }
                             }
+                            const smoothedFps = previous?.smoothedFps === undefined
+                                ? measuredFps
+                                : (previous.smoothedFps * 0.6) + (measuredFps * 0.4);
                             previousVideoStatsRef.current = {
                                 bytesReceived: inboundVideo.bytesReceived,
                                 timestamp: inboundVideo.timestamp,
+                                framesDecoded: inboundVideo.framesDecoded || 0,
+                                packetsReceived: inboundVideo.packetsReceived || 0,
+                                packetsLost: inboundVideo.packetsLost || 0,
+                                smoothedFps,
                             };
                             setQuality({
                                 width: inboundVideo.frameWidth || 0,
                                 height: inboundVideo.frameHeight || 0,
-                                fps: Math.round(inboundVideo.framesPerSecond || 0),
+                                fps: Math.round(smoothedFps),
                                 mbps: megabitsPerSecond,
                                 jitterMs: Math.round((inboundVideo.jitter || 0) * 1000),
                                 packetsLost: inboundVideo.packetsLost || 0,
+                                packetLossPercent: Math.round(packetLossPercent * 10) / 10,
                             });
                         } catch { /* peer closed between timer ticks */ }
                     }, 1000);
@@ -211,6 +236,9 @@ export default function useCandidateCameraSession() {
         });
         socket.on('camera:signal', ({ sessionId, data }) => {
             if (sessionRef.current?.sessionId === sessionId) handleSignalRef.current(data);
+        });
+        socket.on('camera:quality', ({ sessionId, quality: nextQuality }) => {
+            if (sessionRef.current?.sessionId === sessionId) setSourceQuality(nextQuality);
         });
         socket.on('camera:session-ended', ({ sessionId }) => {
             if (sessionRef.current?.sessionId !== sessionId) return;
@@ -328,6 +356,7 @@ export default function useCandidateCameraSession() {
         candidateStream,
         webrtcState,
         quality,
+        sourceQuality,
         relayAudioEnabled,
         error,
         createSession,
