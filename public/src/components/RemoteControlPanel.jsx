@@ -17,15 +17,18 @@ function throttle(fn, ms) {
 
 export default function RemoteControlPanel({
     connected, onlineUsers, error, waitingConsent,
-    remoteSession, screenFrame, remoteStream,
-    connectWithPasscode, sendInputEvent, endSession
+    remoteSession, screenFrame, remoteStream, candidateMicStream,
+    returnAudioEnabled, returnAudioReady,
+    connectWithPasscode, sendInputEvent, setReturnAudioEnabled, endSession
 }) {
     const [passcodeInput, setPasscodeInput] = useState('');
     const [isFullscreen, setIsFullscreen] = useState(false);
     const [fps, setFps] = useState(0);
     const [audioOn, setAudioOn] = useState(false); // hear the controlled machine's audio
+    const [candidateMicOn, setCandidateMicOn] = useState(true);
     const canvasRef = useRef(null);
     const videoRef = useRef(null);
+    const candidateMicAudioRef = useRef(null);
     const containerRef = useRef(null);
     const imgBufferRef = useRef(new Image());
     const frameCountRef = useRef(0);
@@ -78,6 +81,23 @@ export default function RemoteControlPanel({
             }
         };
     }, [remoteStream]);
+
+    // Candidate microphone arrives as a separate WebRTC audio-only stream.
+    useEffect(() => {
+        const audio = candidateMicAudioRef.current;
+        if (!audio) return;
+
+        if (candidateMicStream) {
+            audio.srcObject = candidateMicStream;
+            audio.muted = !candidateMicOn;
+            if (candidateMicOn) {
+                audio.play().catch(() => {});
+            }
+        } else {
+            audio.pause();
+            audio.srcObject = null;
+        }
+    }, [candidateMicStream, candidateMicOn]);
 
     // Draw MJPEG fallback frame to canvas (double-buffered via Image preload)
     useEffect(() => {
@@ -235,13 +255,30 @@ export default function RemoteControlPanel({
                         <span className="rc-fps">{usingVideo ? 'HD' : 'SD'} · {fps} FPS</span>
                         {usingVideo && (
                             <button
-                                className="rc-toolbar-btn"
+                                className={`rc-toolbar-btn ${audioOn ? 'active' : ''}`}
                                 onClick={() => setAudioOn((v) => !v)}
-                                title={audioOn ? 'Mute user audio' : 'Hear user audio'}
+                                title={audioOn ? 'Mute controlled machine system audio' : 'Hear controlled machine system audio'}
                             >
+                                System Audio {audioOn ? 'On' : 'Off'}
                                 {audioOn ? '🔊' : '🔇'}
                             </button>
                         )}
+                        {candidateMicStream && (
+                            <button
+                                className={`rc-toolbar-btn ${candidateMicOn ? 'active' : ''}`}
+                                onClick={() => setCandidateMicOn((v) => !v)}
+                                title={candidateMicOn ? 'Mute candidate microphone' : 'Hear candidate microphone'}
+                            >
+                                Candidate Mic {candidateMicOn ? 'On' : 'Off'}
+                            </button>
+                        )}
+                        <button
+                            className={`rc-toolbar-btn ${returnAudioEnabled ? 'active' : ''}`}
+                            onClick={() => setReturnAudioEnabled?.(!returnAudioEnabled)}
+                            title={returnAudioEnabled ? 'Stop sending your microphone to the candidate side' : 'Send your microphone to the candidate side'}
+                        >
+                            Relay Mic {returnAudioReady ? 'On' : returnAudioEnabled ? 'Pending' : 'Off'}
+                        </button>
                         <button className="rc-toolbar-btn" onClick={toggleFullscreen} title="Fullscreen">
                             {isFullscreen ? '⊡' : '⊞'}
                         </button>
@@ -257,6 +294,7 @@ export default function RemoteControlPanel({
                     onKeyDown={(e) => handleKeyEvent(e, 'keydown')}
                     onKeyUp={(e) => handleKeyEvent(e, 'keyup')}
                 >
+                    <audio ref={candidateMicAudioRef} autoPlay playsInline muted={!candidateMicOn} />
                     {usingVideo ? (
                         <video
                             ref={videoRef}

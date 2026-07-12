@@ -4,6 +4,10 @@ import react from '@vitejs/plugin-react';
 export default defineConfig({
   base: './',
   plugins: [react()],
+  esbuild: {
+    drop: ['debugger'],
+    pure: ['console.log', 'console.debug'],
+  },
   build: {
     outDir: 'build',
     emptyOutDir: true,
@@ -13,15 +17,8 @@ export default defineConfig({
         login: './login.html',
       },
     },
-    // Production security: minify and drop console logs
-    minify: 'terser',
-    terserOptions: {
-      compress: {
-        drop_console: true,
-        drop_debugger: true,
-        pure_funcs: ['console.log', 'console.debug']
-      }
-    }
+    // esbuild avoids the Terser/CommonJS loader failure under Node ESM.
+    minify: 'esbuild',
   },
   server: {
     port: 5174,

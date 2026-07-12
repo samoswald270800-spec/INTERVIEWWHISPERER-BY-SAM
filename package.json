@@ -50,7 +50,9 @@
     "asar": true,
     "asarUnpack": [
       "**/node_modules/@nut-tree-fork/**",
-      "**/*.node"
+      "**/*.node",
+      "native/windows-audio-bridge/**",
+      "native/windows-virtual-camera/**"
     ],
     "files": [
       "electron-main.js",
@@ -58,6 +60,16 @@
       "public/build/**/*",
       "package.json",
       "node_modules/**/*"
+    ],
+    "extraResources": [
+      {
+        "from": "native/windows-audio-bridge",
+        "to": "native/windows-audio-bridge"
+      },
+      {
+        "from": "native/windows-virtual-camera",
+        "to": "native/windows-virtual-camera"
+      }
     ],
     "directories": {
       "output": "dist-electron"

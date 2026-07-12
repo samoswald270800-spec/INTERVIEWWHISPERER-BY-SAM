@@ -11,6 +11,7 @@ import SuperAdminDashboard from './components/SuperAdminDashboard';
 import AdminDashboard from './components/AdminDashboard';
 import useSocket from './hooks/useSocket';
 import UserHelpButton from './components/UserHelpButton';
+import CandidateCameraPage from './components/CandidateCameraPage';
 import './App.css';
 
 import API_BASE_URL from './config';
@@ -21,7 +22,7 @@ window._lastPC = null;
 window._lastDC = null;
 window._lastStream = null;
 
-export default function App() {
+function InterviewApp() {
     const instanceId = useRef(Math.random().toString(36).substring(7));
     console.log(`[App] Mounting instance: ${instanceId.current}`);
 
@@ -1220,6 +1221,7 @@ This is your chance to really impress. Leave nothing on the table.`;
                     remoteSession={socket.remoteSession}
                     webrtcState={socket.webrtcState}
                     startWebRTC={socket.startWebRTC}
+                    returnAudioStream={socket.returnAudioStream}
                     requestHelp={socket.requestHelp}
                     refreshPasscode={socket.refreshPasscode}
                     respondConsent={socket.respondConsent}
@@ -1229,4 +1231,10 @@ This is your chance to really impress. Leave nothing on the table.`;
             )}
         </div>
     );
+}
+
+export default function App() {
+    const candidateMatch = window.location.pathname.match(/^\/camera\/([a-zA-Z0-9_-]{32,128})\/?$/);
+    if (candidateMatch) return <CandidateCameraPage token={candidateMatch[1]} />;
+    return <InterviewApp />;
 }

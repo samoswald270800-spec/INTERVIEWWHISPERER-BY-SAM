@@ -27,6 +27,12 @@
 
 import { Server } from 'socket.io';
 import { createPasscode, verifyPasscode, consumePasscode, getPasscodeForUser, refreshPasscode } from '../services/passcode.js';
+import {
+  claimCameraSession,
+  createCameraSession,
+  deleteCameraSessionById,
+} from '../services/cameraSession.js';
+import { buildIceServers } from '../services/webrtc.js';
 
 // Track connected sockets by role
 const onlineUsers = new Map();   // userId -> { socketId, username, adminName }
@@ -49,6 +55,10 @@ export function initSocketIO(httpServer, sessionMiddleware) {
 
   // Share Express session with Socket.IO
   io.engine.use(sessionMiddleware);
+
+  // Guest camera publishing is isolated from remote-control events and uses a
+  // token-scoped namespace with its own authorization rules.
+  initializeCameraNamespace(io);
 
   io.on('connection', (socket) => {
     const session = socket.request.session;
@@ -251,6 +261,189 @@ export function initSocketIO(httpServer, sessionMiddleware) {
 
   console.log('🔌 Socket.IO initialized for remote control');
   return io;
+}
+
+function initializeCameraNamespace(io) {
+  const camera = io.of('/camera');
+  const activeCameraSessions = new Map();
+  const adminSessionIds = new Map();
+  const adminUserSessions = new Map();
+
+  camera.use(async (socket, next) => {
+    const session = socket.request.session;
+    if (session?.userId && session.role === 'super_admin') {
+      socket.data.cameraRole = 'admin';
+      socket.data.adminUserId = session.userId;
+      return next();
+    }
+
+    try {
+      const { token, guestId } = socket.handshake.auth || {};
+      const claim = await claimCameraSession(token, guestId);
+      if (!claim.ok) {
+        const messages = {
+          claimed: 'This camera link has already been claimed in another browser.',
+          expired: 'This camera link is invalid or has expired.',
+          invalid_guest: 'This browser could not establish a camera identity.',
+        };
+        return next(new Error(messages[claim.reason] || 'Camera session authorization failed.'));
+      }
+
+      socket.data.cameraRole = 'candidate';
+      socket.data.cameraSession = claim.session;
+      return next();
+    } catch (error) {
+      console.error('[Camera] Authorization failed:', error.message);
+      return next(new Error('Camera session authorization failed.'));
+    }
+  });
+
+  camera.on('connection', (socket) => {
+    if (socket.data.cameraRole === 'candidate') {
+      registerCandidateCameraSocket(socket);
+      return;
+    }
+
+    registerAdminCameraSocket(socket);
+  });
+
+  function trackActiveCameraSession(active) {
+    const delay = Math.max(0, active.expiresAt - Date.now());
+    active.expiryTimer = setTimeout(() => {
+      endCameraSession(active.id, 'expired').catch(() => {});
+    }, delay);
+    activeCameraSessions.set(active.id, active);
+  }
+
+  function registerCandidateCameraSocket(socket) {
+    const persisted = socket.data.cameraSession;
+    let active = activeCameraSessions.get(persisted.id);
+    if (!active) {
+      active = {
+        id: persisted.id,
+        adminUserId: persisted.adminUserId,
+        adminSocketId: persisted.adminSocketId,
+        expiresAt: persisted.expiresAt,
+        candidateSocketId: null,
+      };
+      trackActiveCameraSession(active);
+    }
+
+    const adminSocket = camera.sockets.get(active.adminSocketId);
+    if (!adminSocket || adminSocket.data.cameraRole !== 'admin') {
+      socket.emit('camera:session-error', { message: 'The superadmin is no longer connected.' });
+      setTimeout(() => socket.disconnect(true), 100);
+      return;
+    }
+
+    const currentCandidate = active.candidateSocketId && camera.sockets.get(active.candidateSocketId);
+    if (currentCandidate && currentCandidate.id !== socket.id) {
+      socket.emit('camera:session-error', { message: 'The candidate camera is already connected.' });
+      setTimeout(() => socket.disconnect(true), 100);
+      return;
+    }
+
+    active.candidateSocketId = socket.id;
+    socket.join(active.id);
+    adminSocket.join(active.id);
+
+    socket.emit('camera:session-ready', {
+      sessionId: active.id,
+      expiresAt: active.expiresAt,
+      iceServers: buildIceServers(),
+    });
+    adminSocket.emit('camera:candidate-joined', {
+      sessionId: active.id,
+      expiresAt: active.expiresAt,
+    });
+
+    socket.on('camera:signal', ({ data } = {}) => {
+      if (!data || active.candidateSocketId !== socket.id) return;
+      camera.to(active.adminSocketId).emit('camera:signal', { sessionId: active.id, data });
+    });
+
+    socket.on('camera:leave', () => socket.disconnect(true));
+
+    socket.on('disconnect', () => {
+      const current = activeCameraSessions.get(active.id);
+      if (!current || current.candidateSocketId !== socket.id) return;
+      current.candidateSocketId = null;
+      camera.to(current.adminSocketId).emit('camera:candidate-left', { sessionId: current.id });
+    });
+  }
+
+  function registerAdminCameraSocket(socket) {
+    socket.on('camera:create-session', async (_payload, acknowledge) => {
+      const ack = typeof acknowledge === 'function' ? acknowledge : () => {};
+      try {
+        const previousId = adminUserSessions.get(socket.data.adminUserId) || adminSessionIds.get(socket.id);
+        if (previousId) await endCameraSession(previousId, 'replaced');
+
+        const created = await createCameraSession({
+          adminUserId: socket.data.adminUserId,
+          adminSocketId: socket.id,
+        });
+        const active = {
+          id: created.id,
+          adminUserId: created.adminUserId,
+          adminSocketId: socket.id,
+          expiresAt: created.expiresAt,
+          candidateSocketId: null,
+        };
+        trackActiveCameraSession(active);
+        adminSessionIds.set(socket.id, created.id);
+        adminUserSessions.set(created.adminUserId, created.id);
+        socket.join(created.id);
+
+        ack({
+          ok: true,
+          sessionId: created.id,
+          token: created.token,
+          expiresAt: created.expiresAt,
+          iceServers: buildIceServers(),
+        });
+      } catch (error) {
+        console.error('[Camera] Failed to create session:', error.message);
+        ack({ ok: false, error: 'Failed to create camera session.' });
+      }
+    });
+
+    socket.on('camera:signal', ({ sessionId, data } = {}) => {
+      const active = activeCameraSessions.get(sessionId);
+      if (!active || active.adminSocketId !== socket.id || !active.candidateSocketId || !data) return;
+      camera.to(active.candidateSocketId).emit('camera:signal', { sessionId, data });
+    });
+
+    socket.on('camera:end-session', async ({ sessionId } = {}, acknowledge) => {
+      const ack = typeof acknowledge === 'function' ? acknowledge : () => {};
+      const active = activeCameraSessions.get(sessionId);
+      if (!active || active.adminSocketId !== socket.id) return ack({ ok: false });
+      await endCameraSession(sessionId, 'ended');
+      ack({ ok: true });
+    });
+
+    socket.on('disconnect', () => {
+      const sessionId = adminSessionIds.get(socket.id);
+      if (sessionId) endCameraSession(sessionId, 'admin_disconnected').catch(() => {});
+    });
+  }
+
+  async function endCameraSession(sessionId, reason) {
+    const active = activeCameraSessions.get(sessionId);
+    if (!active) return;
+
+    if (active.expiryTimer) clearTimeout(active.expiryTimer);
+    activeCameraSessions.delete(sessionId);
+    adminSessionIds.delete(active.adminSocketId);
+    if (adminUserSessions.get(active.adminUserId) === sessionId) {
+      adminUserSessions.delete(active.adminUserId);
+    }
+    camera.to(sessionId).emit('camera:session-ended', { sessionId, reason });
+
+    const candidateSocket = active.candidateSocketId && camera.sockets.get(active.candidateSocketId);
+    if (candidateSocket) candidateSocket.disconnect(true);
+    await deleteCameraSessionById(sessionId);
+  }
 }
 
 function getOnlineUsersList() {

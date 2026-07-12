@@ -83,6 +83,11 @@
 }
 .rc-toolbar-btn:hover { background: rgba(255,255,255,0.1); color: #fff; transform: translateY(-1px); }
 .rc-toolbar-btn:active { transform: scale(0.98); }
+.rc-toolbar-btn.active {
+    background: rgba(50,215,75,0.12);
+    border-color: rgba(50,215,75,0.3);
+    color: #32D74B;
+}
 .rc-toolbar-end {
     background: rgba(255,69,58,0.1); border-color: rgba(255,69,58,0.25); color: #FF453A;
 }
