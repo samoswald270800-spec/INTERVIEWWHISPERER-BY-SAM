@@ -26,6 +26,9 @@ outbound Zoom/Teams audio device.
 - Tokens contain 256 bits of randomness and expire after 30 minutes by default.
 - Redis stores only SHA-256 token hashes.
 - The first browser identity to open a link claims it; another browser is rejected.
+- Creating a new link immediately revokes the previous link for that superadmin.
+- Leaving ends and revokes the link. An unexpected network drop has a 15-second
+  reconnect grace period, after which the link is permanently invalid.
 - Guest sockets use the isolated `/camera` namespace and cannot register remote-
   control or admin event handlers.
 - The camera page sends `no-referrer`, `no-store`, and restrictive media
