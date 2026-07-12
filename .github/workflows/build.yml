@@ -45,6 +45,9 @@ jobs:
       - name: Build Windows virtual camera components
         run: cmake --build "$env:RUNNER_TEMP/whisper-vcam-build" --config Release
 
+      - name: Test Windows virtual camera source
+        run: ctest --test-dir "$env:RUNNER_TEMP/whisper-vcam-build" -C Release --output-on-failure
+
       - name: Bundle Windows virtual camera components
         shell: powershell
         run: |

@@ -51,7 +51,10 @@ class CameraMediaStream;
 class CameraMediaSource final
     : public Microsoft::WRL::RuntimeClass<
         Microsoft::WRL::RuntimeClassFlags<Microsoft::WRL::ClassicCom>,
-        IMFMediaSourceEx,
+        Microsoft::WRL::ChainInterfaces<
+            IMFMediaSourceEx,
+            IMFMediaSource,
+            IMFMediaEventGenerator>,
         IMFGetService,
         IKsControl,
         IMFSampleAllocatorControl>
@@ -123,7 +126,10 @@ private:
 class CameraMediaStream final
     : public Microsoft::WRL::RuntimeClass<
         Microsoft::WRL::RuntimeClassFlags<Microsoft::WRL::ClassicCom>,
-        IMFMediaStream2>
+        Microsoft::WRL::ChainInterfaces<
+            IMFMediaStream2,
+            IMFMediaStream,
+            IMFMediaEventGenerator>>
     , public ModuleTracked {
 public:
     HRESULT Initialize(CameraMediaSource* source, DWORD streamId);
@@ -175,7 +181,7 @@ private:
 class CameraActivate final
     : public Microsoft::WRL::RuntimeClass<
         Microsoft::WRL::RuntimeClassFlags<Microsoft::WRL::ClassicCom>,
-        IMFActivate>
+        Microsoft::WRL::ChainInterfaces<IMFActivate, IMFAttributes>>
     , public ModuleTracked {
 public:
     HRESULT Initialize();

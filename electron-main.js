@@ -56,12 +56,46 @@ function fourCC(value) {
         | (value.charCodeAt(3) << 24);
 }
 
+const virtualCameraStageLabels = Object.freeze({
+    'initialize-com': 'initializing Windows COM',
+    'initialize-media-foundation': 'initializing Media Foundation',
+    'find-source': 'finding the camera source',
+    'create-install-directory': 'creating the install directory',
+    'copy-source': 'copying the camera source',
+    'register-source': 'registering the camera source',
+    'check-support': 'checking Windows camera support',
+    'create-camera': 'creating the Windows camera',
+    'start-camera': 'starting the Windows camera',
+    'write-install-marker': 'finishing installation',
+    'remove-camera': 'removing the Windows camera',
+    'unregister-source': 'unregistering the camera source',
+    'validate-command': 'validating the setup command',
+});
+
+function readJsonFile(filePath) {
+    try {
+        return JSON.parse(fs.readFileSync(filePath, 'utf8'));
+    } catch {
+        return null;
+    }
+}
+
+function virtualCameraFailureMessage(result) {
+    if (!result || result.ok) return '';
+    const stage = virtualCameraStageLabels[result.stage] || result.stage || 'running Windows setup';
+    const detail = result.systemMessage || result.message || 'Windows returned an unknown error.';
+    const code = result.hresult && result.hresult !== '0x00000000' ? ` (${result.hresult})` : '';
+    return `Virtual camera setup failed while ${stage}: ${detail}${code}`;
+}
+
 function virtualCameraStatus() {
     const bridgePath = nativeResourcePath('windows-virtual-camera', 'WhisperVirtualCameraBridge.exe');
     const managerPath = nativeResourcePath('windows-virtual-camera', 'WhisperVirtualCameraManager.exe');
     const sourcePath = nativeResourcePath('windows-virtual-camera', 'WhisperVirtualCameraSource.dll');
     const programData = process.env.ProgramData || 'C:\\ProgramData';
     const installedMarker = path.join(programData, 'InterviewWhisperer', 'VirtualCamera', 'virtual-camera-installed.json');
+    const resultPath = path.join(programData, 'InterviewWhisperer', 'VirtualCamera', 'virtual-camera-last-result.json');
+    const lastSetupResult = readJsonFile(resultPath);
     const bridgeReady = process.platform === 'win32' && fs.existsSync(bridgePath);
     const managerReady = process.platform === 'win32' && fs.existsSync(managerPath);
     const sourceReady = process.platform === 'win32' && fs.existsSync(sourcePath);
@@ -72,6 +106,9 @@ function virtualCameraStatus() {
     if (driverInstalled) message = 'Whisper Virtual Camera is ready for Zoom and Teams.';
     else if (installAvailable) message = 'Install the native camera once, then restart Zoom or Teams.';
     else if (bridgeReady && !sourceReady) message = 'The frame relay is ready; the signed Media Foundation source still needs to be built.';
+    if (!driverInstalled && lastSetupResult?.action === '--install' && !lastSetupResult.ok) {
+        message = virtualCameraFailureMessage(lastSetupResult);
+    }
 
     return {
         platform: process.platform,
@@ -85,12 +122,15 @@ function virtualCameraStatus() {
         sourceReady,
         installAvailable,
         driverInstalled,
+        resultPath,
+        lastSetupResult,
         message,
     };
 }
 
 function runVirtualCameraManager(action) {
     return new Promise((resolve) => {
+        const startedAt = Date.now();
         const status = virtualCameraStatus();
         if (!status.managerReady || !status.sourceReady) {
             resolve({ ok: false, message: status.message });
@@ -112,8 +152,19 @@ function runVirtualCameraManager(action) {
         installer.on('error', (error) => finish({ ok: false, message: error.message }));
         installer.on('exit', (code) => {
             const nextStatus = virtualCameraStatus();
-            const ok = code === 0 && (action === '--remove' || nextStatus.driverInstalled);
-            finish({ ok, status: nextStatus, message: ok ? nextStatus.message : 'Windows virtual camera setup did not complete.' });
+            const setupResult = nextStatus.lastSetupResult;
+            const resultIsFresh = setupResult?.action === action
+                && Number(setupResult.updatedAt) >= startedAt - 2000;
+            const managerSucceeded = resultIsFresh ? setupResult.ok === true : code === 0;
+            const ok = code === 0
+                && managerSucceeded
+                && (action === '--remove' || nextStatus.driverInstalled);
+            const message = ok
+                ? nextStatus.message
+                : resultIsFresh
+                    ? virtualCameraFailureMessage(setupResult)
+                    : 'Windows virtual camera setup was cancelled or could not start.';
+            finish({ ok, status: nextStatus, setupResult: resultIsFresh ? setupResult : null, message });
         });
     });
 }
