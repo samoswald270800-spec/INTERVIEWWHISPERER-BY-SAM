@@ -84,7 +84,7 @@ export default function useVirtualCameraBridge(candidateStream) {
             return false;
         }
         if (!currentStatus?.bridgeReady || !currentStatus?.driverInstalled) {
-            setError(currentStatus?.message || 'The signed Windows virtual camera component is not installed.');
+            setError(currentStatus?.message || 'The Windows virtual camera component is not installed.');
             return false;
         }
         if (!globalThis.MediaStreamTrackProcessor) {

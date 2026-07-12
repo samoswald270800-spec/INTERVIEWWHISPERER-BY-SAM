@@ -50,6 +50,7 @@ jobs:
         run: |
           Copy-Item "$env:RUNNER_TEMP/whisper-vcam-build/Release/WhisperVirtualCameraBridge.exe" native/windows-virtual-camera/WhisperVirtualCameraBridge.exe
           Copy-Item "$env:RUNNER_TEMP/whisper-vcam-build/Release/WhisperVirtualCameraManager.exe" native/windows-virtual-camera/WhisperVirtualCameraManager.exe
+          Copy-Item "$env:RUNNER_TEMP/whisper-vcam-build/Release/WhisperVirtualCameraSource.dll" native/windows-virtual-camera/WhisperVirtualCameraSource.dll
 
       - name: Build Electron app (Windows)
         run: npx electron-builder --win --x64 --publish never

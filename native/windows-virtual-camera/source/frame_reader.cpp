@@ -106,6 +106,10 @@ FrameReader::~FrameReader() {
 
 void FrameReader::Start() {
     if (running_.exchange(true)) return;
+    {
+        std::lock_guard lock(latestMutex_);
+        latest_ = {};
+    }
     readThread_ = std::thread(&FrameReader::ReadLoop, this);
 }
 
@@ -118,8 +122,12 @@ void FrameReader::Stop() {
 }
 
 bool FrameReader::CopyLatest(Nv12Frame& destination) const {
+    return CopyLatestAfter(0, destination);
+}
+
+bool FrameReader::CopyLatestAfter(std::uint64_t sequence, Nv12Frame& destination) const {
     std::lock_guard lock(latestMutex_);
-    if (latest_.sequence == 0 || latest_.bytes.empty()) return false;
+    if (latest_.sequence == 0 || latest_.sequence == sequence || latest_.bytes.empty()) return false;
     destination = latest_;
     return true;
 }

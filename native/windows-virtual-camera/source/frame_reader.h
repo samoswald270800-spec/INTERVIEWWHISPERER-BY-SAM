@@ -29,6 +29,7 @@ public:
     void Start();
     void Stop();
     bool CopyLatest(Nv12Frame& destination) const;
+    bool CopyLatestAfter(std::uint64_t sequence, Nv12Frame& destination) const;
 
 private:
     void ReadLoop();
