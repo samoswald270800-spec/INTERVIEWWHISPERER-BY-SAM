@@ -5,6 +5,8 @@ name: Build Desktop App
 # storage used), so builds are safe to run on merge.
 on:
   workflow_dispatch:
+  pull_request:
+    branches: [main-2.0]
   push:
     branches: [main-2.0]
 
@@ -59,6 +61,7 @@ jobs:
         run: npx electron-builder --win --x64 --publish never
 
       - name: Publish Windows installer to Release
+        if: github.event_name != 'pull_request'
         uses: softprops/action-gh-release@v2
         with:
           tag_name: build-${{ github.run_number }}
@@ -92,6 +95,7 @@ jobs:
   # matches the CPU. Covers Macs from ~2020 onward.)
   # ─────────────────────────────────────────────
   build-mac:
+    if: github.event_name != 'pull_request'
     needs: build-windows
     runs-on: macos-latest
     steps:
