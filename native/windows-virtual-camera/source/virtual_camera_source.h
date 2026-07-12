@@ -12,6 +12,7 @@
 #include <propvarutil.h>
 #include <ks.h>
 #include <ksmedia.h>
+#include <ksproxy.h>
 #include <wrl.h>
 #include <wrl/client.h>
 
