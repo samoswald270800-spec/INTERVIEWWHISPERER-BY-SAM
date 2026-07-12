@@ -143,6 +143,7 @@ int wmain(int argc, wchar_t* argv[]) {
     std::cin.tie(nullptr);
 
     std::thread pipeThread(PipeServer);
+    std::cout << "READY" << std::endl;
     LatestFrame incoming;
     while (gRunning.load()) {
         FrameHeader header{};
@@ -162,6 +163,8 @@ int wmain(int argc, wchar_t* argv[]) {
             gLatestFrame.bytes.swap(incoming.bytes);
         }
         gFrameReady.notify_one();
+        std::cout << "FRAME " << header.sequence << ' '
+                  << header.width << ' ' << header.height << std::endl;
     }
 
     gRunning.store(false);
