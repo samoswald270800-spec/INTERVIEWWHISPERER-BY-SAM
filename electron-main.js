@@ -38,6 +38,87 @@ let mainWindow;
 let tray = null;
 let isStealth = false;
 let currentOpacity = 1.0;
+let virtualCameraBridgeProcess = null;
+let virtualCameraBackpressured = false;
+let virtualCameraSequence = 0n;
+
+function nativeResourcePath(...parts) {
+    const root = app.isPackaged ? process.resourcesPath : __dirname;
+    return path.join(root, 'native', ...parts);
+}
+
+function fourCC(value) {
+    if (typeof value !== 'string' || value.length !== 4) return 0;
+    return value.charCodeAt(0)
+        | (value.charCodeAt(1) << 8)
+        | (value.charCodeAt(2) << 16)
+        | (value.charCodeAt(3) << 24);
+}
+
+function virtualCameraStatus() {
+    const bridgePath = nativeResourcePath('windows-virtual-camera', 'WhisperVirtualCameraBridge.exe');
+    const installedMarker = nativeResourcePath('windows-virtual-camera', 'virtual-camera-installed.json');
+    const bridgeReady = process.platform === 'win32' && fs.existsSync(bridgePath);
+    const driverInstalled = bridgeReady && fs.existsSync(installedMarker);
+
+    return {
+        platform: process.platform,
+        supported: process.platform === 'win32',
+        deviceName: 'Whisper Virtual Camera',
+        bridgePath,
+        bridgeReady,
+        driverInstalled,
+        message: driverInstalled
+            ? 'Whisper Virtual Camera is ready for Zoom and Teams.'
+            : 'The browser relay is ready; the signed Windows Media Foundation camera component still needs to be built and installed.',
+    };
+}
+
+function stopVirtualCameraBridge() {
+    if (!virtualCameraBridgeProcess) return;
+    try { virtualCameraBridgeProcess.stdin.end(); } catch { /* process already closed */ }
+    try { virtualCameraBridgeProcess.kill(); } catch { /* process already closed */ }
+    virtualCameraBridgeProcess = null;
+    virtualCameraBackpressured = false;
+}
+
+function encodeVirtualCameraFrame(frame) {
+    const formatCodes = {
+        I420: fourCC('I420'),
+        NV12: fourCC('NV12'),
+        RGBA: fourCC('RGBA'),
+        RGBX: fourCC('RGBX'),
+        BGRA: fourCC('BGRA'),
+        BGRX: fourCC('BGRX'),
+    };
+    const format = formatCodes[frame?.format];
+    const width = Number(frame?.width);
+    const height = Number(frame?.height);
+    const source = frame?.data;
+    if (!format || !Number.isInteger(width) || !Number.isInteger(height) || width < 2 || height < 2 || !source) return null;
+
+    const data = Buffer.from(source.buffer, source.byteOffset || 0, source.byteLength);
+    if (!data.length || data.length > 16 * 1024 * 1024) return null;
+
+    const layout = Array.isArray(frame.layout) ? frame.layout.slice(0, 4) : [];
+    const header = Buffer.alloc(76);
+    header.writeUInt32LE(fourCC('WVC1') >>> 0, 0);
+    header.writeUInt16LE(1, 4);
+    header.writeUInt16LE(header.length, 6);
+    header.writeUInt32LE(format >>> 0, 8);
+    header.writeUInt32LE(width, 12);
+    header.writeUInt32LE(height, 16);
+    header.writeBigUInt64LE(BigInt(Math.max(0, Math.trunc(Number(frame.timestamp) || 0))), 20);
+    header.writeBigUInt64LE(++virtualCameraSequence, 28);
+    header.writeUInt32LE(data.length, 36);
+    header.writeUInt32LE(layout.length, 40);
+    layout.forEach((plane, index) => {
+        const offset = 44 + (index * 8);
+        header.writeUInt32LE(Math.max(0, Number(plane.offset) || 0), offset);
+        header.writeUInt32LE(Math.max(0, Number(plane.stride) || 0), offset + 4);
+    });
+    return { header, data };
+}
 
 // When a second instance is attempted, focus the existing window instead
 app.on('second-instance', () => {
@@ -207,6 +288,64 @@ app.whenReady().then(() => {
             currentOpacity = Math.max(0.2, Math.min(1, value)); // Store it
             mainWindow.setOpacity(currentOpacity);
         }
+    });
+
+    const relayBridgePath = nativeResourcePath('windows-audio-bridge', 'WhisperAudioBridge.exe');
+    ipcMain.handle('relay-audio:get-status', () => ({
+        platform: process.platform,
+        supported: process.platform === 'win32',
+        deviceName: 'Whisper Virtual Microphone',
+        sampleRate: 48000,
+        channels: 2,
+        bridgePath: relayBridgePath,
+        bridgeReady: process.platform === 'win32' && fs.existsSync(relayBridgePath),
+        driverInstalled: false,
+        message: 'Windows audio relay scaffold is present; signed virtual microphone driver is not bundled yet.',
+    }));
+
+    ipcMain.handle('virtual-camera:get-status', () => virtualCameraStatus());
+    ipcMain.handle('virtual-camera:start', (_event, options = {}) => {
+        const status = virtualCameraStatus();
+        if (!status.bridgeReady || !status.driverInstalled) return { ok: false, message: status.message };
+        if (virtualCameraBridgeProcess) return { ok: true, alreadyRunning: true };
+
+        const width = Math.max(320, Math.min(1920, Number(options.width) || 1280));
+        const height = Math.max(180, Math.min(1080, Number(options.height) || 720));
+        const fps = Math.max(15, Math.min(60, Number(options.fps) || 30));
+        virtualCameraBridgeProcess = spawn(status.bridgePath, [
+            '--width', String(width), '--height', String(height), '--fps', String(fps),
+        ], { stdio: ['pipe', 'pipe', 'pipe'], windowsHide: true });
+        virtualCameraBridgeProcess.stderr.on('data', (chunk) => console.error('[VirtualCamera]', chunk.toString().trim()));
+        virtualCameraBridgeProcess.on('error', (error) => {
+            console.error('[VirtualCamera] Bridge failed to start:', error.message);
+            virtualCameraBridgeProcess = null;
+            virtualCameraBackpressured = false;
+        });
+        virtualCameraBridgeProcess.on('exit', () => {
+            virtualCameraBridgeProcess = null;
+            virtualCameraBackpressured = false;
+        });
+        virtualCameraBridgeProcess.stdin.on('error', (error) => {
+            if (error.code !== 'EPIPE') console.error('[VirtualCamera] Frame pipe error:', error.message);
+        });
+        virtualCameraBridgeProcess.stdin.on('drain', () => { virtualCameraBackpressured = false; });
+        return { ok: true, width, height, fps };
+    });
+    ipcMain.handle('virtual-camera:stop', () => {
+        stopVirtualCameraBridge();
+        return { ok: true };
+    });
+    ipcMain.on('virtual-camera:frame', (_event, frame) => {
+        const input = virtualCameraBridgeProcess?.stdin;
+        if (!input?.writable || virtualCameraBackpressured) return;
+        const packet = encodeVirtualCameraFrame(frame);
+        if (!packet) return;
+
+        input.cork();
+        const headerReady = input.write(packet.header);
+        const frameReady = input.write(packet.data);
+        input.uncork();
+        virtualCameraBackpressured = !headerReady || !frameReady;
     });
 
     // ═══════════════════════════════════════════════════
@@ -520,6 +659,7 @@ Write-Output "READY"
 
     // Cleanup PS process on quit
     app.on('before-quit', () => {
+        stopVirtualCameraBridge();
         if (psProcess) { psProcess.stdin.end(); psProcess.kill(); }
     });
 

@@ -22,6 +22,7 @@ import {
 import superAdminRoutes from './routes/super-admin.js';
 import adminRoutes from './routes/admin.js';
 import { loadDocuments } from './routes/interview.js';
+import { buildIceServers } from './services/webrtc.js';
 import {
   forceLogoutUser,
   forceLogoutAdmin,
@@ -84,7 +85,24 @@ export async function createApp() {
 
   // Serve static assets (CSS, JS, images) BEFORE auth - these are public
   app.use('/assets', express.static(path.join(ROOT_DIR, 'public', 'build', 'assets')));
+  app.use('/camera/assets', express.static(path.join(ROOT_DIR, 'public', 'build', 'assets')));
   app.use('/src', express.static(path.join(ROOT_DIR, 'public', 'build', 'src')));
+
+  // Public, token-scoped candidate camera page. Authorization for the media
+  // session happens on the isolated /camera Socket.IO namespace.
+  app.get('/camera/:token', (req, res) => {
+    if (req.path.endsWith('/')) return res.redirect(308, req.path.slice(0, -1));
+    if (!/^[a-zA-Z0-9_-]{32,128}$/.test(req.params.token || '')) {
+      return res.status(404).send('Camera session not found');
+    }
+    res.set({
+      'Cache-Control': 'no-store',
+      'Referrer-Policy': 'no-referrer',
+      'Permissions-Policy': 'camera=(self), microphone=(self)',
+      'Content-Security-Policy': "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; media-src 'self' blob:; connect-src 'self' ws: wss:; font-src 'self'",
+    });
+    return res.sendFile(path.join(ROOT_DIR, 'public', 'build', 'index.html'));
+  });
 
   // ===== AUTH GATE: Everything below requires authentication =====
   app.use(requireAuth);
@@ -150,31 +168,5 @@ function loadResumeFiles() {
  *   - WEBRTC_ICE_SERVERS : full JSON array of RTCIceServer objects (overrides all)
  *   - TURN_URL / TURN_USERNAME / TURN_CREDENTIAL : a single TURN server
  */
-function buildIceServers() {
-  // Full override wins
-  if (process.env.WEBRTC_ICE_SERVERS) {
-    try {
-      const custom = JSON.parse(process.env.WEBRTC_ICE_SERVERS);
-      if (Array.isArray(custom) && custom.length) return custom;
-    } catch (e) {
-      console.warn('Invalid WEBRTC_ICE_SERVERS JSON, falling back to defaults:', e.message);
-    }
-  }
-
-  const servers = [
-    { urls: ['stun:stun.l.google.com:19302', 'stun:stun1.l.google.com:19302'] },
-  ];
-
-  if (process.env.TURN_URL) {
-    servers.push({
-      urls: process.env.TURN_URL,
-      username: process.env.TURN_USERNAME || '',
-      credential: process.env.TURN_CREDENTIAL || '',
-    });
-  }
-
-  return servers;
-}
-
 export default createApp;
 

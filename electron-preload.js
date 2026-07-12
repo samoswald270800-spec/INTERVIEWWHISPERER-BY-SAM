@@ -9,4 +9,13 @@ contextBridge.exposeInMainWorld('electron', {
     simulateInput: (event) => ipcRenderer.send('rc:simulate-input', event),
     // Ask the OS for input-control permission (macOS Accessibility prompt)
     ensureInputPermission: () => ipcRenderer.send('rc:ensure-input-permission'),
+    relayAudio: {
+        getStatus: () => ipcRenderer.invoke('relay-audio:get-status'),
+    },
+    virtualCamera: {
+        getStatus: () => ipcRenderer.invoke('virtual-camera:get-status'),
+        start: (options) => ipcRenderer.invoke('virtual-camera:start', options),
+        stop: () => ipcRenderer.invoke('virtual-camera:stop'),
+        sendFrame: (frame) => ipcRenderer.send('virtual-camera:frame', frame),
+    },
 });

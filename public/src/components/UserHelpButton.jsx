@@ -12,7 +12,7 @@ const WEBRTC_CONNECT_TIMEOUT = 8000;
 
 export default function UserHelpButton({
     connected, passcode, consentRequest, remoteSession,
-    webrtcState, startWebRTC,
+    webrtcState, startWebRTC, returnAudioStream,
     requestHelp, refreshPasscode, respondConsent, sendScreenFrame, endSession
 }) {
     const [expanded, setExpanded] = useState(false);
@@ -22,6 +22,7 @@ export default function UserHelpButton({
     webrtcStateRef.current = webrtcState;
     const fallbackTimerRef = useRef(null);
     const fallbackFnRef = useRef(null);
+    const returnAudioRef = useRef(null);
 
     // MJPEG fallback frame → socket
     const onFrame = useCallback((frame) => {
@@ -29,8 +30,8 @@ export default function UserHelpButton({
     }, [sendScreenFrame]);
 
     // Primary path: hand the raw stream to WebRTC, then arm a fallback watchdog
-    const onStream = useCallback((stream) => {
-        startWebRTC(stream);
+    const onStream = useCallback((stream, candidateMicStream) => {
+        startWebRTC(stream, candidateMicStream);
         clearTimeout(fallbackTimerRef.current);
         fallbackTimerRef.current = setTimeout(() => {
             const s = webrtcStateRef.current;
@@ -44,8 +45,25 @@ export default function UserHelpButton({
     const { isCapturing, startCapture, startMjpegFallback, stopCapture } = useScreenCapture({
         onFrame,
         onStream,
+        includeMicrophone: true,
     });
     fallbackFnRef.current = startMjpegFallback;
+
+    // Candidate hears only the super admin return-audio lane.
+    useEffect(() => {
+        const audio = returnAudioRef.current;
+        if (!audio) return;
+
+        if (remoteSession?.controlled && returnAudioStream) {
+            audio.srcObject = returnAudioStream;
+            audio.play().catch((err) => {
+                console.warn('[RemoteControl] return audio playback failed:', err.message);
+            });
+        } else {
+            audio.pause();
+            audio.srcObject = null;
+        }
+    }, [remoteSession?.controlled, returnAudioStream]);
 
     // Auto-start screen capture when remote session begins
     useEffect(() => {
@@ -113,8 +131,9 @@ export default function UserHelpButton({
     if (remoteSession?.controlled) {
         return (
             <div className="uh-active-bar">
+                <audio ref={returnAudioRef} autoPlay playsInline />
                 <span className="uh-active-dot"></span>
-                <span>Admin is viewing your screen {streaming ? '(streaming)' : '(starting...)'}</span>
+                <span>Admin is connected {streaming ? '(screen and audio relay active)' : '(starting...)'}</span>
                 <button className="uh-btn uh-btn-end" onClick={handleEndSession}>End</button>
             </div>
         );

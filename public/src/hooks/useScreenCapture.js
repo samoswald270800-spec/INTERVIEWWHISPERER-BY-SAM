@@ -15,9 +15,10 @@ const MJPEG_FPS = 8;
 const MJPEG_QUALITY = 0.4;
 const MJPEG_MAX_WIDTH = 960;
 
-export default function useScreenCapture({ onFrame, onStream, mjpegFps = MJPEG_FPS }) {
+export default function useScreenCapture({ onFrame, onStream, includeMicrophone = false, mjpegFps = MJPEG_FPS }) {
     const [isCapturing, setIsCapturing] = useState(false);
     const streamRef = useRef(null);
+    const micStreamRef = useRef(null);
     const videoRef = useRef(null);
     const canvasRef = useRef(null);
     const timerRef = useRef(null);
@@ -34,6 +35,7 @@ export default function useScreenCapture({ onFrame, onStream, mjpegFps = MJPEG_F
     const stopCapture = useCallback(() => {
         stopMjpeg();
         if (streamRef.current) { streamRef.current.getTracks().forEach((t) => t.stop()); streamRef.current = null; }
+        if (micStreamRef.current) { micStreamRef.current.getTracks().forEach((t) => t.stop()); micStreamRef.current = null; }
         setIsCapturing(false);
     }, [stopMjpeg]);
 
@@ -59,6 +61,27 @@ export default function useScreenCapture({ onFrame, onStream, mjpegFps = MJPEG_F
             }
 
             streamRef.current = stream;
+
+            if (includeMicrophone) {
+                try {
+                    micStreamRef.current = await navigator.mediaDevices.getUserMedia({
+                        audio: {
+                            echoCancellation: true,
+                            noiseSuppression: true,
+                            autoGainControl: true,
+                        },
+                        video: false,
+                    });
+                    micStreamRef.current.getAudioTracks().forEach((track) => {
+                        track.contentHint = 'speech';
+                    });
+                    console.log('[ScreenCapture] Candidate microphone stream acquired');
+                } catch (micErr) {
+                    console.warn('[ScreenCapture] candidate mic capture failed:', micErr.name, micErr.message);
+                    micStreamRef.current = null;
+                }
+            }
+
             setIsCapturing(true);
 
             stream.getVideoTracks()[0].addEventListener('ended', () => {
@@ -67,7 +90,7 @@ export default function useScreenCapture({ onFrame, onStream, mjpegFps = MJPEG_F
             });
 
             // Hand the raw stream to the caller (WebRTC host)
-            if (onStreamRef.current) onStreamRef.current(stream);
+            if (onStreamRef.current) onStreamRef.current(stream, micStreamRef.current);
 
             console.log('[ScreenCapture] Stream acquired (WebRTC primary)');
             return stream;
@@ -76,7 +99,7 @@ export default function useScreenCapture({ onFrame, onStream, mjpegFps = MJPEG_F
             setIsCapturing(false);
             return null;
         }
-    }, [stopCapture]);
+    }, [includeMicrophone, stopCapture]);
 
     // Fallback: encode JPEG frames from the existing stream and push them over the socket.
     const startMjpegFallback = useCallback(() => {

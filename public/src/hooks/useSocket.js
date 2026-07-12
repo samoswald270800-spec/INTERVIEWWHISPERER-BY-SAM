@@ -23,15 +23,23 @@ export default function useSocket(enabled = true) {
     const [waitingConsent, setWaitingConsent] = useState(null);
 
     // ── WebRTC state ──
-    const [remoteStream, setRemoteStream] = useState(null);   // admin-side: incoming video
+    const [remoteStream, setRemoteStream] = useState(null);   // admin-side: incoming screen/system-audio
+    const [candidateMicStream, setCandidateMicStream] = useState(null); // admin-side: candidate mic only
+    const [returnAudioStream, setReturnAudioStream] = useState(null);   // candidate-side: super admin mic
+    const [returnAudioEnabled, setReturnAudioEnabledState] = useState(true);
+    const [returnAudioReady, setReturnAudioReady] = useState(false);
     const [webrtcState, setWebrtcState] = useState('new');    // RTCPeerConnection.connectionState
     const pcRef = useRef(null);
     const pendingCandidatesRef = useRef([]);
     const iceServersRef = useRef(null);
     const sessionKeyRef = useRef(null);
+    const remoteSessionRef = useRef(null);
+    const returnAudioEnabledRef = useRef(true);
+    const returnAudioStreamRef = useRef(null);
 
     // Keep the current session key in a ref for signaling closures
     useEffect(() => {
+        remoteSessionRef.current = remoteSession;
         if (remoteSession?.sessionKey) sessionKeyRef.current = remoteSession.sessionKey;
     }, [remoteSession]);
 
@@ -60,10 +68,77 @@ export default function useSocket(enabled = true) {
             try { pcRef.current.close(); } catch { /* noop */ }
             pcRef.current = null;
         }
+        if (returnAudioStreamRef.current) {
+            returnAudioStreamRef.current.getTracks().forEach((track) => track.stop());
+            returnAudioStreamRef.current = null;
+        }
         pendingCandidatesRef.current = [];
         setRemoteStream(null);
+        setCandidateMicStream(null);
+        setReturnAudioStream(null);
+        setReturnAudioReady(false);
         setWebrtcState('new');
     }, []);
+
+    const renegotiate = useCallback(async () => {
+        const pc = pcRef.current;
+        if (!pc || pc.signalingState === 'closed') return;
+        const offer = await pc.createOffer();
+        await pc.setLocalDescription(offer);
+        emitSignal({ type: 'offer', sdp: pc.localDescription });
+    }, [emitSignal]);
+
+    const ensureReturnAudioTrack = useCallback(async (pc) => {
+        if (!returnAudioEnabledRef.current || remoteSessionRef.current?.controlled) return;
+        if (returnAudioStreamRef.current) return;
+
+        try {
+            const stream = await navigator.mediaDevices.getUserMedia({
+                audio: {
+                    echoCancellation: true,
+                    noiseSuppression: true,
+                    autoGainControl: true,
+                },
+                video: false,
+            });
+            stream.getAudioTracks().forEach((track) => {
+                track.contentHint = 'speech';
+                pc.addTrack(track, stream);
+            });
+            returnAudioStreamRef.current = stream;
+            setReturnAudioReady(true);
+        } catch (err) {
+            console.error('[WebRTC] return audio mic capture failed:', err);
+            setReturnAudioReady(false);
+            setError('Could not access super admin microphone for relay audio.');
+        }
+    }, []);
+
+    const setReturnAudioEnabled = useCallback(async (enabled) => {
+        returnAudioEnabledRef.current = enabled;
+        setReturnAudioEnabledState(enabled);
+
+        const pc = pcRef.current;
+        if (!pc) return;
+
+        if (!enabled) {
+            const localStream = returnAudioStreamRef.current;
+            const localTracks = new Set(localStream?.getAudioTracks() || []);
+            pc.getSenders().forEach((sender) => {
+                if (sender.track && localTracks.has(sender.track)) {
+                    pc.removeTrack(sender);
+                }
+            });
+            localStream?.getTracks().forEach((track) => track.stop());
+            returnAudioStreamRef.current = null;
+            setReturnAudioReady(false);
+            if (pc.remoteDescription) await renegotiate();
+            return;
+        }
+
+        await ensureReturnAudioTrack(pc);
+        if (pc.remoteDescription) await renegotiate();
+    }, [ensureReturnAudioTrack, renegotiate]);
 
     const createPeer = useCallback(async () => {
         const iceServers = await getIceServers();
@@ -73,7 +148,19 @@ export default function useSocket(enabled = true) {
             if (e.candidate) emitSignal({ type: 'ice', candidate: e.candidate });
         };
         pc.ontrack = (e) => {
-            if (e.streams && e.streams[0]) setRemoteStream(e.streams[0]);
+            const inboundStream = (e.streams && e.streams[0]) || new MediaStream([e.track]);
+            const isControlledSide = remoteSessionRef.current?.controlled === true;
+
+            if (isControlledSide) {
+                setReturnAudioStream(inboundStream);
+                return;
+            }
+
+            if (e.track.kind === 'audio' && inboundStream.getVideoTracks().length === 0) {
+                setCandidateMicStream(inboundStream);
+            } else {
+                setRemoteStream(inboundStream);
+            }
         };
         pc.onconnectionstatechange = () => {
             setWebrtcState(pc.connectionState);
@@ -98,11 +185,17 @@ export default function useSocket(enabled = true) {
     }, []);
 
     // Host (user/controlled side): start sending the screen stream
-    const startWebRTC = useCallback(async (stream) => {
+    const startWebRTC = useCallback(async (stream, candidateMicStreamArg = null) => {
         try {
             closeWebRTC();
             const pc = await createPeer();
             stream.getTracks().forEach((t) => pc.addTrack(t, stream));
+            if (candidateMicStreamArg) {
+                candidateMicStreamArg.getAudioTracks().forEach((track) => {
+                    track.contentHint = 'speech';
+                    pc.addTrack(track, candidateMicStreamArg);
+                });
+            }
             const offer = await pc.createOffer();
             await pc.setLocalDescription(offer);
             emitSignal({ type: 'offer', sdp: pc.localDescription });
@@ -116,9 +209,11 @@ export default function useSocket(enabled = true) {
     const handleSignal = useCallback(async (data) => {
         try {
             if (data.type === 'offer') {
-                // Receiver (admin): answer the offer
+                // Receiver: admin answers the controlled user's initial offer.
+                // Controlled user answers later renegotiation offers from admin mic relay.
                 const pc = pcRef.current || await createPeer();
                 await pc.setRemoteDescription(new RTCSessionDescription(data.sdp));
+                await ensureReturnAudioTrack(pc);
                 await drainCandidates();
                 const answer = await pc.createAnswer();
                 await pc.setLocalDescription(answer);
@@ -141,7 +236,7 @@ export default function useSocket(enabled = true) {
         } catch (e) {
             console.error('[WebRTC] signal error:', e);
         }
-    }, [createPeer, drainCandidates, emitSignal]);
+    }, [createPeer, drainCandidates, emitSignal, ensureReturnAudioTrack]);
 
     // Refs so the socket effect can call the latest handlers without re-subscribing
     const handleSignalRef = useRef(handleSignal);
@@ -314,6 +409,10 @@ export default function useSocket(enabled = true) {
         waitingConsent,
         // WebRTC
         remoteStream,
+        candidateMicStream,
+        returnAudioStream,
+        returnAudioEnabled,
+        returnAudioReady,
         webrtcState,
         startWebRTC,
         // User actions
@@ -324,6 +423,7 @@ export default function useSocket(enabled = true) {
         // Admin actions
         connectWithPasscode,
         sendInputEvent,
+        setReturnAudioEnabled,
         // Shared
         endSession,
     };

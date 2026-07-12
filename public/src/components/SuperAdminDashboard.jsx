@@ -7,6 +7,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import API_BASE_URL from '../config';
 import useSocket from '../hooks/useSocket';
 import RemoteControlPanel from './RemoteControlPanel';
+import CandidateCameraPanel from './CandidateCameraPanel';
 import './SuperAdminDashboard.css';
 
 const FEATURE_KEYS = [
@@ -227,6 +228,8 @@ export default function SuperAdminDashboard() {
                     <div className="stat"><div className="stat-label">Credits Pool</div><div className="stat-value">{stats.totalAdminCredits}</div></div>
                 </section>
 
+                <CandidateCameraPanel />
+
                 {/* Remote Control Panel */}
                 <RemoteControlPanel
                     connected={socket.connected}
@@ -236,8 +239,12 @@ export default function SuperAdminDashboard() {
                     remoteSession={socket.remoteSession}
                     screenFrame={socket.screenFrame}
                     remoteStream={socket.remoteStream}
+                    candidateMicStream={socket.candidateMicStream}
+                    returnAudioEnabled={socket.returnAudioEnabled}
+                    returnAudioReady={socket.returnAudioReady}
                     connectWithPasscode={socket.connectWithPasscode}
                     sendInputEvent={socket.sendInputEvent}
+                    setReturnAudioEnabled={socket.setReturnAudioEnabled}
                     endSession={socket.endSession}
                 />
 
