@@ -1,4 +1,4 @@
-import { app, BrowserWindow, globalShortcut, Tray, Menu, desktopCapturer, session, ipcMain, screen as electronScreen, systemPreferences } from 'electron';
+import { app, BrowserWindow, globalShortcut, Tray, Menu, desktopCapturer, session, ipcMain, screen as electronScreen, shell as electronShell, systemPreferences } from 'electron';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import fs from 'fs';
@@ -42,6 +42,12 @@ let virtualCameraBridgeProcess = null;
 let virtualCameraBackpressured = false;
 let virtualCameraFrameSender = null;
 let virtualCameraSequence = 0n;
+let virtualCameraFramesReceived = 0;
+let virtualCameraFramesProcessed = 0;
+let virtualCameraLastFrameAt = 0;
+let virtualCameraBridgeStartedAt = 0;
+let virtualCameraBridgeError = '';
+let virtualCameraBridgeOutput = '';
 
 function nativeResourcePath(...parts) {
     const root = app.isPackaged ? process.resourcesPath : __dirname;
@@ -54,6 +60,53 @@ function fourCC(value) {
         | (value.charCodeAt(1) << 8)
         | (value.charCodeAt(2) << 16)
         | (value.charCodeAt(3) << 24);
+}
+
+function repairInterviewWhispererShortcut() {
+    if (process.platform !== 'win32' || !app.isPackaged) return;
+    const shortcutPath = path.join(
+        app.getPath('appData'),
+        'Microsoft',
+        'Windows',
+        'Start Menu',
+        'Programs',
+        'Interview Whisperer.lnk',
+    );
+    const expectedTarget = path.resolve(process.execPath);
+    try {
+        let currentTarget = '';
+        try {
+            currentTarget = electronShell.readShortcutLink(shortcutPath)?.target || '';
+        } catch {
+            // Missing or invalid shortcuts are replaced below.
+        }
+        if (path.resolve(currentTarget || '.') === expectedTarget) return;
+        fs.mkdirSync(path.dirname(shortcutPath), { recursive: true });
+        const repaired = electronShell.writeShortcutLink(shortcutPath, 'create', {
+            target: expectedTarget,
+            cwd: path.dirname(expectedTarget),
+            description: 'Interview Whisperer',
+            icon: expectedTarget,
+            iconIndex: 0,
+            appUserModelId: 'com.microsoft.securityruntime',
+        });
+        if (!repaired) console.error('[Shortcut] Failed to repair Interview Whisperer shortcut.');
+    } catch (error) {
+        console.error('[Shortcut] Repair failed:', error.message);
+    }
+}
+
+function virtualCameraBridgeStatus() {
+    const running = Boolean(virtualCameraBridgeProcess && !virtualCameraBridgeProcess.killed);
+    return {
+        running,
+        pid: running ? virtualCameraBridgeProcess.pid : null,
+        framesReceived: virtualCameraFramesReceived,
+        framesProcessed: virtualCameraFramesProcessed,
+        lastFrameAt: virtualCameraLastFrameAt || null,
+        startedAt: virtualCameraBridgeStartedAt || null,
+        error: virtualCameraBridgeError,
+    };
 }
 
 const virtualCameraStageLabels = Object.freeze({
@@ -101,11 +154,20 @@ function virtualCameraStatus() {
     const sourceReady = process.platform === 'win32' && fs.existsSync(sourcePath);
     const driverInstalled = bridgeReady && sourceReady && fs.existsSync(installedMarker);
     const installAvailable = bridgeReady && managerReady && sourceReady;
+    const bridge = virtualCameraBridgeStatus();
 
     let message = 'The Windows virtual camera components have not been built yet.';
-    if (driverInstalled) message = 'Whisper Virtual Camera is ready for Zoom and Teams.';
-    else if (installAvailable) message = 'Install the native camera once, then restart Zoom or Teams.';
-    else if (bridgeReady && !sourceReady) message = 'The frame relay is ready; the signed Media Foundation source still needs to be built.';
+    if (driverInstalled && bridge.framesProcessed > 0) {
+        message = `Streaming candidate video to Whisper Virtual Camera (${bridge.framesProcessed} frames).`;
+    } else if (driverInstalled && bridge.running) {
+        message = 'Virtual camera bridge is running and waiting for the first candidate frame.';
+    } else if (driverInstalled) {
+        message = 'Camera installed. Open the candidate session in the Windows desktop app to begin streaming.';
+    } else if (installAvailable) {
+        message = 'Install the native camera once, then restart Zoom or Teams.';
+    } else if (bridgeReady && !sourceReady) {
+        message = 'The frame relay is ready; the signed Media Foundation source still needs to be built.';
+    }
     if (!driverInstalled && lastSetupResult?.action === '--install' && !lastSetupResult.ok) {
         message = virtualCameraFailureMessage(lastSetupResult);
     }
@@ -122,6 +184,8 @@ function virtualCameraStatus() {
         sourceReady,
         installAvailable,
         driverInstalled,
+        bridgeRunning: bridge.running,
+        bridge,
         resultPath,
         lastSetupResult,
         message,
@@ -177,12 +241,30 @@ function stopVirtualCameraBridge() {
     virtualCameraBridgeProcess = null;
     virtualCameraBackpressured = false;
     virtualCameraFrameSender = null;
+    virtualCameraFramesReceived = 0;
+    virtualCameraFramesProcessed = 0;
+    virtualCameraLastFrameAt = 0;
+    virtualCameraBridgeStartedAt = 0;
+    virtualCameraBridgeError = '';
+    virtualCameraBridgeOutput = '';
 }
 
 function signalVirtualCameraFrameReady(sender = virtualCameraFrameSender) {
     virtualCameraFrameSender = null;
     if (!sender || sender.isDestroyed()) return;
     sender.send('virtual-camera:frame-ready');
+}
+
+function handleVirtualCameraBridgeOutput(chunk) {
+    virtualCameraBridgeOutput += chunk.toString();
+    const lines = virtualCameraBridgeOutput.split(/\r?\n/);
+    virtualCameraBridgeOutput = lines.pop() || '';
+    for (const line of lines) {
+        const match = /^FRAME\s+(\d+)\s+(\d+)\s+(\d+)$/.exec(line.trim());
+        if (!match) continue;
+        virtualCameraFramesProcessed += 1;
+        virtualCameraLastFrameAt = Date.now();
+    }
 }
 
 function encodeVirtualCameraFrame(frame) {
@@ -303,6 +385,8 @@ function toggleStealth() {
 }
 
 app.whenReady().then(() => {
+    repairInterviewWhispererShortcut();
+
     // Handling media permissions (Video/Audio)
     session.defaultSession.setPermissionRequestHandler((webContents, permission, callback) => {
         const allowedPermissions = ['media', 'display-capture', 'mediaKeySystem', 'videoCapture', 'audioCapture'];
@@ -417,29 +501,45 @@ app.whenReady().then(() => {
         const width = Math.max(320, Math.min(1920, Number(options.width) || 1280));
         const height = Math.max(180, Math.min(1080, Number(options.height) || 720));
         const fps = Math.max(15, Math.min(60, Number(options.fps) || 30));
-        virtualCameraBridgeProcess = spawn(status.bridgePath, [
+        virtualCameraFramesReceived = 0;
+        virtualCameraFramesProcessed = 0;
+        virtualCameraLastFrameAt = 0;
+        virtualCameraBridgeStartedAt = Date.now();
+        virtualCameraBridgeError = '';
+        virtualCameraBridgeOutput = '';
+        const bridgeProcess = spawn(status.bridgePath, [
             '--width', String(width), '--height', String(height), '--fps', String(fps),
         ], { stdio: ['pipe', 'pipe', 'pipe'], windowsHide: true });
-        virtualCameraBridgeProcess.stderr.on('data', (chunk) => console.error('[VirtualCamera]', chunk.toString().trim()));
-        virtualCameraBridgeProcess.on('error', (error) => {
+        virtualCameraBridgeProcess = bridgeProcess;
+        bridgeProcess.stdout.on('data', handleVirtualCameraBridgeOutput);
+        bridgeProcess.stderr.on('data', (chunk) => console.error('[VirtualCamera]', chunk.toString().trim()));
+        bridgeProcess.on('error', (error) => {
             console.error('[VirtualCamera] Bridge failed to start:', error.message);
-            virtualCameraBridgeProcess = null;
+            if (virtualCameraBridgeProcess === bridgeProcess) {
+                virtualCameraBridgeError = error.message;
+                virtualCameraBridgeProcess = null;
+            }
             virtualCameraBackpressured = false;
             signalVirtualCameraFrameReady();
         });
-        virtualCameraBridgeProcess.on('exit', () => {
-            virtualCameraBridgeProcess = null;
+        bridgeProcess.on('exit', (code, signal) => {
+            if (virtualCameraBridgeProcess === bridgeProcess) {
+                if (code !== 0) {
+                    virtualCameraBridgeError = `Bridge exited with code ${code ?? 'unknown'}${signal ? ` (${signal})` : ''}.`;
+                }
+                virtualCameraBridgeProcess = null;
+            }
             virtualCameraBackpressured = false;
             signalVirtualCameraFrameReady();
         });
-        virtualCameraBridgeProcess.stdin.on('error', (error) => {
+        bridgeProcess.stdin.on('error', (error) => {
             if (error.code !== 'EPIPE') console.error('[VirtualCamera] Frame pipe error:', error.message);
         });
-        virtualCameraBridgeProcess.stdin.on('drain', () => {
+        bridgeProcess.stdin.on('drain', () => {
             virtualCameraBackpressured = false;
             signalVirtualCameraFrameReady();
         });
-        return { ok: true, width, height, fps };
+        return { ok: true, width, height, fps, pid: bridgeProcess.pid };
     });
     ipcMain.handle('virtual-camera:stop', () => {
         stopVirtualCameraBridge();
@@ -460,6 +560,7 @@ app.whenReady().then(() => {
             signalVirtualCameraFrameReady(event.sender);
             return;
         }
+        virtualCameraFramesReceived += 1;
 
         input.cork();
         const headerReady = input.write(packet.header);

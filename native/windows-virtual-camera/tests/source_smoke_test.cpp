@@ -114,6 +114,111 @@ int wmain(int argc, wchar_t* argv[]) {
                 result = source->Start(descriptor.Get(), nullptr, &startPosition);
                 if (FAILED(result)) exitCode = Fail(L"IMFMediaSource::Start", result);
             }
+
+            ComPtr<IMFMediaStream2> stream;
+            if (!exitCode) {
+                ComPtr<IMFMediaEvent> streamEvent;
+                result = source->GetEvent(0, streamEvent.ReleaseAndGetAddressOf());
+                if (FAILED(result)) {
+                    exitCode = Fail(L"IMFMediaSource::GetEvent(MENewStream)", result);
+                } else {
+                    MediaEventType eventType = MEUnknown;
+                    result = streamEvent->GetType(&eventType);
+                    if (FAILED(result) || eventType != MENewStream) {
+                        exitCode = Fail(L"MENewStream event", FAILED(result) ? result : E_UNEXPECTED);
+                    }
+                }
+
+                if (!exitCode) {
+                    PROPVARIANT streamValue;
+                    PropVariantInit(&streamValue);
+                    result = streamEvent->GetValue(&streamValue);
+                    if (SUCCEEDED(result) && streamValue.vt == VT_UNKNOWN && streamValue.punkVal) {
+                        result = streamValue.punkVal->QueryInterface(
+                            IID_PPV_ARGS(stream.ReleaseAndGetAddressOf()));
+                    } else if (SUCCEEDED(result)) {
+                        result = E_UNEXPECTED;
+                    }
+                    PropVariantClear(&streamValue);
+                    if (FAILED(result)) exitCode = Fail(L"MENewStream value (IMFMediaStream2)", result);
+                }
+            }
+            if (!exitCode) {
+                ComPtr<IMFMediaEvent> startedEvent;
+                result = stream->GetEvent(0, startedEvent.ReleaseAndGetAddressOf());
+                MediaEventType eventType = MEUnknown;
+                if (SUCCEEDED(result)) result = startedEvent->GetType(&eventType);
+                if (FAILED(result) || eventType != MEStreamStarted) {
+                    exitCode = Fail(L"MEStreamStarted event", FAILED(result) ? result : E_UNEXPECTED);
+                }
+            }
+            if (!exitCode) {
+                result = stream->RequestSample(nullptr);
+                if (FAILED(result)) exitCode = Fail(L"IMFMediaStream::RequestSample", result);
+            }
+
+            ComPtr<IMFSample> sample;
+            if (!exitCode) {
+                ComPtr<IMFMediaEvent> sampleEvent;
+                result = stream->GetEvent(0, sampleEvent.ReleaseAndGetAddressOf());
+                if (FAILED(result)) {
+                    exitCode = Fail(L"IMFMediaStream::GetEvent(MEMediaSample)", result);
+                } else {
+                    MediaEventType eventType = MEUnknown;
+                    result = sampleEvent->GetType(&eventType);
+                    if (FAILED(result) || eventType != MEMediaSample) {
+                        exitCode = Fail(L"MEMediaSample event", FAILED(result) ? result : E_UNEXPECTED);
+                    }
+                }
+
+                if (!exitCode) {
+                    PROPVARIANT sampleValue;
+                    PropVariantInit(&sampleValue);
+                    result = sampleEvent->GetValue(&sampleValue);
+                    if (SUCCEEDED(result) && sampleValue.vt == VT_UNKNOWN && sampleValue.punkVal) {
+                        result = sampleValue.punkVal->QueryInterface(
+                            IID_PPV_ARGS(sample.ReleaseAndGetAddressOf()));
+                    } else if (SUCCEEDED(result)) {
+                        result = E_UNEXPECTED;
+                    }
+                    PropVariantClear(&sampleValue);
+                    if (FAILED(result)) exitCode = Fail(L"MEMediaSample value", result);
+                }
+            }
+            if (!exitCode) {
+                constexpr DWORD expectedFrameBytes = 1280U * 720U * 3U / 2U;
+                DWORD sampleBytes = 0;
+                result = sample->GetTotalLength(&sampleBytes);
+                if (FAILED(result) || sampleBytes != expectedFrameBytes) {
+                    exitCode = Fail(L"IMFSample frame length", FAILED(result) ? result : E_UNEXPECTED);
+                }
+
+                ComPtr<IMFMediaBuffer> buffer;
+                if (!exitCode) {
+                    result = sample->ConvertToContiguousBuffer(buffer.ReleaseAndGetAddressOf());
+                    if (FAILED(result)) exitCode = Fail(L"ConvertToContiguousBuffer", result);
+                }
+                if (!exitCode) {
+                    BYTE* bytes = nullptr;
+                    DWORD maximumLength = 0;
+                    DWORD currentLength = 0;
+                    result = buffer->Lock(&bytes, &maximumLength, &currentLength);
+                    if (FAILED(result)) {
+                        exitCode = Fail(L"IMFMediaBuffer::Lock", result);
+                    } else {
+                        const bool validBlackFrame = currentLength == expectedFrameBytes
+                            && maximumLength >= currentLength
+                            && bytes[0] == 16
+                            && bytes[1280U * 720U] == 128;
+                        const HRESULT unlockResult = buffer->Unlock();
+                        if (FAILED(unlockResult)) {
+                            exitCode = Fail(L"IMFMediaBuffer::Unlock", unlockResult);
+                        } else if (!validBlackFrame) {
+                            exitCode = Fail(L"NV12 fallback sample", E_UNEXPECTED);
+                        }
+                    }
+                }
+            }
             if (!exitCode) {
                 result = source->Stop();
                 if (FAILED(result)) exitCode = Fail(L"IMFMediaSource::Stop", result);
