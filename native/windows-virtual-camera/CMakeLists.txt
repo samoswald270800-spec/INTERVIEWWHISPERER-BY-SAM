@@ -22,6 +22,7 @@ target_include_directories(WhisperVirtualCameraFrameReader PUBLIC source include
 
 add_library(WhisperVirtualCameraSource SHARED
   source/activation.cpp
+  source/exports.def
   source/virtual_camera_source.cpp)
 target_compile_features(WhisperVirtualCameraSource PRIVATE cxx_std_20)
 target_compile_definitions(WhisperVirtualCameraSource PRIVATE UNICODE _UNICODE WIN32_LEAN_AND_MEAN NOMINMAX)

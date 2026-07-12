@@ -218,7 +218,7 @@ BOOL APIENTRY DllMain(HMODULE module, DWORD reason, LPVOID reserved) {
     return TRUE;
 }
 
-extern "C" __declspec(dllexport) HRESULT STDAPICALLTYPE DllGetClassObject(
+STDAPI DllGetClassObject(
     REFCLSID clsid,
     REFIID iid,
     void** object) {
@@ -234,16 +234,16 @@ extern "C" __declspec(dllexport) HRESULT STDAPICALLTYPE DllGetClassObject(
     return factory->QueryInterface(iid, object);
 }
 
-extern "C" __declspec(dllexport) HRESULT STDAPICALLTYPE DllCanUnloadNow() {
+STDAPI DllCanUnloadNow() {
     return whisper::virtual_camera::g_objectCount.load(std::memory_order_relaxed) == 0
         ? S_OK
         : S_FALSE;
 }
 
-extern "C" __declspec(dllexport) HRESULT STDAPICALLTYPE DllRegisterServer() {
+STDAPI DllRegisterServer() {
     return RegisterComClass();
 }
 
-extern "C" __declspec(dllexport) HRESULT STDAPICALLTYPE DllUnregisterServer() {
+STDAPI DllUnregisterServer() {
     return UnregisterComClass();
 }

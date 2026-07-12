@@ -2,15 +2,16 @@
 
 #include "frame_reader.h"
 
+#include <unknwn.h>
 #include <windows.h>
-#include <ks.h>
-#include <ksmedia.h>
-#include <ksproxy.h>
+#include <ole2.h>
 #include <mfapi.h>
 #include <mferror.h>
 #include <mfidl.h>
 #include <mfobjects.h>
 #include <propvarutil.h>
+#include <ks.h>
+#include <ksmedia.h>
 #include <wrl.h>
 #include <wrl/client.h>
 
