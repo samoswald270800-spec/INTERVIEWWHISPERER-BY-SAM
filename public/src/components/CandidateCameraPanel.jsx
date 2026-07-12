@@ -70,7 +70,7 @@ export default function CandidateCameraPanel() {
                         <button onClick={copyLink}>{copied ? 'Copied' : 'Copy'}</button>
                         <button className="relay-danger" onClick={camera.endSession}>End</button>
                     </div>
-                    <div className="candidate-link-meta">Expires at {formatExpiry(camera.session.expiresAt)}. The first browser to open it claims the session.</div>
+                    <div className="candidate-link-meta">Expires at {formatExpiry(camera.session.expiresAt)}. One browser can claim it, and a finished session permanently revokes it.</div>
 
                     <div className="candidate-relay-workspace">
                         <div className="candidate-relay-video">

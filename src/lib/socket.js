@@ -264,6 +264,7 @@ export function initSocketIO(httpServer, sessionMiddleware) {
 }
 
 function initializeCameraNamespace(io) {
+  const candidateReconnectGraceMs = 15_000;
   const camera = io.of('/camera');
   const activeCameraSessions = new Map();
   const adminSessionIds = new Map();
@@ -343,6 +344,8 @@ function initializeCameraNamespace(io) {
       return;
     }
 
+    if (active.disconnectTimer) clearTimeout(active.disconnectTimer);
+    active.disconnectTimer = null;
     active.candidateSocketId = socket.id;
     socket.join(active.id);
     adminSocket.join(active.id);
@@ -362,13 +365,20 @@ function initializeCameraNamespace(io) {
       camera.to(active.adminSocketId).emit('camera:signal', { sessionId: active.id, data });
     });
 
-    socket.on('camera:leave', () => socket.disconnect(true));
+    socket.on('camera:leave', () => {
+      const current = activeCameraSessions.get(active.id);
+      if (!current || current.candidateSocketId !== socket.id) return socket.disconnect(true);
+      endCameraSession(current.id, 'candidate_left').catch(() => socket.disconnect(true));
+    });
 
     socket.on('disconnect', () => {
       const current = activeCameraSessions.get(active.id);
       if (!current || current.candidateSocketId !== socket.id) return;
       current.candidateSocketId = null;
       camera.to(current.adminSocketId).emit('camera:candidate-left', { sessionId: current.id });
+      current.disconnectTimer = setTimeout(() => {
+        endCameraSession(current.id, 'candidate_disconnected').catch(() => {});
+      }, candidateReconnectGraceMs);
     });
   }
 
@@ -433,6 +443,7 @@ function initializeCameraNamespace(io) {
     if (!active) return;
 
     if (active.expiryTimer) clearTimeout(active.expiryTimer);
+    if (active.disconnectTimer) clearTimeout(active.disconnectTimer);
     activeCameraSessions.delete(sessionId);
     adminSessionIds.delete(active.adminSocketId);
     if (adminUserSessions.get(active.adminUserId) === sessionId) {
