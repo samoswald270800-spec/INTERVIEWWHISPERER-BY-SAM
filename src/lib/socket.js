@@ -270,6 +270,26 @@ function initializeCameraNamespace(io) {
   const adminSessionIds = new Map();
   const adminUserSessions = new Map();
 
+  function normalizeCameraQuality(quality) {
+    if (!quality || typeof quality !== 'object') return null;
+    const number = (value, minimum, maximum) => {
+      const parsed = Number(value);
+      return Number.isFinite(parsed) ? Math.max(minimum, Math.min(maximum, parsed)) : 0;
+    };
+    const limitations = new Set(['none', 'cpu', 'bandwidth', 'other']);
+    return {
+      width: Math.round(number(quality.width, 0, 3840)),
+      height: Math.round(number(quality.height, 0, 2160)),
+      captureFps: Math.round(number(quality.captureFps, 0, 120)),
+      encodedFps: Math.round(number(quality.encodedFps, 0, 120)),
+      mbps: number(quality.mbps, 0, 50),
+      targetMbps: number(quality.targetMbps, 0, 50),
+      packetLossPercent: number(quality.packetLossPercent, 0, 100),
+      roundTripMs: Math.round(number(quality.roundTripMs, 0, 10_000)),
+      limitation: limitations.has(quality.limitation) ? quality.limitation : 'other',
+    };
+  }
+
   camera.use(async (socket, next) => {
     const session = socket.request.session;
     if (session?.userId && session.role === 'super_admin') {
@@ -363,6 +383,20 @@ function initializeCameraNamespace(io) {
     socket.on('camera:signal', ({ data } = {}) => {
       if (!data || active.candidateSocketId !== socket.id) return;
       camera.to(active.adminSocketId).emit('camera:signal', { sessionId: active.id, data });
+    });
+
+    socket.on('camera:quality', ({ quality } = {}) => {
+      if (active.candidateSocketId !== socket.id) return;
+      const now = Date.now();
+      if (active.lastQualityAt && now - active.lastQualityAt < 500) return;
+      active.lastQualityAt = now;
+      const normalized = normalizeCameraQuality(quality);
+      if (normalized) {
+        camera.to(active.adminSocketId).emit('camera:quality', {
+          sessionId: active.id,
+          quality: normalized,
+        });
+      }
     });
 
     socket.on('camera:leave', () => {

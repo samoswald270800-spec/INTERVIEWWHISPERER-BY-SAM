@@ -10,6 +10,9 @@ admin/dist/
 dist/
 build/
 dist-electron/
+native/windows-virtual-camera/out/
+native/windows-virtual-camera/*.exe
+native/windows-virtual-camera/*.dll
 
 # Environment variables
 .env

@@ -1,0 +1,50 @@
+name: Windows Virtual Camera Check
+
+on:
+  pull_request:
+    branches: [main-2.0]
+    paths:
+      - 'electron-main.js'
+      - 'electron-preload.js'
+      - 'native/windows-virtual-camera/**'
+      - 'public/src/components/CandidateCamera**'
+      - 'public/src/hooks/useCandidateCameraSession.js'
+      - 'public/src/hooks/useVirtualCameraBridge.js'
+      - 'src/lib/socket.js'
+      - '.github/workflows/virtual-camera-check.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-native:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Configure native components
+        run: cmake -S native/windows-virtual-camera -B "$env:RUNNER_TEMP/whisper-vcam-build" -A x64
+
+      - name: Build native components
+        run: cmake --build "$env:RUNNER_TEMP/whisper-vcam-build" --config Release
+
+  build-client:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: public/package-lock.json
+
+      - name: Install client dependencies
+        run: npm ci --prefix public
+
+      - name: Build React client
+        run: npm run build --prefix public

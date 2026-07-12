@@ -14,8 +14,15 @@ contextBridge.exposeInMainWorld('electron', {
     },
     virtualCamera: {
         getStatus: () => ipcRenderer.invoke('virtual-camera:get-status'),
+        install: () => ipcRenderer.invoke('virtual-camera:install'),
+        remove: () => ipcRenderer.invoke('virtual-camera:remove'),
         start: (options) => ipcRenderer.invoke('virtual-camera:start', options),
         stop: () => ipcRenderer.invoke('virtual-camera:stop'),
         sendFrame: (frame) => ipcRenderer.send('virtual-camera:frame', frame),
+        onFrameReady: (callback) => {
+            const listener = () => callback();
+            ipcRenderer.on('virtual-camera:frame-ready', listener);
+            return () => ipcRenderer.removeListener('virtual-camera:frame-ready', listener);
+        },
     },
 });

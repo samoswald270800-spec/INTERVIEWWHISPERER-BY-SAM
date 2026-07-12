@@ -39,8 +39,11 @@ the default expiration.
 
 ## Video quality
 
-- Capture target: 1280x720, up to 60 fps.
-- Sender ceiling: 5 Mbps with frame-rate-preserving degradation.
+- Capture target: 1280x720 at 30 fps, with a 24 fps floor when supported.
+- Sender ceiling: 2.8 Mbps, adapting to 2.2 or 1.8 Mbps under loss/latency pressure.
+- H.264 is preferred when both peers support it, with VP8/VP9/AV1 available as fallbacks.
+- Receiver jitter targets are 60-75 ms to balance smooth playback and call latency.
+- The dashboard reports received/source FPS so capture, CPU, and network limits are distinguishable.
 - Transport: direct WebRTC when possible, TURN relay when required.
 - Native handoff: decoded `VideoFrame` planes, preferably NV12, without JPEG
   re-encoding.

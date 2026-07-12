@@ -1,6 +1,8 @@
 #include <windows.h>
 #include <sddl.h>
 
+#include "../include/frame_protocol.h"
+
 #include <atomic>
 #include <algorithm>
 #include <condition_variable>
@@ -13,39 +15,10 @@
 
 namespace {
 
-constexpr std::uint32_t FourCC(char a, char b, char c, char d) {
-    return static_cast<std::uint32_t>(a)
-        | (static_cast<std::uint32_t>(b) << 8)
-        | (static_cast<std::uint32_t>(c) << 16)
-        | (static_cast<std::uint32_t>(d) << 24);
-}
-
-constexpr std::uint32_t kMagic = FourCC('W', 'V', 'C', '1');
-constexpr std::uint32_t kMaxFrameBytes = 16U * 1024U * 1024U;
-constexpr wchar_t kPipeName[] = LR"(\\.\pipe\WhisperVirtualCameraFrames)";
-
-#pragma pack(push, 1)
-struct PlaneLayout {
-    std::uint32_t offset;
-    std::uint32_t stride;
-};
-
-struct FrameHeader {
-    std::uint32_t magic;
-    std::uint16_t version;
-    std::uint16_t headerSize;
-    std::uint32_t format;
-    std::uint32_t width;
-    std::uint32_t height;
-    std::uint64_t timestampUs;
-    std::uint64_t sequence;
-    std::uint32_t dataSize;
-    std::uint32_t planeCount;
-    PlaneLayout planes[4];
-};
-#pragma pack(pop)
-
-static_assert(sizeof(FrameHeader) == 76, "Frame protocol must match electron-main.js");
+using whisper::virtual_camera::FrameHeader;
+using whisper::virtual_camera::IsValidFrameHeader;
+using whisper::virtual_camera::kFramePipeName;
+using whisper::virtual_camera::kMaxFrameBytes;
 
 struct LatestFrame {
     FrameHeader header{};
@@ -112,7 +85,7 @@ void PipeServer() {
 
     while (gRunning.load()) {
         HANDLE pipe = CreateNamedPipeW(
-            kPipeName,
+            kFramePipeName,
             PIPE_ACCESS_OUTBOUND,
             PIPE_TYPE_BYTE | PIPE_READMODE_BYTE | PIPE_WAIT,
             1,
@@ -132,8 +105,8 @@ void PipeServer() {
         }
 
         std::uint64_t lastSequence = 0;
+        LatestFrame frame;
         while (gRunning.load()) {
-            LatestFrame frame;
             {
                 std::unique_lock lock(gFrameMutex);
                 gFrameReady.wait(lock, [&] {
@@ -158,15 +131,6 @@ void PipeServer() {
     if (descriptor) LocalFree(descriptor);
 }
 
-bool IsSupportedFormat(std::uint32_t format) {
-    return format == FourCC('I', '4', '2', '0')
-        || format == FourCC('N', 'V', '1', '2')
-        || format == FourCC('R', 'G', 'B', 'A')
-        || format == FourCC('R', 'G', 'B', 'X')
-        || format == FourCC('B', 'G', 'R', 'A')
-        || format == FourCC('B', 'G', 'R', 'X');
-}
-
 }  // namespace
 
 int wmain(int argc, wchar_t* argv[]) {
@@ -179,30 +143,23 @@ int wmain(int argc, wchar_t* argv[]) {
     std::cin.tie(nullptr);
 
     std::thread pipeThread(PipeServer);
+    LatestFrame incoming;
     while (gRunning.load()) {
         FrameHeader header{};
         if (!ReadExact(std::cin, &header, sizeof(header))) break;
-        if (header.magic != kMagic
-            || header.version != 1
-            || header.headerSize != sizeof(FrameHeader)
-            || header.dataSize == 0
-            || header.dataSize > kMaxFrameBytes
-            || header.planeCount > 4
-            || header.width < 2
-            || header.height < 2
-            || !IsSupportedFormat(header.format)) {
+        if (!IsValidFrameHeader(header)) {
             std::cerr << "Invalid frame packet" << std::endl;
             break;
         }
 
-        LatestFrame frame;
-        frame.header = header;
-        frame.bytes.resize(header.dataSize);
-        if (!ReadExact(std::cin, frame.bytes.data(), frame.bytes.size())) break;
+        incoming.header = header;
+        incoming.bytes.resize(header.dataSize);
+        if (!ReadExact(std::cin, incoming.bytes.data(), incoming.bytes.size())) break;
 
         {
             std::lock_guard lock(gFrameMutex);
-            gLatestFrame = std::move(frame);
+            gLatestFrame.header = incoming.header;
+            gLatestFrame.bytes.swap(incoming.bytes);
         }
         gFrameReady.notify_one();
     }

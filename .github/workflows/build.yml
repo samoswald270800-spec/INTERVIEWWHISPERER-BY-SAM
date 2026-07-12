@@ -39,6 +39,18 @@ jobs:
           npm install
           npm run build
 
+      - name: Configure Windows virtual camera components
+        run: cmake -S native/windows-virtual-camera -B "$env:RUNNER_TEMP/whisper-vcam-build" -A x64
+
+      - name: Build Windows virtual camera components
+        run: cmake --build "$env:RUNNER_TEMP/whisper-vcam-build" --config Release
+
+      - name: Bundle Windows virtual camera components
+        shell: powershell
+        run: |
+          Copy-Item "$env:RUNNER_TEMP/whisper-vcam-build/Release/WhisperVirtualCameraBridge.exe" native/windows-virtual-camera/WhisperVirtualCameraBridge.exe
+          Copy-Item "$env:RUNNER_TEMP/whisper-vcam-build/Release/WhisperVirtualCameraManager.exe" native/windows-virtual-camera/WhisperVirtualCameraManager.exe
+
       - name: Build Electron app (Windows)
         run: npx electron-builder --win --x64 --publish never
 
