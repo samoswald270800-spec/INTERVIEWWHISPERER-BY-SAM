@@ -1,6 +1,8 @@
 cmake_minimum_required(VERSION 3.24)
 project(WhisperVirtualCamera LANGUAGES CXX)
 
+include(CTest)
+
 if(MSVC)
   set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
 endif()
@@ -38,10 +40,23 @@ set_target_properties(WhisperVirtualCameraSource PROPERTIES
   PREFIX ""
   OUTPUT_NAME "WhisperVirtualCameraSource")
 
+if(BUILD_TESTING)
+  add_executable(WhisperVirtualCameraSourceSmokeTest tests/source_smoke_test.cpp)
+  target_compile_features(WhisperVirtualCameraSourceSmokeTest PRIVATE cxx_std_20)
+  target_compile_definitions(WhisperVirtualCameraSourceSmokeTest PRIVATE UNICODE _UNICODE WIN32_LEAN_AND_MEAN NOMINMAX)
+  target_link_libraries(WhisperVirtualCameraSourceSmokeTest PRIVATE mfplat ole32)
+  add_test(
+    NAME WhisperVirtualCameraSourceSmokeTest
+    COMMAND WhisperVirtualCameraSourceSmokeTest $<TARGET_FILE:WhisperVirtualCameraSource>)
+endif()
+
 if(MSVC)
   target_compile_options(WhisperVirtualCameraBridge PRIVATE /W4 /permissive-)
   target_compile_options(WhisperVirtualCameraManager PRIVATE /W4 /permissive-)
   target_compile_options(WhisperVirtualCameraFrameReader PRIVATE /W4 /permissive-)
   target_compile_options(WhisperVirtualCameraSource PRIVATE /W4 /permissive-)
+  if(BUILD_TESTING)
+    target_compile_options(WhisperVirtualCameraSourceSmokeTest PRIVATE /W4 /permissive-)
+  endif()
   target_link_options(WhisperVirtualCameraManager PRIVATE "/MANIFESTUAC:level='requireAdministrator' uiAccess='false'")
 endif()

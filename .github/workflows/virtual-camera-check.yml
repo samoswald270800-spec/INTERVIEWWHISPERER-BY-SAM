@@ -30,6 +30,9 @@ jobs:
       - name: Build native components
         run: cmake --build "$env:RUNNER_TEMP/whisper-vcam-build" --config Release
 
+      - name: Test native components
+        run: ctest --test-dir "$env:RUNNER_TEMP/whisper-vcam-build" -C Release --output-on-failure
+
   build-client:
     runs-on: ubuntu-latest
     steps:
