@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import useCandidateCameraSession from '../hooks/useCandidateCameraSession';
 import SuperAdminDashboard from './SuperAdminDashboard';
+import StatusPill from './StatusPill';
 import './SuperAdminWorkspace.css';
 
 const WORKSPACE_STORAGE_KEY = 'superadmin_workspace_layout_state';
@@ -220,7 +221,16 @@ function CandidateCameraOverlay({ camera, onClose }) {
     );
 }
 
-export default function SuperAdminWorkspace({ interviewContent }) {
+export default function SuperAdminWorkspace({
+    interviewContent,
+    status,
+    isListening,
+    isProcessing,
+    timeLabel,
+    creditsLabel,
+    onOpenHistory,
+    onLogout,
+}) {
     const [workspaceState, setWorkspaceState] = useState(initialWorkspaceState);
     const [cameraOverlay, setCameraOverlay] = useState(true);
     const [layoutMenuOpen, setLayoutMenuOpen] = useState(false);
@@ -357,10 +367,43 @@ export default function SuperAdminWorkspace({ interviewContent }) {
     return (
         <div className={`saw-workspace saw-layout-${currentLayout.id} ${resizing ? 'is-resizing' : ''}`}>
             <header className="saw-toolbar">
-                <div className="saw-toolbar-title">
+                <div className="saw-toolbar-brand">
                     <strong>Interview Whisperer</strong>
-                    <span>Superadmin workspace</span>
-                    <span className="saw-unlimited-badge">Unlimited</span>
+                    <span aria-hidden="true">IW</span>
+                </div>
+
+                <button
+                    type="button"
+                    className="saw-toolbar-command saw-history-command"
+                    onClick={onOpenHistory}
+                    title="Interview history"
+                    aria-label="Open interview history"
+                >
+                    <svg viewBox="0 0 24 24" aria-hidden="true">
+                        <path d="M3 12a9 9 0 1 0 3-6.7" />
+                        <path d="M3 4v5h5" />
+                        <path d="M12 7v5l3 2" />
+                    </svg>
+                    <span>History</span>
+                </button>
+
+                <div className="saw-toolbar-metrics" aria-label="Session allowance">
+                    <div>
+                        <span>Time</span>
+                        <strong>{timeLabel}</strong>
+                    </div>
+                    <div>
+                        <span>Credits</span>
+                        <strong>{creditsLabel}</strong>
+                    </div>
+                </div>
+
+                <div className="saw-toolbar-status" aria-live="polite">
+                    <StatusPill
+                        status={status}
+                        isListening={isListening}
+                        isProcessing={isProcessing}
+                    />
                 </div>
 
                 <div className="saw-layout-picker" ref={layoutMenuRef}>
@@ -372,15 +415,25 @@ export default function SuperAdminWorkspace({ interviewContent }) {
                         onClick={() => setLayoutMenuOpen((open) => !open)}
                     >
                         <LayoutPreview option={currentLayout} compact />
-                        <span><strong>Layouts</strong><small>{currentLayout.label}</small></span>
+                        <span>
+                            <strong>Layout</strong>
+                            <small>{currentLayout.label}</small>
+                        </span>
+                        <svg className="saw-layout-chevron" viewBox="0 0 24 24" aria-hidden="true">
+                            <path d="m7 10 5 5 5-5" />
+                        </svg>
                     </button>
 
                     {layoutMenuOpen && (
-                        <div className="saw-layout-menu" role="menu" aria-label="Workspace layouts">
+                        <div className="saw-layout-menu" role="menu" aria-label="Workspace layout">
                             <div className="saw-layout-menu-title">
-                                <strong>Workspace layouts</strong>
-                                <span>{LAYOUTS.length} presets</span>
+                                <div>
+                                    <strong>Workspace layout</strong>
+                                    <span>Choose a preset, then drag the divider to fine-tune it.</span>
+                                </div>
+                                <small>{LAYOUTS.length} presets</small>
                             </div>
+
                             <div className="saw-layout-grid">
                                 {LAYOUTS.map((option) => (
                                     <button
@@ -397,18 +450,44 @@ export default function SuperAdminWorkspace({ interviewContent }) {
                                     </button>
                                 ))}
                             </div>
+
+                            <div className="saw-camera-menu-row">
+                                <div>
+                                    <strong>Candidate camera overlay</strong>
+                                    <span>
+                                        {camera.candidateStream
+                                            ? 'Show the live candidate video over Interview Whisperer.'
+                                            : 'Available when the candidate camera is connected.'}
+                                    </span>
+                                </div>
+                                <button
+                                    type="button"
+                                    role="menuitemcheckbox"
+                                    className={`saw-camera-switch ${cameraOverlay ? 'active' : ''}`}
+                                    disabled={!camera.candidateStream || !interviewVisible}
+                                    aria-checked={cameraOverlay && Boolean(camera.candidateStream)}
+                                    aria-label="Toggle candidate camera overlay"
+                                    onClick={() => setCameraOverlay((current) => !current)}
+                                >
+                                    <span />
+                                </button>
+                            </div>
                         </div>
                     )}
                 </div>
 
                 <button
                     type="button"
-                    className={`saw-camera-toggle ${cameraOverlay ? 'active' : ''}`}
-                    disabled={!camera.candidateStream || !interviewVisible}
-                    aria-pressed={cameraOverlay}
-                    onClick={() => setCameraOverlay((current) => !current)}
+                    className="saw-toolbar-command saw-signout-command"
+                    onClick={onLogout}
+                    title="Sign out"
+                    aria-label="Sign out"
                 >
-                    Camera overlay
+                    <svg viewBox="0 0 24 24" aria-hidden="true">
+                        <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+                        <path d="m16 17 5-5-5-5" />
+                        <path d="M21 12H9" />
+                    </svg>
                 </button>
             </header>
 

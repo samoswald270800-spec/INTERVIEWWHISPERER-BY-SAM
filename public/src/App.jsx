@@ -1075,72 +1075,76 @@ This is your chance to really impress. Leave nothing on the table.`;
     }
 
     const interviewExperience = (
-        <div className="app-container">
+        <div className={`app-container ${userRole === 'super_admin' ? 'app-container-workspace' : ''}`}>
             <div className="void-bg">
                 <div className="aurora"></div>
                 <div className="noise"></div>
             </div>
 
-            {/* Session Info - Timer & Credits */}
-            <div className="session-info">
-                <div className="session-timer">
-                    <span className="label">Time Left</span>
-                    <span className={`value timer ${!unlimitedCredits && remainingTime < 300 ? 'warning' : ''}`}>
-                        {unlimitedCredits ? 'Unlimited' : formatTime(remainingTime)}
-                    </span>
-                </div>
-                <div className="session-credits">
-                    <span className="label">Credits</span>
-                    <span className="value">{unlimitedCredits ? 'Unlimited' : `${credits} min`}</span>
-                </div>
-            </div>
+            {userRole !== 'super_admin' && (
+                <>
+                    {/* Session Info - Timer & Credits */}
+                    <div className="session-info">
+                        <div className="session-timer">
+                            <span className="label">Time Left</span>
+                            <span className={`value timer ${!unlimitedCredits && remainingTime < 300 ? 'warning' : ''}`}>
+                                {unlimitedCredits ? 'Unlimited' : formatTime(remainingTime)}
+                            </span>
+                        </div>
+                        <div className="session-credits">
+                            <span className="label">Credits</span>
+                            <span className="value">{unlimitedCredits ? 'Unlimited' : `${credits} min`}</span>
+                        </div>
+                    </div>
 
-            <div className="status-pill-wrapper">
-                <StatusPill
-                    status={status}
-                    isListening={isListening}
-                    isProcessing={isProcessing}
-                />
-            </div>
+                    <div className="status-pill-wrapper">
+                        <StatusPill
+                            status={status}
+                            isListening={isListening}
+                            isProcessing={isProcessing}
+                        />
+                    </div>
 
-            <button className="power-btn" onClick={handleLogout} title="Sign Out">
-                <svg className="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
-                    <polyline points="16 17 21 12 16 7"></polyline>
-                    <line x1="21" y1="12" x2="9" y2="12"></line>
-                </svg>
-            </button>
+                    <button className="power-btn" onClick={handleLogout} title="Sign Out">
+                        <svg className="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
+                            <polyline points="16 17 21 12 16 7"></polyline>
+                            <line x1="21" y1="12" x2="9" y2="12"></line>
+                        </svg>
+                    </button>
 
-            {/* Button to open history */}
-            <button
-                className="hamburger-btn"
-                onClick={() => setIsHistoryOpen(true)}
-                title="Interview History"
-                style={{
-                    position: 'absolute',
-                    top: '20px',
-                    left: '20px',
-                    zIndex: 100,
-                    background: 'none',
-                    border: 'none',
-                    color: 'rgba(255, 255, 255, 0.5)',
-                    cursor: 'pointer',
-                    fontSize: '14px',
-                    fontWeight: 500,
-                    textTransform: 'uppercase',
-                    letterSpacing: '0.05em',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '8px'
-                }}
-            >
-                <svg viewBox="0 0 24 24" width="20" height="20" stroke="currentColor" strokeWidth="2" fill="none" strokeLinecap="round" strokeLinejoin="round">
-                    <line x1="3" y1="12" x2="21" y2="12"></line>
-                    <line x1="3" y1="6" x2="21" y2="6"></line>
-                    <line x1="3" y1="18" x2="21" y2="18"></line>
-                </svg>
-                History
-            </button>
+                    {/* Button to open history */}
+                    <button
+                        className="hamburger-btn"
+                        onClick={() => setIsHistoryOpen(true)}
+                        title="Interview History"
+                        style={{
+                            position: 'absolute',
+                            top: '20px',
+                            left: '20px',
+                            zIndex: 100,
+                            background: 'none',
+                            border: 'none',
+                            color: 'rgba(255, 255, 255, 0.5)',
+                            cursor: 'pointer',
+                            fontSize: '14px',
+                            fontWeight: 500,
+                            textTransform: 'uppercase',
+                            letterSpacing: '0.05em',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '8px'
+                        }}
+                    >
+                        <svg viewBox="0 0 24 24" width="20" height="20" stroke="currentColor" strokeWidth="2" fill="none" strokeLinecap="round" strokeLinejoin="round">
+                            <line x1="3" y1="12" x2="21" y2="12"></line>
+                            <line x1="3" y1="6" x2="21" y2="6"></line>
+                            <line x1="3" y1="18" x2="21" y2="18"></line>
+                        </svg>
+                        History
+                    </button>
+                </>
+            )}
 
             <HistoryDrawer
                 isOpen={isHistoryOpen}
@@ -1233,7 +1237,18 @@ This is your chance to really impress. Leave nothing on the table.`;
     );
 
     if (userRole === 'super_admin') {
-        return <SuperAdminWorkspace interviewContent={interviewExperience} />;
+        return (
+            <SuperAdminWorkspace
+                interviewContent={interviewExperience}
+                status={status}
+                isListening={isListening}
+                isProcessing={isProcessing}
+                timeLabel={unlimitedCredits ? 'Unlimited' : formatTime(remainingTime)}
+                creditsLabel={unlimitedCredits ? 'Unlimited' : `${credits} min`}
+                onOpenHistory={() => setIsHistoryOpen(true)}
+                onLogout={handleLogout}
+            />
+        );
     }
     return interviewExperience;
 }
