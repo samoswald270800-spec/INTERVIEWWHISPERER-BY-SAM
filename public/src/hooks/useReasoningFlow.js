@@ -222,7 +222,11 @@ export function useReasoningFlow({
 
             // 4. Create QA card and stream answer
             lastQuestionRef.current = transcript;
-            setQaList(prev => [...prev, { question: transcript, answer: "" }]);
+            setQaList(prev => [...prev, {
+                question: transcript,
+                answer: "",
+                time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+            }]);
             setStatus("THINKING...");
 
             await streamAnswer(transcript);

@@ -1,226 +1,368 @@
 /* ═══════════════════════════════════════════════════════════
-   Remote Control Panel
-   Design matches SuperAdminDashboard.css tokens exactly
+   Remote control (IW Console v8)
+   Idle card + WebRTC session viewer
    ═══════════════════════════════════════════════════════════ */
 
-/* ─── Panel Container ─── */
-.rc-panel {
-    background: rgba(22,22,24,0.8);
-    border: 1px solid rgba(255,255,255,0.08);
-    border-radius: 24px;
-    padding: 24px;
-    margin-bottom: 32px;
-    overflow: hidden;
-    transition: all 0.3s cubic-bezier(0.2, 0, 0, 1);
-}
-.rc-panel:hover { border-color: rgba(255,255,255,0.12); }
-.rc-panel.rc-session-active { padding: 0; border-color: rgba(50,215,75,0.2); background: rgba(22,22,24,0.95); }
-.rc-panel.rc-fullscreen { border-radius: 0; border: none; position: fixed; inset: 0; z-index: 9999; margin: 0; display: flex; flex-direction: column; background: #000; }
-
-/* ─── Header ─── */
-.rc-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
-.rc-title {
-    font-size: 18px; font-weight: 600; display: flex; align-items: center; gap: 8px;
-}
-.rc-title::before {
-    content: ''; display: block; width: 4px; height: 16px;
-    background: #5E5CE6; border-radius: 2px;
+.rc-card {
+    min-width: 0;
 }
 
-/* ─── Status Pill ─── */
-.rc-status {
-    display: inline-flex; align-items: center; gap: 8px;
-    font-size: 13px; font-weight: 500; color: rgba(255,255,255,0.55);
-    padding: 8px 16px; border-radius: 99px;
-    background: rgba(255,255,255,0.03);
-    border: 1px solid rgba(255,255,255,0.08);
-    transition: all 0.2s ease;
+/* Online chip in the card header */
+.rc-online {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-family: var(--font-mono);
+    font-size: 10.5px;
+    color: var(--text-muted);
 }
-.rc-dot {
-    width: 8px; height: 8px; border-radius: 50%;
-    background: rgba(255,255,255,0.3); flex-shrink: 0;
-    transition: all 0.3s;
-}
-.rc-status.online .rc-dot { background: #32D74B; box-shadow: 0 0 8px rgba(50,215,75,0.4); }
-.rc-status.offline .rc-dot { background: #FF453A; }
-.rc-status.live {
-    background: rgba(255,59,48,0.06); border-color: rgba(255,59,48,0.15); color: #FF453A;
-}
-.rc-status.live .rc-dot { background: #FF453A; animation: rc-pulse 1.2s infinite; }
-.rc-live-label { font-weight: 700; letter-spacing: 0.06em; font-size: 10px; text-transform: uppercase; }
-.rc-session-user { color: rgba(255,255,255,0.55); font-weight: 400; margin-left: 4px; }
 
-@keyframes rc-pulse { 0%,100% { opacity:1; transform:scale(1); } 50% { opacity:0.4; transform:scale(0.8); } }
+.rc-online-dot {
+    width: 5px;
+    height: 5px;
+    flex: none;
+    border-radius: 50%;
+    background: var(--live-green);
+}
 
-/* ─── Error ─── */
+.rc-online.offline .rc-online-dot {
+    background: var(--danger-text);
+}
+
+.rc-explainer {
+    font-size: 12.5px;
+    line-height: 1.65;
+    color: var(--text-muted);
+    text-wrap: pretty;
+}
+
+/* Passcode row */
+.rc-input-row {
+    display: flex;
+    gap: 8px;
+}
+
+.rc-passcode-input {
+    flex: 1;
+    min-width: 0;
+    height: 32px;
+    box-sizing: border-box;
+    padding: 0 12px;
+    background: rgba(0, 0, 0, 0.35);
+    border: 1px solid var(--border-strong);
+    border-radius: 8px;
+    color: var(--text-primary);
+    font-family: var(--font-mono);
+    font-size: 12px;
+    letter-spacing: 0.18em;
+    transition: all 0.2s;
+    outline: none;
+}
+
+.rc-passcode-input:focus {
+    border-color: #06B6D4;
+    box-shadow: 0 0 0 3px rgba(6, 182, 212, 0.16);
+}
+
+.rc-connect-btn {
+    height: 32px;
+    padding: 0 14px;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid var(--border-strong);
+    border-radius: 8px;
+    color: #E5E7EB;
+    font-family: var(--font-body);
+    font-size: 12px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: border-color 0.2s;
+}
+
+.rc-connect-btn:hover:not(:disabled) {
+    border-color: rgba(255, 255, 255, 0.28);
+}
+
+.rc-connect-btn:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+}
+
 .rc-error {
-    background: rgba(255,69,58,0.1); border: 1px solid rgba(255,69,58,0.25);
-    border-radius: 16px; padding: 12px 16px; color: #FF453A;
-    font-size: 13px; margin-bottom: 16px;
-    animation: rc-fadeIn 0.25s ease;
+    background: var(--danger-tint);
+    border: 1px solid var(--danger-border);
+    border-radius: 8px;
+    padding: 9px 12px;
+    color: var(--danger-text);
+    font-size: 12px;
+    animation: panelIn 0.25s ease;
 }
-@keyframes rc-fadeIn { from { opacity:0; transform:translateY(-6px); } to { opacity:1; transform:translateY(0); } }
 
-/* ─── Session Toolbar ─── */
+/* Online users (compact) */
+.rc-users-list {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.rc-user-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 8px;
+    border-radius: 7px;
+    transition: background 0.15s;
+}
+
+.rc-user-item:hover {
+    background: rgba(255, 255, 255, 0.04);
+}
+
+.rc-user-name {
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--text-primary);
+}
+
+.rc-user-admin {
+    font-size: 11px;
+    color: var(--text-dim);
+}
+
+/* Waiting for consent */
+.rc-waiting {
+    text-align: center;
+    padding: 40px 24px;
+}
+
+.rc-waiting h3 {
+    font-family: var(--font-display);
+    font-size: 14px;
+    margin-bottom: 8px;
+    font-weight: 600;
+}
+
+.rc-waiting p {
+    font-size: 12.5px;
+    color: var(--text-muted);
+    margin-bottom: 4px;
+}
+
+.rc-sub {
+    font-size: 11px !important;
+    color: var(--text-dim) !important;
+}
+
+.rc-spinner {
+    width: 32px;
+    height: 32px;
+    border: 2.5px solid rgba(255, 255, 255, 0.12);
+    border-top-color: var(--acc-solid);
+    border-radius: 50%;
+    animation: rc-spin 0.7s linear infinite;
+    margin: 0 auto 18px;
+}
+
+@keyframes rc-spin {
+    to { transform: rotate(360deg); }
+}
+
+/* ─── Active session viewer ─── */
+.rc-panel.rc-session-active {
+    border: 1px solid rgba(34, 197, 94, 0.25);
+    border-radius: 12px;
+    background: rgba(14, 14, 19, 0.95);
+    overflow: hidden;
+}
+
+.rc-panel.rc-fullscreen {
+    border-radius: 0;
+    border: none;
+    position: fixed;
+    inset: 0;
+    z-index: 9999;
+    margin: 0;
+    display: flex;
+    flex-direction: column;
+    background: #000;
+}
+
 .rc-session-toolbar {
-    display: flex; justify-content: space-between; align-items: center;
-    padding: 12px 20px;
-    background: rgba(20,20,23,0.6);
-    border-bottom: 1px solid rgba(255,255,255,0.06);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+    padding: 10px 14px;
+    background: rgba(19, 19, 24, 0.75);
+    border-bottom: 1px solid var(--border-faint);
 }
-.rc-toolbar-right { display: flex; align-items: center; gap: 10px; }
-.rc-fps {
-    font-family: 'SF Mono', 'Monaco', 'Consolas', monospace;
-    font-size: 11px; color: rgba(255,255,255,0.35);
-    background: rgba(255,255,255,0.03); padding: 4px 10px; border-radius: 8px;
-    border: 1px solid rgba(255,255,255,0.05); font-variant-numeric: tabular-nums;
-}
-.rc-toolbar-btn {
-    appearance: none; border: 1px solid rgba(255,255,255,0.08); border-radius: 99px;
-    background: rgba(255,255,255,0.05); color: rgba(255,255,255,0.55);
-    padding: 6px 14px; font-size: 13px; cursor: pointer;
-    font-family: inherit; font-weight: 500; transition: all 0.2s;
-}
-.rc-toolbar-btn:hover { background: rgba(255,255,255,0.1); color: #fff; transform: translateY(-1px); }
-.rc-toolbar-btn:active { transform: scale(0.98); }
-.rc-toolbar-btn.active {
-    background: rgba(50,215,75,0.12);
-    border-color: rgba(50,215,75,0.3);
-    color: #32D74B;
-}
-.rc-toolbar-end {
-    background: rgba(255,69,58,0.1); border-color: rgba(255,69,58,0.25); color: #FF453A;
-}
-.rc-toolbar-end:hover { background: rgba(255,69,58,0.2); }
 
-/* ─── Canvas Viewer ─── */
-.rc-canvas-container {
-    position: relative; background: #0a0a0a;
-    display: flex; align-items: center; justify-content: center;
-    min-height: 420px; outline: none; flex: 1;
+.rc-status {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--text-muted);
+    padding: 5px 12px;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid var(--border-soft);
 }
-.rc-canvas-container:focus { outline: none; }
+
+.rc-dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.3);
+    flex-shrink: 0;
+}
+
+.rc-status.live {
+    background: var(--danger-tint);
+    border-color: rgba(225, 29, 72, 0.3);
+    color: var(--danger-text);
+}
+
+.rc-status.live .rc-dot {
+    background: var(--danger-text);
+    animation: rc-pulse 1.2s infinite;
+}
+
+.rc-live-label {
+    font-family: var(--font-display);
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    font-size: 10px;
+    text-transform: uppercase;
+}
+
+.rc-session-user {
+    color: var(--text-muted);
+    font-weight: 400;
+    margin-left: 4px;
+}
+
+@keyframes rc-pulse {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.4; transform: scale(0.8); }
+}
+
+.rc-toolbar-right {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.rc-fps {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    color: var(--text-dim);
+    background: rgba(255, 255, 255, 0.03);
+    padding: 4px 9px;
+    border-radius: 7px;
+    border: 1px solid rgba(255, 255, 255, 0.05);
+    font-variant-numeric: tabular-nums;
+}
+
+.rc-toolbar-btn {
+    appearance: none;
+    border: 1px solid var(--border-soft);
+    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.05);
+    color: var(--text-muted);
+    padding: 5px 11px;
+    font-size: 11.5px;
+    cursor: pointer;
+    font-family: var(--font-body);
+    font-weight: 500;
+    transition: all 0.2s;
+}
+
+.rc-toolbar-btn:hover {
+    background: rgba(255, 255, 255, 0.1);
+    color: #fff;
+}
+
+.rc-toolbar-btn.active {
+    background: rgba(34, 197, 94, 0.12);
+    border-color: rgba(34, 197, 94, 0.3);
+    color: #4ADE80;
+}
+
+.rc-toolbar-end {
+    background: var(--danger-tint);
+    border-color: rgba(225, 29, 72, 0.3);
+    color: var(--danger-text);
+}
+
+.rc-toolbar-end:hover {
+    background: rgba(225, 29, 72, 0.2);
+    color: var(--danger-text);
+}
+
+/* Viewer surface */
+.rc-canvas-container {
+    position: relative;
+    background: #0a0a0a;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 320px;
+    outline: none;
+    flex: 1;
+}
+
+.rc-canvas-container:focus {
+    outline: none;
+}
+
 .rc-canvas {
-    display: block; width: 100%; height: auto;
+    display: block;
+    width: 100%;
+    height: auto;
     max-height: calc(100vh - 100px);
-    object-fit: contain; cursor: none;
+    object-fit: contain;
+    cursor: none;
     image-rendering: auto;
 }
-/* Live WebRTC video: keep a visible, precise cursor so the operator can aim.
-   (The canvas above hides the cursor because it draws its own in MJPEG mode.) */
-.rc-video { background: #000; object-fit: contain; cursor: crosshair; }
-.rc-fullscreen .rc-canvas-container { min-height: 0; }
-.rc-fullscreen .rc-canvas { max-height: calc(100vh - 80px); }
 
-/* ─── Controls Hint Bar ─── */
+/* Live WebRTC video keeps a visible cursor so the operator can aim */
+.rc-video {
+    background: #000;
+    object-fit: contain;
+    cursor: crosshair;
+}
+
+.rc-fullscreen .rc-canvas-container {
+    min-height: 0;
+}
+
+.rc-fullscreen .rc-canvas {
+    max-height: calc(100vh - 80px);
+}
+
 .rc-controls-hint {
-    display: flex; align-items: center; justify-content: center; gap: 24px;
-    padding: 10px 20px; font-size: 11px; color: rgba(255,255,255,0.25);
-    background: rgba(20,20,23,0.6);
-    border-top: 1px solid rgba(255,255,255,0.04);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 20px;
+    padding: 9px 16px;
+    font-size: 10.5px;
+    color: rgba(255, 255, 255, 0.25);
+    background: rgba(19, 19, 24, 0.75);
+    border-top: 1px solid rgba(255, 255, 255, 0.04);
     letter-spacing: 0.02em;
 }
 
-/* ─── Connect Form ─── */
-.rc-connect-form { margin-bottom: 24px; }
-.rc-label {
-    font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em;
-    color: rgba(255,255,255,0.55); font-weight: 600; margin-bottom: 10px;
-    display: flex; align-items: center; gap: 8px;
-}
-.rc-count {
-    background: rgba(94,92,230,0.15); color: #8B8AE6;
-    padding: 2px 8px; border-radius: 6px; font-size: 10px; font-weight: 600;
-}
-.rc-input-row { display: flex; gap: 12px; }
-.rc-passcode-input {
-    flex: 1; padding: 14px 20px; border-radius: 14px;
-    background: rgba(255,255,255,0.05);
-    border: 1px solid rgba(255,255,255,0.08);
-    color: #fff;
-    font-family: 'SF Mono', 'Monaco', 'Consolas', monospace;
-    font-size: 24px; letter-spacing: 0.35em; text-align: center;
-    transition: all 0.2s ease;
-}
-.rc-passcode-input::placeholder {
-    color: rgba(255,255,255,0.12); letter-spacing: 0.35em;
-}
-.rc-passcode-input:focus {
-    outline: none; border-color: #5E5CE6;
-    box-shadow: 0 0 0 3px rgba(94,92,230,0.12);
-    background: rgba(255,255,255,0.07);
-}
-
-/* ─── Buttons (matches .sa-app .btn) ─── */
-.rc-btn {
-    appearance: none; border: 1px solid transparent; border-radius: 99px;
-    padding: 12px 24px; font-family: inherit; font-weight: 500;
-    font-size: 13px; cursor: pointer; transition: all 0.2s ease;
-    display: inline-flex; align-items: center; justify-content: center; gap: 6px;
-}
-.rc-btn-primary {
-    background: #fff; color: #000; font-weight: 600;
-}
-.rc-btn-primary:hover:not(:disabled) {
-    background: rgba(255,255,255,0.9);
-    box-shadow: 0 4px 12px rgba(255,255,255,0.15);
-    transform: translateY(-1px);
-}
-.rc-btn-primary:active:not(:disabled) { transform: scale(0.98); }
-.rc-btn-primary:disabled { opacity: 0.3; cursor: not-allowed; }
-.rc-btn-danger {
-    background: rgba(255,69,58,0.1); color: #FF453A;
-    border-color: rgba(255,69,58,0.25);
-}
-.rc-btn-danger:hover { background: rgba(255,69,58,0.2); }
-
-/* ─── Online Users ─── */
-.rc-users-section { margin-top: 4px; }
-.rc-empty {
-    padding: 32px; text-align: center; color: rgba(255,255,255,0.55);
-    border: 1px dashed rgba(255,255,255,0.1); border-radius: 16px;
-    font-size: 13px;
-}
-.rc-users-list { display: flex; flex-direction: column; gap: 8px; }
-.rc-user-item {
-    display: flex; align-items: center; gap: 14px;
-    padding: 12px 16px;
-    background: rgba(255,255,255,0.03);
-    border-radius: 16px;
-    border: 1px solid rgba(255,255,255,0.05);
-    transition: all 0.2s ease;
-}
-.rc-user-item:hover {
-    background: rgba(255,255,255,0.05);
-    border-color: rgba(255,255,255,0.08);
-    transform: translateY(-1px);
-}
-.rc-user-dot {
-    width: 8px; height: 8px; border-radius: 50%;
-    background: #32D74B; box-shadow: 0 0 6px rgba(50,215,75,0.3);
-    flex-shrink: 0;
-}
-.rc-user-info { display: flex; flex-direction: column; gap: 1px; }
-.rc-user-name { font-size: 14px; font-weight: 500; color: #fff; }
-.rc-user-admin { font-size: 12px; color: rgba(255,255,255,0.4); }
-
-/* ─── Screen Placeholder ─── */
 .rc-screen-placeholder {
-    text-align: center; color: rgba(255,255,255,0.35); padding: 64px 24px;
+    text-align: center;
+    color: rgba(255, 255, 255, 0.35);
+    padding: 56px 24px;
 }
-.rc-screen-placeholder p { font-size: 14px; margin-bottom: 6px; }
-.rc-sub { font-size: 12px !important; color: rgba(255,255,255,0.2) !important; }
 
-/* ─── Waiting State ─── */
-.rc-waiting { text-align: center; padding: 56px 24px; }
-.rc-waiting h3 { font-size: 16px; margin-bottom: 10px; font-weight: 600; }
-.rc-waiting p { font-size: 13px; color: rgba(255,255,255,0.55); margin-bottom: 4px; }
-.rc-spinner {
-    width: 36px; height: 36px;
-    border: 2.5px solid rgba(94,92,230,0.15);
-    border-top-color: #5E5CE6;
-    border-radius: 50%;
-    animation: rc-spin 0.7s linear infinite;
-    margin: 0 auto 20px;
+.rc-screen-placeholder p {
+    font-size: 13px;
+    margin-bottom: 6px;
 }
-@keyframes rc-spin { to { transform: rotate(360deg); } }

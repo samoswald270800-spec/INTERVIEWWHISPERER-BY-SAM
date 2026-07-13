@@ -1,205 +1,151 @@
-.stream {
-    width: 100%;
-    max-width: 1400px;
-    height: 100vh;
-    overflow-y: auto;
-    overflow-x: hidden;
-    padding: 120px 40px 180px 40px;
-    scroll-behavior: smooth;
+/* Live transcript (IW Console v8) */
+
+/* Ready / empty state */
+.transcript-empty {
+    position: absolute;
+    inset: 0;
     display: flex;
     flex-direction: column;
-    gap: 48px;
+    align-items: center;
+    justify-content: center;
 }
 
-.stream::-webkit-scrollbar {
-    width: 6px;
-}
-
-.stream::-webkit-scrollbar-track {
-    background: transparent;
-}
-
-.stream::-webkit-scrollbar-thumb {
-    background: rgba(255, 255, 255, 0.1);
-    border-radius: 3px;
-}
-
-.stream::-webkit-scrollbar-thumb:hover {
-    background: rgba(255, 255, 255, 0.2);
-}
-
-.empty-hero {
-    margin: auto;
-    text-align: center;
-}
-
-.empty-hero h1 {
+.transcript-wordmark {
     font-family: var(--font-display);
-    font-size: 64px;
+    font-size: 60px;
     font-weight: 300;
     letter-spacing: -0.03em;
-    color: var(--text-white);
-    margin-bottom: 24px;
-    opacity: 0.9;
+    line-height: 1.05;
+    text-align: center;
+    background: linear-gradient(180deg, #FFFFFF 30%, #878C99 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+    text-wrap: balance;
 }
 
-.empty-hero p {
+.transcript-tagline {
+    font-size: 13.5px;
     color: var(--text-muted);
-    font-size: 15px;
-    letter-spacing: 0.02em;
+    margin-top: 14px;
+    max-width: 460px;
+    text-align: center;
+    line-height: 1.6;
+    text-wrap: pretty;
 }
 
-.turn {
+/* Live transcript panel */
+.transcript-panel {
+    position: absolute;
+    top: 64px;
+    left: 20px;
+    right: 20px;
+    bottom: 20px;
+    background: var(--surface-transcript);
+    border: 1px solid var(--border-soft);
+    border-radius: 16px;
+    backdrop-filter: blur(14px);
+    -webkit-backdrop-filter: blur(14px);
+    padding: 12px 30px 84px;
+    overflow-y: auto;
+    overflow-x: hidden;
+    box-sizing: border-box;
+}
+
+.transcript-column {
+    max-width: 720px;
+    margin: 0 auto;
     display: flex;
     flex-direction: column;
-    gap: 20px;
 }
 
-.shard {
-    position: relative;
-    padding: 0 20px;
+.transcript-turn {
+    display: grid;
+    grid-template-columns: 34px 1fr;
+    column-gap: 14px;
+    row-gap: 12px;
+    padding: 17px 0;
+    border-bottom: 1px solid var(--border-faint);
 }
 
-.shard.q {
-    border-left: 2px solid var(--glass-border);
-    padding-left: 24px;
-}
-
-.shard.q .meta {
-    font-family: var(--font-display);
-    font-size: 10px;
-    text-transform: uppercase;
-    letter-spacing: 0.15em;
-    color: var(--text-muted);
-    margin-bottom: 12px;
+.turn-badge {
+    width: 26px;
+    height: 26px;
+    border-radius: 50%;
     display: flex;
     align-items: center;
-    gap: 8px;
-    opacity: 0.7;
+    justify-content: center;
+    font-family: var(--font-mono);
+    font-size: 10px;
 }
 
-.shard.q .text {
+.turn-badge.q {
+    border: 1px solid var(--border-strong);
+    color: var(--text-dim);
+}
+
+.turn-badge.iw {
+    background: var(--acc-soft-bg);
+    color: var(--acc-text);
+}
+
+.turn-question-row {
+    display: flex;
+    align-items: baseline;
+    gap: 12px;
+}
+
+.turn-question {
+    flex: 1;
     font-family: var(--font-display);
-    font-size: 24px;
-    font-weight: 400;
-    line-height: 1.4;
-    color: var(--text-white);
-    letter-spacing: -0.01em;
+    font-size: 16.5px;
+    font-weight: 500;
+    line-height: 1.45;
+    color: var(--text-primary);
+    text-wrap: pretty;
 }
 
-.shard.a {
-    background: linear-gradient(180deg, rgba(255, 255, 255, 0.02) 0%, transparent 100%);
-    border-top: 1px solid rgba(255, 255, 255, 0.05);
-    border-radius: 24px;
-    padding: 32px;
+.turn-time {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    color: var(--text-faint);
+}
+
+.turn-answer {
+    font-size: 14px;
+    line-height: 1.75;
+    color: var(--text-secondary);
+    text-wrap: pretty;
+    white-space: pre-wrap;
+}
+
+.turn-cursor {
+    display: inline-block;
+    width: 7px;
+    height: 14px;
+    margin-left: 2px;
+    vertical-align: text-bottom;
+    background: var(--acc-dot);
+    animation: blinkCursor 1s infinite;
+}
+
+.turn-actions {
+    display: flex;
+    gap: 14px;
     margin-top: 8px;
 }
 
-.shard.a:hover {
-    background: linear-gradient(180deg, rgba(255, 255, 255, 0.03) 0%, transparent 100%);
+.turn-actions button {
+    background: none;
+    border: none;
+    padding: 0;
+    font-family: var(--font-body);
+    font-size: 11px;
+    color: var(--text-dim);
+    cursor: pointer;
+    transition: color 0.15s;
 }
 
-.shard.a .meta {
-    font-family: var(--font-display);
-    font-size: 10px;
-    text-transform: uppercase;
-    letter-spacing: 0.15em;
-    color: var(--theme-primary);
-    margin-bottom: 20px;
-    display: flex;
-    align-items: center;
-    gap: 8px;
-}
-
-.shard.a .text {
-    font-size: 16px;
-    line-height: 1.8;
-    color: rgba(255, 255, 255, 0.85);
-    white-space: pre-wrap;
-    font-weight: 300;
-    letter-spacing: 0.01em;
-}
-
-.cursor-blink {
-    display: inline-block;
-    width: 2px;
-    height: 1em;
-    background: var(--theme-primary);
-    margin-left: 2px;
-    animation: blink 1s infinite;
-    vertical-align: middle;
-}
-
-@keyframes blink {
-    50% {
-        opacity: 0;
-    }
-}
-
-.icon {
-    width: 12px;
-    height: 12px;
-}
-
-.manual-search-btn {
-    opacity: 0.5;
-    transition: opacity 0.2s ease, color 0.2s ease;
-}
-
-.manual-search-btn:hover {
-    opacity: 1;
-    color: var(--theme-primary);
-}
-
-/* ========================================
-   MOBILE RESPONSIVE STYLES
-   ======================================== */
-
-/* Tablet and below (768px) */
-@media (max-width: 768px) {
-    .stream {
-        padding: 100px 24px 160px 24px;
-        gap: 36px;
-    }
-
-    .empty-hero h1 {
-        font-size: 48px;
-    }
-
-    .shard.q .text {
-        font-size: 20px;
-    }
-
-    .shard.a {
-        padding: 24px;
-    }
-}
-
-/* Mobile phones (480px) */
-@media (max-width: 480px) {
-    .stream {
-        padding: 80px 16px 120px 16px;
-        gap: 28px;
-    }
-
-    .empty-hero h1 {
-        font-size: 36px;
-    }
-
-    .empty-hero p {
-        font-size: 13px;
-    }
-
-    .shard.q .text {
-        font-size: 18px;
-    }
-
-    .shard.a {
-        padding: 20px 16px;
-    }
-
-    .shard.a .text {
-        font-size: 14px;
-        line-height: 1.7;
-    }
+.turn-actions button:hover {
+    color: #E5E7EB;
 }

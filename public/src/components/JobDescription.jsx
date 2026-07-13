@@ -1,57 +1,49 @@
 import React, { useState } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
 import './JobDescription.css';
 
-export default function JobDescription({ jd, setJd, onSave }) {
-    const [isOpen, setIsOpen] = useState(false);
+/**
+ * Job description drawer (IW Console v8) — controlled by the parent view;
+ * opened from the whisperer toolbar. Scrim is rendered by the parent.
+ */
+export default function JobDescription({ isOpen, onClose, jd, setJd, onSave }) {
     const [isSaved, setIsSaved] = useState(false);
+
+    if (!isOpen) return null;
 
     const handleSave = async () => {
         const success = await onSave(jd);
         if (success) {
             setIsSaved(true);
-            setTimeout(() => {
-                setIsSaved(false);
-                setIsOpen(false);
-            }, 1500);
+            setTimeout(() => setIsSaved(false), 1500);
         }
     };
 
     return (
-        <div className="jd-anchor">
-            <AnimatePresence>
-                {isOpen && (
-                    <motion.div
-                        className="jd-panel"
-                        initial={{ opacity: 0, scale: 0.9, y: 20 }}
-                        animate={{ opacity: 1, scale: 1, y: 0 }}
-                        exit={{ opacity: 0, scale: 0.9, y: 20 }}
-                        transition={{ type: "spring", stiffness: 300, damping: 30 }}
-                    >
-                        <div className="jd-header">
-                            <span>Context</span>
-                            <span className={`saved-tag ${isSaved ? 'visible' : ''}`}>Saved</span>
-                        </div>
-                        <textarea
-                            id="jd"
-                            placeholder="Paste job description..."
-                            value={jd}
-                            onChange={(e) => setJd(e.target.value)}
-                        />
-                        <button className="save-btn" onClick={handleSave}>Save Context</button>
-                    </motion.div>
-                )}
-            </AnimatePresence>
-
-            <button className="jd-btn" onClick={() => setIsOpen(!isOpen)} title="Job Context">
-                <svg className="icon" viewBox="0 0 24 24">
-                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
-                    <polyline points="14 2 14 8 20 8"></polyline>
-                    <line x1="16" y1="13" x2="8" y2="13"></line>
-                    <line x1="16" y1="17" x2="8" y2="17"></line>
-                    <polyline points="10 9 9 9 8 9"></polyline>
-                </svg>
-            </button>
+        <div className="iw-drawer jd-drawer">
+            <div className="iw-drawer-header">
+                <span className="iw-drawer-title">Job description</span>
+                <div className="iw-drawer-spacer" />
+                <button className="iw-drawer-close" onClick={onClose} title="Close">
+                    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+                        <line x1="18" y1="6" x2="6" y2="18"></line>
+                        <line x1="6" y1="6" x2="18" y2="18"></line>
+                    </svg>
+                </button>
+            </div>
+            <div className="jd-drawer-body">
+                <div className="jd-helper">Answers are tailored to this role. Paste the posting below.</div>
+                <textarea
+                    value={jd}
+                    onChange={(e) => setJd(e.target.value)}
+                    placeholder="Paste job description..."
+                />
+                <div className="jd-actions">
+                    <button className="iw-primary-btn" onClick={handleSave}>
+                        {isSaved ? 'Saved' : 'Save'}
+                    </button>
+                    <button className="iw-ghost-btn" onClick={() => setJd('')}>Clear</button>
+                </div>
+            </div>
         </div>
     );
 }

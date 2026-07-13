@@ -1,104 +1,565 @@
-/* Super Admin Dashboard — matches online version design */
-.sa-app { min-height: 100vh; background: #000; color: #fff; font-family: 'Inter', system-ui, -apple-system, sans-serif; font-size: 14px; -webkit-font-smoothing: antialiased; }
-.sa-app .bg-mesh { position: fixed; inset: 0; z-index: -1; background: radial-gradient(circle at 15% 15%, rgba(94,92,230,0.2), transparent 40%), radial-gradient(circle at 85% 85%, rgba(10,132,255,0.15), transparent 40%); filter: blur(80px); pointer-events: none; }
-.sa-app .wrap { max-width: 1100px; margin: 0 auto; padding: 60px 24px; }
-.sa-app.sa-app-embedded { min-height: 0; height: 100%; overflow: auto; container-type: inline-size; background: #090b0d; }
-.sa-app.sa-app-embedded .bg-mesh { position: absolute; }
-.sa-app.sa-app-embedded .wrap { max-width: none; padding: 28px 22px 48px; }
-.sa-app.sa-app-embedded header { margin-bottom: 28px; }
-.sa-app.sa-app-embedded .stats { margin-bottom: 28px; }
+/* Superadmin dashboard (IW Console v8) */
+.sadash {
+    position: absolute;
+    inset: 0;
+    color: var(--text-primary);
+    font-family: var(--font-body);
+    font-size: 14px;
+    -webkit-font-smoothing: antialiased;
+}
 
-/* Header */
-.sa-app header { display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 48px; }
-.sa-app h1 { font-weight: 600; font-size: 28px; letter-spacing: -0.02em; }
-.sa-app header p { color: rgba(255,255,255,0.55); margin-top: 4px; }
-.sa-app .hdr-right { display: flex; gap: 12px; }
+.sadash:not(.sadash-embedded) {
+    position: relative;
+    min-height: 100vh;
+    background: var(--bg-radial);
+}
 
-/* Buttons */
-.sa-app .btn { appearance: none; border: 1px solid transparent; border-radius: 99px; padding: 8px 16px; font-family: inherit; font-weight: 500; font-size: 13px; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; transition: all 0.2s ease; background: rgba(255,255,255,0.1); color: #fff; }
-.sa-app .btn:hover { background: rgba(255,255,255,0.15); transform: translateY(-1px); }
-.sa-app .btn:active { transform: scale(0.98); }
-.sa-app .btn-primary { background: #fff; color: #000; font-weight: 600; }
-.sa-app .btn-primary:hover { background: rgba(255,255,255,0.9); box-shadow: 0 4px 12px rgba(255,255,255,0.15); }
-.sa-app .btn-ghost { background: transparent; color: rgba(255,255,255,0.55); }
-.sa-app .btn-ghost:hover { color: #fff; background: rgba(255,255,255,0.05); }
-.sa-app .btn-danger { background: rgba(255,69,58,0.1); color: #FF453A; }
-.sa-app .btn-danger:hover { background: rgba(255,69,58,0.2); }
-.sa-app .btn-sm { padding: 6px 12px; font-size: 11px; }
+.sadash-scroll {
+    position: absolute;
+    inset: 0;
+    overflow-y: auto;
+    overflow-x: hidden;
+    padding: 70px 20px 20px;
+    box-sizing: border-box;
+}
 
-/* Stats */
-.sa-app .stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 48px; }
-.sa-app .stat { background: rgba(20,20,23,0.6); border: 1px solid rgba(255,255,255,0.08); border-radius: 20px; padding: 20px; display: flex; flex-direction: column; }
-.sa-app .stat-label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; color: rgba(255,255,255,0.55); margin-bottom: 8px; font-weight: 600; }
-.sa-app .stat-value { font-size: 24px; font-weight: 500; color: #fff; }
+.sadash:not(.sadash-embedded) .sadash-scroll {
+    position: static;
+    min-height: 100vh;
+    padding-top: 24px;
+}
 
-/* Section */
-.sa-app .section-title { font-size: 18px; font-weight: 600; margin-bottom: 24px; display: flex; align-items: center; gap: 8px; }
-.sa-app .section-title::before { content: ''; display: block; width: 4px; height: 16px; background: #5E5CE6; border-radius: 2px; }
-.sa-app .list { display: flex; flex-direction: column; gap: 16px; }
+.sadash-column {
+    max-width: 1080px;
+    margin: 0 auto;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+}
 
-/* Admin Card */
-.sa-app .admin-card { background: rgba(22,22,24,0.8); border: 1px solid rgba(255,255,255,0.08); border-radius: 24px; overflow: hidden; transition: background 0.2s, transform 0.2s; }
-.sa-app .admin-card:hover { background: rgba(30,30,32,0.9); border-color: rgba(255,255,255,0.15); transform: translateY(-1px); }
-.sa-app .admin-card.expanded { background: rgba(25,25,27,0.95); border-color: rgba(94,92,230,0.3); }
-.sa-app .admin-header { padding: 20px 24px; display: grid; grid-template-columns: auto 1fr auto; gap: 20px; align-items: center; cursor: pointer; }
-.sa-app .avatar { width: 44px; height: 44px; border-radius: 14px; background: linear-gradient(135deg, #5E5CE6, #8E5AF7); display: grid; place-items: center; font-weight: 600; font-size: 16px; box-shadow: 0 4px 12px rgba(94,92,230,0.2); }
-.sa-app .admin-info { display: flex; flex-direction: column; gap: 2px; }
-.sa-app .admin-name { font-size: 15px; font-weight: 600; color: #fff; }
-.sa-app .meta { font-size: 13px; color: rgba(255,255,255,0.55); display: flex; align-items: center; gap: 8px; }
-.sa-app .pill { font-size: 10px; padding: 3px 8px; border-radius: 6px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; }
-.sa-app .pill.active { background: rgba(50,215,75,0.15); color: #32D74B; }
-.sa-app .pill.suspended { background: rgba(255,69,58,0.15); color: #FF453A; }
-.sa-app .expand-icon { color: rgba(255,255,255,0.55); transition: transform 0.3s ease; }
-.sa-app .admin-card.expanded .expand-icon { transform: rotate(180deg); color: #fff; }
+.sadash-spacer {
+    flex: 1;
+}
 
-/* Users Panel */
-.sa-app .users-panel { max-height: 0; overflow: hidden; transition: max-height 0.3s cubic-bezier(0.2, 0, 0, 1); background: rgba(0,0,0,0.2); }
-.sa-app .admin-card.expanded .users-panel { max-height: 4000px; }
-.sa-app .users-list { padding: 0 24px 24px; display: grid; gap: 12px; }
+/* Header bar card */
+.sadash-headerbar {
+    height: 46px;
+    box-sizing: border-box;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 0 16px;
+    background: var(--surface-panel-raised);
+    backdrop-filter: blur(14px);
+    -webkit-backdrop-filter: blur(14px);
+    border: 1px solid rgba(255, 255, 255, 0.09);
+    border-radius: 12px;
+}
 
-/* User Card */
-.sa-app .user-card { background: rgba(255,255,255,0.03); border-radius: 16px; border: 1px solid rgba(255,255,255,0.05); overflow: hidden; }
-.sa-app .user-card:hover { background: rgba(255,255,255,0.05); }
-.sa-app .user-header { padding: 16px; display: grid; grid-template-columns: auto 1fr auto; gap: 16px; align-items: center; cursor: pointer; }
-.sa-app .user-avatar { width: 32px; height: 32px; border-radius: 10px; background: linear-gradient(135deg, #FF9F0A, #FF375F); display: grid; place-items: center; font-weight: 600; font-size: 12px; color: #fff; }
-.sa-app .user-stats { max-height: 0; overflow: hidden; transition: max-height 0.3s ease; background: rgba(0,0,0,0.2); }
-.sa-app .user-card.expanded .user-stats { max-height: 400px; }
-.sa-app .mini-stats { display: grid; grid-template-columns: repeat(3, 1fr); padding: 16px; gap: 1px; background: rgba(255,255,255,0.05); }
-.sa-app .ms-item { text-align: center; }
-.sa-app .ms-val { font-size: 14px; font-weight: 500; color: #fff; }
-.sa-app .ms-lbl { font-size: 10px; color: rgba(255,255,255,0.55); text-transform: uppercase; margin-top: 2px; }
-.sa-app .user-actions { padding: 12px 16px; display: flex; justify-content: flex-end; gap: 8px; }
+.sadash-title {
+    font-family: var(--font-display);
+    font-size: 13.5px;
+    font-weight: 600;
+}
 
-/* Feature Locks */
-.sa-app .feature-locks { padding: 12px 24px 0; display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 8px; }
-.sa-app .feature-locks-title { width: 100%; font-size: 10px; text-transform: uppercase; letter-spacing: 0.05em; color: rgba(255,255,255,0.55); font-weight: 600; margin-bottom: 4px; }
-.sa-app .lock-toggle { display: inline-flex; align-items: center; gap: 6px; padding: 5px 10px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.08); background: rgba(255,255,255,0.03); color: rgba(255,255,255,0.55); font-size: 11px; font-weight: 500; cursor: pointer; transition: all 0.2s; font-family: inherit; }
-.sa-app .lock-toggle:hover { background: rgba(255,255,255,0.06); border-color: rgba(255,255,255,0.12); }
-.sa-app .lock-toggle.locked { background: rgba(255,69,58,0.1); border-color: rgba(255,69,58,0.25); color: #FF453A; }
-.sa-app .lock-toggle.unlocked { background: rgba(50,215,75,0.08); border-color: rgba(50,215,75,0.2); color: #32D74B; }
+.sadash-summary {
+    font-family: var(--font-mono);
+    font-size: 10.5px;
+    color: var(--text-dim);
+}
 
-/* Modal */
-.sa-app .modal-backdrop { position: fixed; inset: 0; background: rgba(0,0,0,0.5); backdrop-filter: blur(8px); display: flex; align-items: center; justify-content: center; z-index: 1000; }
-.sa-app .modal { width: min(400px, 90vw); background: #1C1C1E; border: 1px solid rgba(255,255,255,0.1); border-radius: 24px; padding: 32px; color: #fff; box-shadow: 0 40px 80px rgba(0,0,0,0.5); }
-.sa-app .modal h3 { font-size: 18px; margin-bottom: 24px; text-align: center; }
-.sa-app .field { margin-bottom: 16px; }
-.sa-app .field label { display: block; font-size: 12px; font-weight: 500; color: rgba(255,255,255,0.55); margin-bottom: 6px; }
-.sa-app .field input { width: 100%; padding: 12px; border-radius: 12px; background: rgba(255,255,255,0.05); border: 1px solid transparent; color: #fff; font-family: inherit; font-size: 14px; }
-.sa-app .field input:focus { background: rgba(255,255,255,0.1); outline: none; border-color: #5E5CE6; }
-.sa-app .modal-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 32px; }
-.sa-app .modal-actions button { justify-content: center; }
+/* Stats strip */
+.sadash-stats {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    border: 1px solid var(--border-soft);
+    border-radius: 12px;
+    background: var(--surface-panel);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+}
 
-/* Toast */
-.sa-app .toast { position: fixed; bottom: 32px; left: 50%; transform: translateX(-50%) translateY(20px); background: #333; color: #fff; padding: 12px 24px; border-radius: 99px; font-size: 14px; font-weight: 500; opacity: 0; transition: all 0.3s; pointer-events: none; z-index: 1001; box-shadow: 0 10px 30px rgba(0,0,0,0.3); }
-.sa-app .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+.sadash-stat {
+    padding: 13px 16px;
+    border-right: 1px solid var(--border-faint);
+}
 
-.sa-app .empty { padding: 40px; text-align: center; color: rgba(255,255,255,0.55); border: 1px dashed rgba(255,255,255,0.1); border-radius: 16px; }
+.sadash-stat:last-child {
+    border-right: none;
+}
 
-@container (max-width: 760px) {
-  .sa-app.sa-app-embedded header { align-items: flex-start; flex-direction: column; gap: 16px; }
-  .sa-app.sa-app-embedded .stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .sa-app.sa-app-embedded .hdr-right { width: 100%; flex-wrap: wrap; }
-  .sa-app.sa-app-embedded .admin-header { grid-template-columns: auto minmax(0, 1fr) auto; gap: 12px; padding: 16px; }
-  .sa-app.sa-app-embedded .meta { align-items: flex-start; flex-wrap: wrap; }
+.sadash-stat-value {
+    font-family: var(--font-display);
+    font-size: 20px;
+    font-weight: 500;
+    font-variant-numeric: tabular-nums;
+}
+
+.sadash-stat-value.credits {
+    color: var(--credits-cyan);
+}
+
+.sadash-stat .iw-eyebrow {
+    margin-top: 2px;
+}
+
+/* Camera + remote row */
+.sadash-duo {
+    display: grid;
+    grid-template-columns: 1.35fr 1fr;
+    gap: 14px;
+    align-items: start;
+}
+
+@media (max-width: 900px) {
+    .sadash-duo {
+        grid-template-columns: 1fr;
+    }
+}
+
+/* Shared card shell for camera/remote (used by their own CSS too) */
+.sadash-card {
+    border: 1px solid var(--border-soft);
+    border-radius: 12px;
+    background: var(--surface-panel);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+}
+
+.sadash-card-head {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--border-faint);
+}
+
+.sadash-card-title {
+    font-family: var(--font-display);
+    font-size: 12.5px;
+    font-weight: 600;
+}
+
+.sadash-card-hint {
+    font-size: 11px;
+    color: var(--text-dim);
+}
+
+.sadash-card-body {
+    padding: 14px 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+/* Section head */
+.sadash-section-head {
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+    margin-top: 4px;
+}
+
+.sadash-section-title {
+    font-family: var(--font-display);
+    font-size: 12.5px;
+    font-weight: 600;
+}
+
+.sadash-section-note {
+    font-size: 11px;
+    color: var(--text-dim);
+}
+
+.sadash-empty {
+    padding: 26px;
+    text-align: center;
+    font-size: 12.5px;
+    color: var(--text-dim);
+    border: 1px dashed var(--border-mid);
+    border-radius: 12px;
+}
+
+/* Admin cards.
+   No backdrop-filter here: it would create a stacking context per card,
+   trapping the context menus below the following card. The cards sit on a
+   flat radial background, so the blur is imperceptible anyway. */
+.sadash-admin-card {
+    border: 1px solid rgba(255, 255, 255, 0.09);
+    border-radius: 12px;
+    background: rgba(19, 19, 24, 0.92);
+    margin-top: -4px;
+}
+
+.sadash-admin-head {
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    height: 50px;
+    padding: 0 16px;
+    cursor: pointer;
+    border-radius: 11px;
+    transition: background 0.15s;
+}
+
+.sadash-admin-head.open {
+    border-radius: 11px 11px 0 0;
+}
+
+.sadash-admin-head:hover {
+    background: rgba(255, 255, 255, 0.03);
+}
+
+.sadash-monogram {
+    width: 30px;
+    height: 30px;
+    flex: none;
+    border-radius: 9px;
+    background: rgba(255, 255, 255, 0.06);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: var(--font-display);
+    font-size: 10.5px;
+    font-weight: 600;
+    color: var(--text-secondary);
+}
+
+.sadash-admin-id {
+    min-width: 0;
+}
+
+.sadash-admin-name-row {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+}
+
+.sadash-admin-name {
+    font-size: 13px;
+    font-weight: 600;
+}
+
+.sadash-admin-username {
+    font-family: var(--font-mono);
+    font-size: 10.5px;
+    color: var(--text-dim);
+}
+
+.sadash-admin-sub {
+    font-size: 10.5px;
+    color: var(--text-dim);
+    margin-top: 1px;
+}
+
+.sadash-credits {
+    font-family: var(--font-mono);
+    font-size: 11.5px;
+    color: var(--credits-cyan);
+    font-variant-numeric: tabular-nums;
+}
+
+.sadash-status {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 11px;
+    color: var(--text-secondary);
+}
+
+.sadash-status-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+}
+
+.sadash-status-dot.active {
+    background: var(--live-green);
+}
+
+.sadash-status-dot.suspended {
+    background: var(--warn-amber);
+}
+
+.sadash-kebab {
+    width: 26px;
+    height: 26px;
+    flex: none;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: none;
+    border: none;
+    border-radius: 7px;
+    color: var(--text-dim);
+    cursor: pointer;
+    transition: all 0.15s;
+}
+
+.sadash-kebab:hover {
+    background: rgba(255, 255, 255, 0.07);
+    color: var(--text-primary);
+}
+
+.sadash-chevron {
+    flex: none;
+    transition: transform 0.2s;
+}
+
+.sadash-admin-menu {
+    top: 44px;
+    right: 16px;
+    min-width: 190px;
+    cursor: default;
+}
+
+.sadash-user-menu {
+    top: 36px;
+    right: 8px;
+    min-width: 176px;
+    cursor: default;
+}
+
+/* Expanded admin body */
+.sadash-admin-body {
+    border-top: 1px solid rgba(255, 255, 255, 0.07);
+    padding: 12px 16px 14px;
+    background: rgba(0, 0, 0, 0.22);
+    border-radius: 0 0 11px 11px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.sadash-locks-row {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    flex-wrap: wrap;
+}
+
+/* Users table */
+.sadash-users-table {
+    border: 1px solid rgba(255, 255, 255, 0.07);
+    border-radius: 9px;
+    background: rgba(255, 255, 255, 0.02);
+}
+
+.sadash-users-note {
+    padding: 14px;
+    font-size: 12px;
+    color: var(--text-dim);
+    text-align: center;
+}
+
+.sadash-user + .sadash-user {
+    border-top: 1px solid var(--border-faint);
+}
+
+.sadash-user-row {
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    height: 40px;
+    padding: 0 8px 0 14px;
+    cursor: pointer;
+}
+
+.sadash-user-row:hover {
+    background: rgba(255, 255, 255, 0.025);
+}
+
+.sadash-user-name {
+    font-size: 12px;
+    font-weight: 500;
+    width: 100px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.sadash-user-status {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 11px;
+    color: var(--text-dim);
+}
+
+.sadash-user-status .sadash-status-dot {
+    width: 5px;
+    height: 5px;
+}
+
+.sadash-user-credits {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--text-dim);
+    font-variant-numeric: tabular-nums;
+}
+
+.sadash-inline-action {
+    background: none;
+    border: none;
+    padding: 0 6px;
+    font-family: var(--font-body);
+    font-size: 11px;
+    color: var(--text-muted);
+    cursor: pointer;
+    transition: color 0.15s;
+}
+
+.sadash-inline-action:hover {
+    color: var(--text-primary);
+}
+
+/* Per-user locks */
+.sadash-user-locks {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    flex-wrap: wrap;
+    padding: 10px 14px 12px;
+    background: rgba(0, 0, 0, 0.18);
+    border-top: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+/* Create admin modal.
+   Anchored absolute, not fixed: the console's sliding track is transformed,
+   which would turn fixed positioning relative to the track. */
+.sadash-modal-backdrop {
+    position: absolute;
+    inset: 0;
+    z-index: 80;
+    background: rgba(0, 0, 0, 0.55);
+    backdrop-filter: blur(4px);
+    -webkit-backdrop-filter: blur(4px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    animation: scrimIn 0.2s ease;
+}
+
+.sadash-modal {
+    width: 360px;
+    max-width: calc(100vw - 40px);
+    background: var(--surface-menu);
+    border: 1px solid var(--border-strong);
+    border-radius: 13px;
+    padding: 18px;
+    box-shadow: var(--shadow-popover);
+    animation: panelIn 0.22s ease;
+}
+
+.sadash-modal h3 {
+    font-family: var(--font-display);
+    font-size: 14px;
+    font-weight: 600;
+    margin-bottom: 14px;
+}
+
+.sadash-field {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin-bottom: 12px;
+}
+
+.sadash-field label {
+    font-family: var(--font-display);
+    font-size: 9.5px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.09em;
+    color: var(--text-dim);
+}
+
+.sadash-field input {
+    height: 32px;
+    box-sizing: border-box;
+    padding: 0 11px;
+    background: rgba(0, 0, 0, 0.35);
+    border: 1px solid var(--border-strong);
+    border-radius: 8px;
+    color: var(--text-primary);
+    font-family: var(--font-body);
+    font-size: 12.5px;
+    outline: none;
+    transition: border-color 0.2s;
+}
+
+.sadash-field input:focus {
+    border-color: rgba(255, 255, 255, 0.28);
+}
+
+.sadash-modal-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+    margin-top: 4px;
+}
+
+/* Undo / feedback toast (absolute for the same transform reason) */
+.sadash-toast {
+    position: absolute;
+    left: 50%;
+    bottom: 20px;
+    transform: translateX(-50%);
+    z-index: 90;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    height: 40px;
+    padding: 0 6px 0 16px;
+    background: #F3F4F6;
+    border-radius: 10px;
+    box-shadow: 0 14px 40px rgba(0, 0, 0, 0.5);
+    animation: panelIn 0.22s ease;
+}
+
+.sadash-toast > span {
+    font-size: 12.5px;
+    font-weight: 500;
+    color: #111116;
+}
+
+.sadash-toast.err > span {
+    color: var(--danger);
+}
+
+.sadash-toast-undo {
+    height: 28px;
+    margin-left: 10px;
+    padding: 0 10px;
+    background: none;
+    border: none;
+    border-radius: 7px;
+    color: var(--acc-on-light);
+    font-family: var(--font-body);
+    font-size: 12px;
+    font-weight: 700;
+    cursor: pointer;
+}
+
+.sadash-toast-undo:hover {
+    background: rgba(0, 0, 0, 0.07);
+}
+
+.sadash-toast-close {
+    width: 28px;
+    height: 28px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: none;
+    border: none;
+    border-radius: 7px;
+    color: var(--text-dim);
+    cursor: pointer;
+}
+
+.sadash-toast-close:hover {
+    color: #111116;
 }
