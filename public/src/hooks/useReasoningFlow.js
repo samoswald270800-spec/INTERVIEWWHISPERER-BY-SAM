@@ -46,6 +46,8 @@ const HALLUCINATIONS = new Set([
  * @param {Function} opts.getJd            - function returning current JD text
  * @param {Function} opts.getInterviewMode - function returning current interview mode
  * @param {Function} opts.isSessionActiveRef - ref to check if session is still active
+ * @param {Function} [opts.consumeSteering] - returns (and clears) the queued
+ *                    steering note to ride along with the next answer, or null
  */
 export function useReasoningFlow({
     setStatus,
@@ -62,6 +64,7 @@ export function useReasoningFlow({
     getJd,
     getInterviewMode,
     isSessionActiveRef,
+    consumeSteering = null,
 }) {
     // --- Internal refs ---
     const streamRef = useRef(null);           // MediaStream from getUserMedia / getDisplayMedia
@@ -253,6 +256,10 @@ export function useReasoningFlow({
 
         let fullAnswer = "";
 
+        // Queued steering nudges ride along with normal answers only (not expand).
+        // They are sent as a separate field so the displayed question stays clean.
+        const steering = !expandPrompt && consumeSteering ? consumeSteering() : null;
+
         try {
             const res = await fetch(`${API_BASE_URL}/api/reasoning/answer`, {
                 method: 'POST',
@@ -263,6 +270,7 @@ export function useReasoningFlow({
                     transcript: expandPrompt || transcript,
                     interviewMode: getInterviewMode(),
                     jd: getJd(),
+                    steering: steering || undefined,
                 }),
             });
 
@@ -336,7 +344,7 @@ export function useReasoningFlow({
                 setTimeout(() => startListening(), 2000);
             }
         }
-    }, [setStatus, setIsProcessing, setCanExpand, processTypeQueue, getJd, getInterviewMode]);
+    }, [setStatus, setIsProcessing, setCanExpand, processTypeQueue, getJd, getInterviewMode, consumeSteering]);
 
     // ─────────────────────────────────────────────
     //  EXPAND: Re-answer with deeper prompt

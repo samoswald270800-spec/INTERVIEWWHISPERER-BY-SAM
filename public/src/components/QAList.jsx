@@ -5,7 +5,7 @@ import './QAList.css';
  * Live transcript (IW Console v8).
  * Empty state: centered wordmark. Active: floating glass card with Q/A turns.
  */
-export default function QAList({ qaList, onManualSearch, onRegenerate, isProcessing = false }) {
+export default function QAList({ qaList, onManualSearch, onRegenerate, isProcessing = false, steerBar = null }) {
     const listRef = useRef(null);
 
     useEffect(() => {
@@ -21,7 +21,10 @@ export default function QAList({ qaList, onManualSearch, onRegenerate, isProcess
         } catch { /* clipboard unavailable */ }
     };
 
-    if (qaList.length === 0) {
+    // Empty state only when there's nothing to show at all (no turns, and no
+    // steer bar — i.e. no active session). During an active session the panel
+    // renders so the steer bar is available before the first question lands.
+    if (qaList.length === 0 && !steerBar) {
         return (
             <div className="transcript-empty">
                 <div className="transcript-wordmark">Interview Whisperer</div>
@@ -66,6 +69,7 @@ export default function QAList({ qaList, onManualSearch, onRegenerate, isProcess
                         </div>
                     );
                 })}
+                {steerBar}
             </div>
         </div>
     );

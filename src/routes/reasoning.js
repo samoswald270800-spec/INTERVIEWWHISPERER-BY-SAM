@@ -81,10 +81,12 @@ router.post('/api/reasoning/transcribe', requireAuth, upload.single('audio'), as
  *   transcript    — the user's spoken question (string)
  *   interviewMode — 'smart' | 'hr' | 'technical' | 'vp'
  *   jd            — job description override (optional, frontend sends its local JD)
+ *   steering      — optional steering note queued in the UI; mixed into the
+ *                   prompt as a system message so the question stays untouched
  */
 router.post('/api/reasoning/answer', requireAuth, async (req, res) => {
   try {
-    const { transcript, interviewMode = 'smart', jd } = req.body || {};
+    const { transcript, interviewMode = 'smart', jd, steering } = req.body || {};
 
     if (!transcript || typeof transcript !== 'string' || !transcript.trim()) {
       return res.status(400).json({ error: 'transcript is required.' });
@@ -115,13 +117,18 @@ router.post('/api/reasoning/answer', requireAuth, async (req, res) => {
     const MODEL = process.env.REASONING_MODEL || 'gpt-5.4-2026-03-05';
     console.log(`[Reasoning] ✅ Model confirmed: ${MODEL}`);
 
+    const messages = [
+      { role: 'system', content: systemPrompt },
+    ];
+    if (steering && typeof steering === 'string' && steering.trim()) {
+      messages.push({ role: 'system', content: steering.trim().slice(0, 1000) });
+    }
+    messages.push({ role: 'user', content: transcript.trim() });
+
     const stream = await openai.chat.completions.create({
       model: MODEL,
       stream: true,
-      messages: [
-        { role: 'system', content: systemPrompt },
-        { role: 'user', content: transcript.trim() },
-      ],
+      messages,
       max_completion_tokens: 6000,
     });
 
@@ -144,6 +151,62 @@ router.post('/api/reasoning/answer', requireAuth, async (req, res) => {
     } catch (_) {
       res.status(500).end();
     }
+  }
+});
+
+/**
+ * POST /api/steer-suggestions
+ * Generates short, conversation-aware "steering nudge" chips for the UI's
+ * "Steer the next answer" bar (e.g. "Add a concrete metric", "Tie it to the
+ * payments launch story"). Cheap, non-streaming call on a small model.
+ *
+ * Body JSON:
+ *   jd     — current job description text (optional)
+ *   turns  — recent [{ q, a }] pairs from the transcript (optional)
+ */
+router.post('/api/steer-suggestions', requireAuth, async (req, res) => {
+  try {
+    const { jd = '', turns = [] } = req.body || {};
+
+    const convo = (Array.isArray(turns) ? turns : [])
+      .slice(-4)
+      .map((t, i) => `Q${i + 1}: ${String(t?.q || '').slice(0, 300)}\nA${i + 1}: ${String(t?.a || '').slice(0, 500)}`)
+      .join('\n');
+
+    const MODEL = process.env.SUGGESTIONS_MODEL || 'gpt-4o-mini';
+
+    const completion = await openai.chat.completions.create({
+      model: MODEL,
+      messages: [
+        {
+          role: 'system',
+          content: 'You coach a candidate live during a job interview. Based on the job description and the conversation so far, suggest 3 "steering nudges" the candidate could apply to their NEXT answer. Each nudge is a short imperative phrase under 9 words, e.g. "Add a concrete metric", "Tie it to the payments launch story", "Mention the 99.95% SLO from the JD". Make them specific to this conversation when possible. Reply with ONLY a JSON array of 3 strings.',
+        },
+        {
+          role: 'user',
+          content: `JOB DESCRIPTION:\n${String(jd).slice(0, 1500) || '(none provided)'}\n\nCONVERSATION SO FAR:\n${convo || '(no questions asked yet)'}`,
+        },
+      ],
+      max_completion_tokens: 150,
+    });
+
+    const raw = completion.choices?.[0]?.message?.content || '[]';
+    const match = raw.match(/\[[\s\S]*\]/);
+    let suggestions = [];
+    try {
+      suggestions = JSON.parse(match ? match[0] : raw);
+    } catch (_) {
+      suggestions = [];
+    }
+    suggestions = (Array.isArray(suggestions) ? suggestions : [])
+      .filter((s) => typeof s === 'string' && s.trim())
+      .map((s) => s.trim().slice(0, 60))
+      .slice(0, 3);
+
+    res.json({ suggestions });
+  } catch (err) {
+    console.error('[Steer Suggestions] Error:', err);
+    res.status(500).json({ error: 'suggestion generation failed', suggestions: [] });
   }
 });
 
