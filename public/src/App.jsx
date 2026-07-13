@@ -831,6 +831,11 @@ function InterviewApp() {
                 handleAutoSearch(event.call_id, event.arguments);
             }
         }
+        else if (type === "error") {
+            // Surface realtime API rejections (e.g. a malformed response.create)
+            // that would otherwise fail silently and look like "nothing happened".
+            console.error("[Realtime error]", event.error || event);
+        }
     };
 
     const handleAutoSearch = async (callId, argumentsString) => {
@@ -863,7 +868,7 @@ function InterviewApp() {
             window._lastDC.send(JSON.stringify(toolEvent));
 
             // Tell the AI to continue its response using the new facts
-            window._lastDC.send(JSON.stringify({ type: "response.create", response: { modalities: ["text"] } }));
+            window._lastDC.send(JSON.stringify({ type: "response.create" }));
 
         } catch (err) {
             console.error("Auto search failed:", err);
@@ -878,7 +883,7 @@ function InterviewApp() {
                 }
             };
             window._lastDC.send(JSON.stringify(toolEvent));
-            window._lastDC.send(JSON.stringify({ type: "response.create", response: { modalities: ["text"] } }));
+            window._lastDC.send(JSON.stringify({ type: "response.create" }));
         }
     };
 
@@ -910,7 +915,7 @@ function InterviewApp() {
         };
         window._lastDC.send(JSON.stringify(event));
 
-        window._lastDC.send(JSON.stringify({ type: "response.create", response: { modalities: ["text"] } }));
+        window._lastDC.send(JSON.stringify({ type: "response.create" }));
 
         setQaList(prev => {
             const newList = [...prev];
@@ -1177,7 +1182,7 @@ This is your chance to really impress. Leave nothing on the table.`;
                 content: [{ type: "input_text", text: `Answer this question again, differently: ${question}` }]
             }
         }));
-        window._lastDC.send(JSON.stringify({ type: "response.create", response: { modalities: ["text"] } }));
+        window._lastDC.send(JSON.stringify({ type: "response.create" }));
         setStatus("REGENERATING...");
     };
 
@@ -1208,7 +1213,7 @@ This is your chance to really impress. Leave nothing on the table.`;
             type: "conversation.item.create",
             item: { type: "message", role: "user", content: [{ type: "input_text", text: prompt }] }
         }));
-        window._lastDC.send(JSON.stringify({ type: "response.create", response: { modalities: ["text"] } }));
+        window._lastDC.send(JSON.stringify({ type: "response.create" }));
         setCanExpand(true);
         setStatus("GENERATING...");
     }, [isSessionActive, architecture, reasoningFlow]);
@@ -1268,7 +1273,7 @@ This is your chance to really impress. Leave nothing on the table.`;
                     }
                 };
                 window._lastDC.send(JSON.stringify(regenEvent));
-                window._lastDC.send(JSON.stringify({ type: "response.create", response: { modalities: ["text"] } }));
+                window._lastDC.send(JSON.stringify({ type: "response.create" }));
             }
 
             setStatus("REGENERATING...");
