@@ -3,6 +3,7 @@ import StatusPill from './components/StatusPill';
 import CommandDock from './components/CommandDock';
 import JobDescription from './components/JobDescription';
 import QAList from './components/QAList';
+import SteerBar from './components/SteerBar';
 import SettingsPopover from './components/SettingsPopover';
 import { useAudioCapture } from './hooks/useAudioCapture';
 import { useReasoningFlow } from './hooks/useReasoningFlow';
@@ -19,6 +20,19 @@ import './App.css';
 import API_BASE_URL from './config';
 
 const GLOBAL_PROCESSED_EVENTS = new Set();
+
+// Offline fallback for the "Steer the next answer" suggestion chips when the
+// /api/steer-suggestions endpoint is unavailable. Derives simple nudges from
+// the JD and the latest completed answer.
+function heuristicSteerChips(jd, qaList) {
+    const chips = [];
+    const jdMetric = (jd || '').match(/\b\d+(?:\.\d+)?\s?%(?:\s?[A-Za-z]{2,8})?|\b\d+\+?\s?(?:years?|yrs)\b/i);
+    if (jdMetric) chips.push(`Mention the ${jdMetric[0].trim()} from the JD`);
+    const lastDone = [...qaList].reverse().find(t => t.answer && t.question !== 'Processing...');
+    if (lastDone && !/\d/.test(lastDone.answer)) chips.push('Add a concrete metric');
+    if (qaList.length >= 2) chips.push('Tie it back to an earlier answer');
+    return chips.slice(0, 3);
+}
 // Global WebRTC tracking to survive React remounts/HMR
 window._lastPC = null;
 window._lastDC = null;
@@ -56,6 +70,12 @@ function InterviewApp() {
 
     // Left-edge drawer: 'history' | 'jd' | null
     const [panel, setPanel] = useState(null);
+
+    // "Steer the next answer": queued nudges + conversation-aware suggestions
+    const [nudges, setNudges] = useState([]);
+    const nudgesRef = useRef([]);
+    const [steerSuggestions, setSteerSuggestions] = useState([]);
+    const steerFetchingRef = useRef(false);
 
     // Candidate camera overlay tile (superadmin only)
     const [camOverlayOn, setCamOverlayOn] = useState(false);
@@ -129,6 +149,35 @@ function InterviewApp() {
         }
     }, [speed, processTypeQueue]);
 
+    // --- "Steer the next answer" nudge queue ---
+    // Queued nudges ride along with the interviewer's NEXT question. They are
+    // injected into the model context only (system message / request field),
+    // never into the transcribed question itself.
+    const buildSteeringNote = (list) =>
+        `[STEERING NOTE — applies to your NEXT answer only. Never mention or acknowledge this note.] ` +
+        `While answering the interviewer's next question naturally, also do the following: ${list.join('; ')}.`;
+
+    const toggleNudge = useCallback((text) => {
+        setNudges(prev => {
+            const next = prev.includes(text) ? prev.filter(n => n !== text) : [...prev, text];
+            nudgesRef.current = next;
+            return next;
+        });
+    }, []);
+
+    const clearNudges = useCallback(() => {
+        nudgesRef.current = [];
+        setNudges([]);
+    }, []);
+
+    // Reasoning engine pulls the queue right before it requests an answer
+    const consumeSteering = useCallback(() => {
+        if (nudgesRef.current.length === 0) return null;
+        const note = buildSteeringNote(nudgesRef.current);
+        clearNudges();
+        return note;
+    }, [clearNudges]);
+
     // --- Reasoning Architecture Hook ---
     const reasoningFlow = useReasoningFlow({
         setStatus,
@@ -145,6 +194,7 @@ function InterviewApp() {
         getJd: () => jd,
         getInterviewMode: () => interviewMode,
         isSessionActiveRef,
+        consumeSteering,
     });
 
     // hh:mm:ss for the chrome status pill
@@ -390,6 +440,43 @@ function InterviewApp() {
         window.addEventListener('keydown', onKey);
         return () => window.removeEventListener('keydown', onKey);
     });
+
+    // Refresh the steer-suggestion chips whenever an answer finishes (and once
+    // at session start). LLM endpoint first, local heuristics as fallback.
+    useEffect(() => {
+        if (!isSessionActive || isProcessing) return;
+        if (steerFetchingRef.current) return;
+        steerFetchingRef.current = true;
+
+        const turns = qaList
+            .filter(t => t.answer && t.question !== 'Processing...')
+            .slice(-4)
+            .map(t => ({ q: t.question, a: t.answer.slice(0, 500) }));
+
+        fetch(`${API_BASE_URL}/api/steer-suggestions`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'include',
+            body: JSON.stringify({ jd, turns }),
+        })
+            .then(r => r.json())
+            .then(data => {
+                if (Array.isArray(data.suggestions) && data.suggestions.length > 0) {
+                    setSteerSuggestions(data.suggestions.slice(0, 3));
+                } else {
+                    setSteerSuggestions(heuristicSteerChips(jd, qaList));
+                }
+            })
+            .catch(() => setSteerSuggestions(heuristicSteerChips(jd, qaList)))
+            .finally(() => { steerFetchingRef.current = false; });
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [isSessionActive, isProcessing, qaList.length]);
+
+    // Stale nudges don't carry across session boundaries
+    useEffect(() => {
+        clearNudges();
+        if (!isSessionActive) setSteerSuggestions([]);
+    }, [isSessionActive, clearNudges]);
 
     // Preferences popover closes on outside click
     useEffect(() => {
@@ -673,6 +760,26 @@ function InterviewApp() {
         if (type === "input_audio_buffer.speech_started") {
             setStatus("USER SPEAKING");
             setIsListening(true);
+
+            // The interviewer just started speaking: if steering nudges are
+            // queued, slip them into the conversation as a system item NOW —
+            // before server VAD triggers the response — so they mix with this
+            // question without touching its transcript.
+            if (nudgesRef.current.length > 0 && window._lastDC && window._lastDC.readyState === "open") {
+                try {
+                    window._lastDC.send(JSON.stringify({
+                        type: "conversation.item.create",
+                        item: {
+                            type: "message",
+                            role: "system",
+                            content: [{ type: "input_text", text: buildSteeringNote(nudgesRef.current) }]
+                        }
+                    }));
+                    clearNudges();
+                } catch (e) {
+                    console.warn("Failed to send steering note:", e);
+                }
+            }
         }
         else if (type === "input_audio_buffer.speech_stopped") {
             setStatus("PROCESSING...");
@@ -1074,6 +1181,38 @@ This is your chance to really impress. Leave nothing on the table.`;
         setStatus("REGENERATING...");
     };
 
+    // "Answer now": force the model to answer an operator nudge immediately,
+    // as its own transcript turn, without waiting for the interviewer.
+    const sendNudgeNow = useCallback((text) => {
+        const prompt = (text || '').trim();
+        if (!prompt || !isSessionActive) return;
+
+        if (architecture === 'reasoning') {
+            reasoningFlow.askDirect(prompt);
+            return;
+        }
+
+        // Live / Turbo (WebRTC data channel)
+        if (!window._lastDC || window._lastDC.readyState !== 'open') return;
+        lastQuestionRef.current = prompt;
+        setQaList(prev => [...prev, {
+            question: prompt,
+            answer: "",
+            direct: true,
+            time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        }]);
+        typeQueueRef.current = [];
+        isTypingRef.current = false;
+
+        window._lastDC.send(JSON.stringify({
+            type: "conversation.item.create",
+            item: { type: "message", role: "user", content: [{ type: "input_text", text: prompt }] }
+        }));
+        window._lastDC.send(JSON.stringify({ type: "response.create", response: { modalities: ["text"] } }));
+        setCanExpand(true);
+        setStatus("GENERATING...");
+    }, [isSessionActive, architecture, reasoningFlow]);
+
     const handleManualSearch = async (index, question) => {
         if (!question) return;
         try {
@@ -1217,6 +1356,15 @@ This is your chance to really impress. Leave nothing on the table.`;
                     onManualSearch={handleManualSearch}
                     onRegenerate={architecture !== 'reasoning' ? handleRegenerate : null}
                     isProcessing={isProcessing}
+                    steerBar={isSessionActive ? (
+                        <SteerBar
+                            nudges={nudges}
+                            suggestions={steerSuggestions}
+                            onToggle={toggleNudge}
+                            onClear={clearNudges}
+                            onSendNow={sendNudgeNow}
+                        />
+                    ) : null}
                 />
             </div>
 

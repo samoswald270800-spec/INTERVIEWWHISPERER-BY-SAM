@@ -1,0 +1,167 @@
+/* "Steer the next answer" bar (IW Console v8 add-on) */
+.steer-bar {
+    display: flex;
+    flex-direction: column;
+    gap: 11px;
+    padding: 16px 0 6px;
+}
+
+.steer-head {
+    display: flex;
+    align-items: baseline;
+    gap: 9px;
+}
+
+.steer-dot {
+    width: 6px;
+    height: 6px;
+    flex: none;
+    align-self: center;
+    border-radius: 50%;
+    background: var(--live-green);
+}
+
+.steer-title {
+    letter-spacing: 0.11em;
+    color: var(--text-muted);
+}
+
+.steer-spacer {
+    flex: 1;
+}
+
+.steer-queue {
+    font-family: var(--font-mono);
+    font-size: 10.5px;
+    color: #D1D5DB;
+}
+
+.steer-clear {
+    background: none;
+    border: none;
+    padding: 0;
+    font-family: var(--font-body);
+    font-size: 11.5px;
+    color: var(--text-dim);
+    cursor: pointer;
+    transition: color 0.15s;
+}
+
+.steer-clear:hover {
+    color: var(--text-primary);
+}
+
+.steer-chips {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+}
+
+.steer-chip {
+    height: 32px;
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    padding: 0 14px;
+    background: rgba(255, 255, 255, 0.02);
+    border: 1px solid var(--border-mid);
+    border-radius: 999px;
+    color: var(--text-secondary);
+    font-family: var(--font-body);
+    font-size: 12.5px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.steer-chip:hover {
+    border-color: rgba(255, 255, 255, 0.24);
+    color: var(--text-primary);
+}
+
+.steer-chip.active {
+    background: #22222D;
+    border-color: rgba(255, 255, 255, 0.28);
+    color: var(--text-primary);
+    box-shadow: inset 0 0 0 1px var(--acc-ring);
+}
+
+.steer-sparkle {
+    display: flex;
+    color: #7DD3FC;
+}
+
+.steer-chip.active .steer-sparkle {
+    color: #A5E8FF;
+}
+
+/* Custom nudge input */
+.steer-input {
+    height: 32px;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 0 4px 0 14px;
+    background: rgba(0, 0, 0, 0.28);
+    border: 1px solid var(--border-mid);
+    border-radius: 999px;
+    transition: border-color 0.2s;
+}
+
+.steer-input:focus-within {
+    border-color: rgba(255, 255, 255, 0.28);
+}
+
+.steer-input input {
+    width: 150px;
+    background: none;
+    border: none;
+    outline: none;
+    color: var(--text-primary);
+    font-family: var(--font-body);
+    font-size: 12.5px;
+}
+
+.steer-btn {
+    width: 24px;
+    height: 24px;
+    flex: none;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(255, 255, 255, 0.07);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 999px;
+    color: var(--text-muted);
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.steer-btn + .steer-btn {
+    margin-left: -2px;
+}
+
+/* Queue (default) → accent fill on hover */
+.steer-btn.queue:not(:disabled):hover {
+    background: var(--acc-grad);
+    border-color: transparent;
+    color: var(--acc-btn-text);
+}
+
+/* Answer now → amber "act immediately" affordance */
+.steer-btn.now {
+    color: var(--warn-amber);
+}
+
+.steer-btn.now:not(:disabled):hover {
+    background: rgba(251, 191, 36, 0.16);
+    border-color: rgba(251, 191, 36, 0.45);
+    color: #FCD34D;
+}
+
+.steer-btn:disabled {
+    opacity: 0.4;
+    cursor: default;
+    color: var(--text-dim);
+}

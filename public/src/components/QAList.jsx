@@ -5,7 +5,7 @@ import './QAList.css';
  * Live transcript (IW Console v8).
  * Empty state: centered wordmark. Active: floating glass card with Q/A turns.
  */
-export default function QAList({ qaList, onManualSearch, onRegenerate, isProcessing = false }) {
+export default function QAList({ qaList, onManualSearch, onRegenerate, isProcessing = false, steerBar = null }) {
     const listRef = useRef(null);
 
     useEffect(() => {
@@ -21,7 +21,10 @@ export default function QAList({ qaList, onManualSearch, onRegenerate, isProcess
         } catch { /* clipboard unavailable */ }
     };
 
-    if (qaList.length === 0) {
+    // Empty state only when there's nothing to show at all (no turns, and no
+    // steer bar — i.e. no active session). During an active session the panel
+    // renders so the steer bar is available before the first question lands.
+    if (qaList.length === 0 && !steerBar) {
         return (
             <div className="transcript-empty">
                 <div className="transcript-wordmark">Interview Whisperer</div>
@@ -40,9 +43,11 @@ export default function QAList({ qaList, onManualSearch, onRegenerate, isProcess
                     const streaming = isLast && isProcessing;
                     return (
                         <div className="transcript-turn" key={index}>
-                            <span className="turn-badge q">{`Q${index + 1}`}</span>
+                            <span className={`turn-badge q ${qa.direct ? 'direct' : ''}`}>
+                                {qa.direct ? 'You' : `Q${index + 1}`}
+                            </span>
                             <div className="turn-question-row">
-                                <span className="turn-question">{qa.question}</span>
+                                <span className={`turn-question ${qa.direct ? 'direct' : ''}`}>{qa.question}</span>
                                 {qa.time && <span className="turn-time">{qa.time}</span>}
                             </div>
                             <span className="turn-badge iw">IW</span>
@@ -66,6 +71,7 @@ export default function QAList({ qaList, onManualSearch, onRegenerate, isProcess
                         </div>
                     );
                 })}
+                {steerBar}
             </div>
         </div>
     );
