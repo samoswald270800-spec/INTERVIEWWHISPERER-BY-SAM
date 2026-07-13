@@ -82,6 +82,19 @@
 .turn-badge.q {
     border: 1px solid var(--border-strong);
     color: var(--text-dim);
+    font-size: 10px;
+}
+
+/* Operator "Answer now" turn — distinct from a transcribed question */
+.turn-badge.q.direct {
+    border-color: rgba(251, 191, 36, 0.4);
+    color: var(--warn-amber);
+    font-size: 9px;
+}
+
+.turn-question.direct {
+    color: #E5E7EB;
+    font-style: italic;
 }
 
 .turn-badge.iw {

@@ -1181,6 +1181,38 @@ This is your chance to really impress. Leave nothing on the table.`;
         setStatus("REGENERATING...");
     };
 
+    // "Answer now": force the model to answer an operator nudge immediately,
+    // as its own transcript turn, without waiting for the interviewer.
+    const sendNudgeNow = useCallback((text) => {
+        const prompt = (text || '').trim();
+        if (!prompt || !isSessionActive) return;
+
+        if (architecture === 'reasoning') {
+            reasoningFlow.askDirect(prompt);
+            return;
+        }
+
+        // Live / Turbo (WebRTC data channel)
+        if (!window._lastDC || window._lastDC.readyState !== 'open') return;
+        lastQuestionRef.current = prompt;
+        setQaList(prev => [...prev, {
+            question: prompt,
+            answer: "",
+            direct: true,
+            time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        }]);
+        typeQueueRef.current = [];
+        isTypingRef.current = false;
+
+        window._lastDC.send(JSON.stringify({
+            type: "conversation.item.create",
+            item: { type: "message", role: "user", content: [{ type: "input_text", text: prompt }] }
+        }));
+        window._lastDC.send(JSON.stringify({ type: "response.create", response: { modalities: ["text"] } }));
+        setCanExpand(true);
+        setStatus("GENERATING...");
+    }, [isSessionActive, architecture, reasoningFlow]);
+
     const handleManualSearch = async (index, question) => {
         if (!question) return;
         try {
@@ -1330,6 +1362,7 @@ This is your chance to really impress. Leave nothing on the table.`;
                             suggestions={steerSuggestions}
                             onToggle={toggleNudge}
                             onClear={clearNudges}
+                            onSendNow={sendNudgeNow}
                         />
                     ) : null}
                 />

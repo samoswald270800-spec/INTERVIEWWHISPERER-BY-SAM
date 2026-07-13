@@ -248,7 +248,7 @@ export function useReasoningFlow({
     // ─────────────────────────────────────────────
     //  STREAM ANSWER: SSE from /api/reasoning/answer
     // ─────────────────────────────────────────────
-    const streamAnswer = useCallback(async (transcript, expandPrompt = null) => {
+    const streamAnswer = useCallback(async (transcript, expandPrompt = null, skipSteering = false) => {
         setStatus(expandPrompt ? "EXPANDING..." : "GENERATING...");
 
         const controller = new AbortController();
@@ -256,9 +256,10 @@ export function useReasoningFlow({
 
         let fullAnswer = "";
 
-        // Queued steering nudges ride along with normal answers only (not expand).
-        // They are sent as a separate field so the displayed question stays clean.
-        const steering = !expandPrompt && consumeSteering ? consumeSteering() : null;
+        // Queued steering nudges ride along with normal answers only (not expand,
+        // and not a forced "answer now" which carries its own prompt). Sent as a
+        // separate field so the displayed question stays clean.
+        const steering = !expandPrompt && !skipSteering && consumeSteering ? consumeSteering() : null;
 
         try {
             const res = await fetch(`${API_BASE_URL}/api/reasoning/answer`, {
@@ -375,6 +376,7 @@ export function useReasoningFlow({
         await streamAnswer(lastQuestionRef.current, expandPrompt);
     }, [setCanExpand, setIsProcessing, setQaList, streamAnswer]);
 
+
     // ─────────────────────────────────────────────
     //  STOP LISTENING: Kill VAD, recorder, context
     // ─────────────────────────────────────────────
@@ -395,6 +397,33 @@ export function useReasoningFlow({
         }
         mediaRecorderRef.current = null;
     }, [setIsListening, setIsRecording]);
+
+    // ─────────────────────────────────────────────
+    //  ASK DIRECT: force an immediate answer to an operator prompt
+    //  (the "Answer now" button), independent of the listening loop.
+    // ─────────────────────────────────────────────
+    const askDirect = useCallback(async (text) => {
+        const prompt = (text || '').trim();
+        if (!prompt) return;
+
+        stopListening();
+        setCanExpand(false);
+        setIsProcessing(true);
+
+        lastQuestionRef.current = prompt;
+        setQaList(prev => [...prev, {
+            question: prompt,
+            answer: "",
+            direct: true,
+            time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        }]);
+        typeQueueRef.current = [];
+        isTypingRef.current = false;
+
+        // skipSteering: the forced prompt shouldn't drain the standing queue,
+        // which is reserved for the interviewer's next real question.
+        await streamAnswer(prompt, null, true);
+    }, [stopListening, setCanExpand, setIsProcessing, setQaList, streamAnswer]);
 
     // ─────────────────────────────────────────────
     //  CLEANUP: Full teardown (called on session stop)
@@ -441,5 +470,6 @@ export function useReasoningFlow({
         stopListening,
         cleanup,
         expandLastAnswer,
+        askDirect,
     };
 }

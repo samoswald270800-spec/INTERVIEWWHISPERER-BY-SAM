@@ -43,9 +43,11 @@ export default function QAList({ qaList, onManualSearch, onRegenerate, isProcess
                     const streaming = isLast && isProcessing;
                     return (
                         <div className="transcript-turn" key={index}>
-                            <span className="turn-badge q">{`Q${index + 1}`}</span>
+                            <span className={`turn-badge q ${qa.direct ? 'direct' : ''}`}>
+                                {qa.direct ? 'You' : `Q${index + 1}`}
+                            </span>
                             <div className="turn-question-row">
-                                <span className="turn-question">{qa.question}</span>
+                                <span className={`turn-question ${qa.direct ? 'direct' : ''}`}>{qa.question}</span>
                                 {qa.time && <span className="turn-time">{qa.time}</span>}
                             </div>
                             <span className="turn-badge iw">IW</span>

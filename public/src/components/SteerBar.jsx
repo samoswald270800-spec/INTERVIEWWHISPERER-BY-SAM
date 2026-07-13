@@ -20,14 +20,24 @@ function Sparkle() {
  * Chips + a free-text nudge queue that rides along with the interviewer's
  * next question — mixed into the model context, never into the transcript.
  */
-export default function SteerBar({ nudges, suggestions = [], onToggle, onClear }) {
+export default function SteerBar({ nudges, suggestions = [], onToggle, onClear, onSendNow }) {
     const [draft, setDraft] = useState('');
 
-    const submitDraft = (e) => {
-        e.preventDefault();
+    // Default action (Enter + Queue button): queue the nudge to ride along with
+    // the interviewer's next question.
+    const queueDraft = (e) => {
+        if (e) e.preventDefault();
         const text = draft.trim();
         if (!text) return;
         if (!nudges.includes(text)) onToggle(text);
+        setDraft('');
+    };
+
+    // Second button: force the model to answer this nudge right now.
+    const sendDraftNow = () => {
+        const text = draft.trim();
+        if (!text || !onSendNow) return;
+        onSendNow(text);
         setDraft('');
     };
 
@@ -76,7 +86,7 @@ export default function SteerBar({ nudges, suggestions = [], onToggle, onClear }
                         </button>
                     );
                 })}
-                <form className="steer-input" onSubmit={submitDraft}>
+                <form className="steer-input" onSubmit={queueDraft}>
                     <input
                         type="text"
                         value={draft}
@@ -84,10 +94,26 @@ export default function SteerBar({ nudges, suggestions = [], onToggle, onClear }
                         placeholder="Type your own nudge..."
                         onChange={(e) => setDraft(e.target.value)}
                     />
-                    <button type="submit" className="steer-send" title="Queue nudge" disabled={!draft.trim()}>
-                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                            <line x1="12" y1="19" x2="12" y2="5"></line>
-                            <polyline points="5 12 12 5 19 12"></polyline>
+                    <button
+                        type="submit"
+                        className="steer-btn queue"
+                        title="Queue for the next question (Enter)"
+                        disabled={!draft.trim()}
+                    >
+                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <line x1="12" y1="5" x2="12" y2="19"></line>
+                            <line x1="5" y1="12" x2="19" y2="12"></line>
+                        </svg>
+                    </button>
+                    <button
+                        type="button"
+                        className="steer-btn now"
+                        title="Answer now"
+                        disabled={!draft.trim() || !onSendNow}
+                        onClick={sendDraftNow}
+                    >
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" stroke="none">
+                            <polygon points="13 2 3 14 11 14 11 22 21 10 13 10 13 2"></polygon>
                         </svg>
                     </button>
                 </form>

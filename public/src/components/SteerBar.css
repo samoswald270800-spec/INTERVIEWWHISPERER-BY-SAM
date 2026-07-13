@@ -123,7 +123,7 @@
     font-size: 12.5px;
 }
 
-.steer-send {
+.steer-btn {
     width: 24px;
     height: 24px;
     flex: none;
@@ -138,13 +138,30 @@
     transition: all 0.2s;
 }
 
-.steer-send:not(:disabled):hover {
+.steer-btn + .steer-btn {
+    margin-left: -2px;
+}
+
+/* Queue (default) → accent fill on hover */
+.steer-btn.queue:not(:disabled):hover {
     background: var(--acc-grad);
     border-color: transparent;
     color: var(--acc-btn-text);
 }
 
-.steer-send:disabled {
-    opacity: 0.45;
+/* Answer now → amber "act immediately" affordance */
+.steer-btn.now {
+    color: var(--warn-amber);
+}
+
+.steer-btn.now:not(:disabled):hover {
+    background: rgba(251, 191, 36, 0.16);
+    border-color: rgba(251, 191, 36, 0.45);
+    color: #FCD34D;
+}
+
+.steer-btn:disabled {
+    opacity: 0.4;
     cursor: default;
+    color: var(--text-dim);
 }
