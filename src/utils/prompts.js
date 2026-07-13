@@ -1,5 +1,5 @@
 /**
- * AI Interview Prompts
+ * AI Interview Prompt
  * All prompt templates for different interview modes
  */
 
