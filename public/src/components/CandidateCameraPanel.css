@@ -1,82 +1,219 @@
-.candidate-relay-panel {
-    margin-bottom: 32px;
-    padding: 20px;
-    border: 1px solid rgba(255,255,255,0.1);
-    border-radius: 8px;
-    background: #17191c;
-    color: #f6f7f8;
-    container-type: inline-size;
+/* Candidate camera card (IW Console v8) */
+.cam-card {
+    min-width: 0;
 }
 
-.candidate-relay-heading {
-    display: flex;
-    align-items: flex-start;
-    justify-content: space-between;
-    gap: 16px;
-    margin-bottom: 18px;
-}
-
-.candidate-relay-heading h2 { margin: 0; font-size: 17px; letter-spacing: 0; }
-.candidate-relay-heading p { margin: 4px 0 0; color: #929ba1; font-size: 12px; }
-
-.candidate-relay-state {
-    flex: 0 0 auto;
-    border: 1px solid #3d4449;
-    border-radius: 6px;
-    padding: 5px 8px;
-    color: #aab2b7;
-    font-size: 11px;
-}
-
-.candidate-relay-state.live { border-color: #32785e; color: #77d9b3; background: #17332a; }
-.candidate-relay-state.failed { border-color: #8e3f47; color: #ff9ba3; }
-
-.candidate-relay-empty {
+.cam-state-chip {
     display: flex;
     align-items: center;
-    justify-content: space-between;
-    gap: 20px;
-    padding: 16px 0 2px;
-    border-top: 1px solid rgba(255,255,255,0.07);
+    gap: 6px;
+    font-size: 10.5px;
+    font-weight: 600;
+    border-radius: 999px;
+    padding: 3px 10px;
+    color: var(--text-dim);
+    background: rgba(255, 255, 255, 0.05);
 }
 
-.candidate-relay-empty p { max-width: 620px; margin: 0; color: #a7afb4; font-size: 13px; line-height: 1.5; }
-.candidate-consent-check { max-width: 660px; margin-top: 12px; display: flex; align-items: flex-start; gap: 8px; color: #cbd1d4; font-size: 11px; line-height: 1.45; cursor: pointer; }
-.candidate-consent-check input { width: 16px; height: 16px; flex: 0 0 auto; margin: 0; accent-color: #349d75; }
-.candidate-relay-panel button { min-height: 36px; border: 1px solid #454c51; border-radius: 6px; padding: 7px 11px; background: #292e32; color: #f6f7f8; font: inherit; font-size: 12px; font-weight: 600; cursor: pointer; }
-.candidate-relay-panel button:hover:not(:disabled) { background: #353c40; }
-.candidate-relay-panel button:disabled { opacity: 0.48; cursor: not-allowed; }
-.candidate-relay-panel .relay-primary { background: #27795a; border-color: #349d75; }
-.candidate-relay-panel .relay-danger { background: #6e2d33; border-color: #97434a; }
-
-.candidate-link-row { display: grid; grid-template-columns: 1fr auto auto; gap: 8px; }
-.candidate-link-row input { min-width: 0; height: 36px; border: 1px solid #3c4348; border-radius: 6px; padding: 0 10px; background: #0c0e0f; color: #dce1e3; font: 12px Consolas, monospace; }
-.candidate-link-meta { margin: 7px 0 16px; color: #7f898f; font-size: 11px; }
-
-.candidate-relay-workspace { display: grid; grid-template-columns: minmax(0, 1.7fr) minmax(220px, 0.8fr); gap: 16px; align-items: start; }
-.candidate-relay-video { position: relative; overflow: hidden; width: 100%; aspect-ratio: 16 / 9; border: 1px solid #343a3e; border-radius: 6px; background: #050606; }
-.candidate-relay-video video { width: 100%; height: 100%; display: block; object-fit: contain; }
-.candidate-relay-placeholder { position: absolute; inset: 0; display: grid; place-items: center; color: #7f898f; font-size: 13px; }
-.candidate-video-metrics { position: absolute; left: 8px; bottom: 8px; max-width: calc(100% - 16px); padding: 5px 7px; border-radius: 4px; background: rgba(0,0,0,0.72); color: #d4dadd; font-size: 10px; }
-
-.candidate-relay-controls { display: grid; gap: 10px; }
-.relay-control-group { padding-bottom: 10px; border-bottom: 1px solid rgba(255,255,255,0.07); display: grid; gap: 7px; }
-.relay-control-group:last-child { border-bottom: 0; padding-bottom: 0; }
-.relay-control-group > span { color: #dce1e3; font-size: 12px; font-weight: 700; }
-.relay-control-group small { color: #7f898f; font-size: 10px; line-height: 1.4; }
-.relay-control-group .control-active { background: #1d5c46; border-color: #327e60; color: #baf1dc; }
-.candidate-relay-error { margin-top: 14px; border: 1px solid #8e3f47; border-radius: 6px; padding: 9px 11px; background: #3a2024; color: #ffd7da; font-size: 12px; }
-
-@media (max-width: 780px) {
-    .candidate-relay-empty { align-items: stretch; flex-direction: column; }
-    .candidate-link-row { grid-template-columns: 1fr 1fr; }
-    .candidate-link-row input { grid-column: 1 / -1; }
-    .candidate-relay-workspace { grid-template-columns: 1fr; }
+.cam-state-chip .cam-state-dot {
+    width: 5px;
+    height: 5px;
+    border-radius: 50%;
+    background: currentColor;
 }
 
-@container (max-width: 700px) {
-    .candidate-relay-empty { align-items: stretch; flex-direction: column; }
-    .candidate-link-row { grid-template-columns: 1fr 1fr; }
-    .candidate-link-row input { grid-column: 1 / -1; }
-    .candidate-relay-workspace { grid-template-columns: 1fr; }
+.cam-state-chip.waiting {
+    color: var(--warn-amber);
+    background: rgba(251, 191, 36, 0.1);
+}
+
+.cam-state-chip.live {
+    color: var(--live-green);
+    background: rgba(34, 197, 94, 0.1);
+}
+
+.cam-state-chip.failed {
+    color: var(--danger-text);
+    background: var(--danger-tint);
+}
+
+.cam-explainer {
+    font-size: 12.5px;
+    line-height: 1.65;
+    color: var(--text-muted);
+    text-wrap: pretty;
+}
+
+/* Consent checkbox */
+.cam-consent {
+    display: flex;
+    align-items: flex-start;
+    gap: 9px;
+    cursor: pointer;
+}
+
+.cam-consent-box {
+    width: 16px;
+    height: 16px;
+    flex: none;
+    margin-top: 1px;
+    border-radius: 5px;
+    border: 1px solid rgba(255, 255, 255, 0.22);
+    background: transparent;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.15s;
+}
+
+.cam-consent-box.checked {
+    border-color: var(--consent-green);
+    background: var(--consent-green);
+}
+
+.cam-consent-text {
+    font-size: 12px;
+    line-height: 1.55;
+    color: var(--text-secondary);
+}
+
+.cam-create-btn {
+    height: 32px;
+    align-self: flex-start;
+    padding: 0 15px;
+    background: rgba(255, 255, 255, 0.06);
+    border: none;
+    border-radius: 8px;
+    color: var(--text-dim);
+    font-family: var(--font-body);
+    font-size: 12px;
+    font-weight: 600;
+    cursor: not-allowed;
+    transition: all 0.2s;
+}
+
+.cam-create-btn.ready {
+    background: var(--consent-green-solid);
+    color: #FFFFFF;
+    cursor: pointer;
+}
+
+.cam-create-btn.ready:hover {
+    filter: brightness(1.1);
+}
+
+/* Linked state */
+.cam-link-row {
+    display: flex;
+    gap: 8px;
+}
+
+.cam-link-row input {
+    flex: 1;
+    min-width: 0;
+    height: 30px;
+    box-sizing: border-box;
+    padding: 0 11px;
+    background: rgba(0, 0, 0, 0.35);
+    border: 1px solid var(--border-mid);
+    border-radius: 8px;
+    color: var(--text-secondary);
+    font-family: var(--font-mono);
+    font-size: 11px;
+    outline: none;
+}
+
+.cam-end-btn {
+    height: 30px;
+    padding: 0 12px;
+    background: none;
+    border: 1px solid rgba(225, 29, 72, 0.35);
+    border-radius: 8px;
+    color: var(--danger-text);
+    font-family: var(--font-body);
+    font-size: 12px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: background 0.2s;
+}
+
+.cam-end-btn:hover {
+    background: var(--danger-tint);
+}
+
+.cam-workspace {
+    display: flex;
+    gap: 12px;
+    align-items: flex-start;
+}
+
+.cam-preview {
+    position: relative;
+    width: 172px;
+    flex: none;
+    aspect-ratio: 16 / 9;
+    border-radius: 8px;
+    overflow: hidden;
+    background: repeating-linear-gradient(45deg, rgba(255, 255, 255, 0.04) 0 8px, rgba(255, 255, 255, 0.015) 8px 16px);
+    border: 1px solid var(--border-soft);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.cam-preview video {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.cam-preview-placeholder {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    color: var(--text-dim);
+}
+
+.cam-controls {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 7px;
+}
+
+.cam-meta {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    color: var(--text-dim);
+}
+
+.cam-switch:disabled {
+    opacity: 0.55;
+    cursor: not-allowed;
+}
+
+.cam-switch .iw-switch-label {
+    text-align: left;
+}
+
+.cam-error {
+    margin: 0 16px 14px;
+    border: 1px solid var(--danger-border);
+    border-radius: 8px;
+    padding: 9px 11px;
+    background: var(--danger-tint);
+    color: #FFD7DA;
+    font-size: 12px;
+}
+
+@media (max-width: 640px) {
+    .cam-workspace {
+        flex-direction: column;
+    }
+
+    .cam-preview {
+        width: 100%;
+    }
 }

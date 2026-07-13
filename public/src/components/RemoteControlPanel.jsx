@@ -344,7 +344,7 @@ export default function RemoteControlPanel({
     // ═══════════════════════════════════════
     if (waitingConsent) {
         return (
-            <div className="rc-panel">
+            <div className="sadash-card rc-card">
                 <div className="rc-waiting">
                     <div className="rc-spinner"></div>
                     <h3>Requesting access</h3>
@@ -356,50 +356,48 @@ export default function RemoteControlPanel({
     }
 
     // ═══════════════════════════════════════
-    //  DEFAULT — Connect Form + Online Users
+    //  DEFAULT — Connect form (IW Console v8 card)
     // ═══════════════════════════════════════
     return (
-        <div className="rc-panel">
-            <div className="rc-header">
-                <h3 className="rc-title">Remote Control</h3>
-                <div className={`rc-status ${connected ? 'online' : 'offline'}`}>
-                    <span className="rc-dot"></span> {connected ? 'Connected' : 'Disconnected'}
-                </div>
+        <div className="sadash-card rc-card">
+            <div className="sadash-card-head">
+                <span className="sadash-card-title">Remote control</span>
+                <div className="sadash-spacer" />
+                <span className={`rc-online ${connected ? '' : 'offline'}`}>
+                    <span className="rc-online-dot" />
+                    {connected ? `${onlineUsers.length} online` : 'offline'}
+                </span>
             </div>
 
-            {error && <div className="rc-error">{error}</div>}
+            <div className="sadash-card-body">
+                {error && <div className="rc-error">{error}</div>}
 
-            <form className="rc-connect-form" onSubmit={handleConnect}>
-                <label className="rc-label">Enter User Passcode</label>
-                <div className="rc-input-row">
+                <div className="rc-explainer">
+                    Enter the six-digit passcode shown on the user's screen to view and control their session.
+                </div>
+
+                <form className="rc-input-row" onSubmit={handleConnect}>
                     <input
                         type="text"
                         className="rc-passcode-input"
                         value={passcodeInput}
                         onChange={e => setPasscodeInput(e.target.value.replace(/\D/g, '').slice(0, 6))}
-                        placeholder="000000"
+                        placeholder="passcode"
                         maxLength={6}
                         inputMode="numeric"
                     />
-                    <button type="submit" className="rc-btn rc-btn-primary" disabled={passcodeInput.length !== 6 || !connected}>
+                    <button type="submit" className="rc-connect-btn" disabled={passcodeInput.length !== 6 || !connected}>
                         Connect
                     </button>
-                </div>
-            </form>
+                </form>
 
-            <div className="rc-users-section">
-                <div className="rc-label">Online Users <span className="rc-count">{onlineUsers.length}</span></div>
-                {onlineUsers.length === 0 ? (
-                    <div className="rc-empty">No users online</div>
-                ) : (
+                {onlineUsers.length > 0 && (
                     <div className="rc-users-list">
                         {onlineUsers.map(u => (
                             <div key={u.userId} className="rc-user-item">
-                                <div className="rc-user-dot"></div>
-                                <div className="rc-user-info">
-                                    <span className="rc-user-name">{u.username}</span>
-                                    {u.adminName && <span className="rc-user-admin">via {u.adminName}</span>}
-                                </div>
+                                <span className="rc-online-dot" />
+                                <span className="rc-user-name">{u.username}</span>
+                                {u.adminName && <span className="rc-user-admin">via {u.adminName}</span>}
                             </div>
                         ))}
                     </div>

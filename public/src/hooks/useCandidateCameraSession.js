@@ -7,7 +7,7 @@ function cameraLinkForToken(token) {
     return new URL(`/camera/${token}`, baseUrl).toString();
 }
 
-export default function useCandidateCameraSession() {
+export default function useCandidateCameraSession(enabled = true) {
     const [connected, setConnected] = useState(false);
     const [session, setSession] = useState(null);
     const [candidateState, setCandidateState] = useState('idle');
@@ -221,6 +221,7 @@ export default function useCandidateCameraSession() {
     handleSignalRef.current = handleSignal;
 
     useEffect(() => {
+        if (!enabled) return undefined;
         const baseUrl = API_BASE_URL || window.location.origin;
         const socket = io(`${baseUrl}/camera`, {
             withCredentials: true,
@@ -264,7 +265,7 @@ export default function useCandidateCameraSession() {
             closePeer();
             stopRelayAudio(false).catch(() => {});
         };
-    }, [closePeer, stopRelayAudio]);
+    }, [closePeer, stopRelayAudio, enabled]);
 
     const createSession = useCallback(() => new Promise((resolve, reject) => {
         const socket = socketRef.current;

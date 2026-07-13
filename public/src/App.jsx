@@ -9,7 +9,9 @@ import { useReasoningFlow } from './hooks/useReasoningFlow';
 import HistoryDrawer from './components/HistoryDrawer';
 import SuperAdminWorkspace from './components/SuperAdminWorkspace';
 import AdminDashboard from './components/AdminDashboard';
+import CameraOverlayTile from './components/CameraOverlayTile';
 import useSocket from './hooks/useSocket';
+import useCandidateCameraSession from './hooks/useCandidateCameraSession';
 import UserHelpButton from './components/UserHelpButton';
 import CandidateCameraPage from './components/CandidateCameraPage';
 import './App.css';
@@ -46,11 +48,17 @@ function InterviewApp() {
     const [credits, setCredits] = useState(0);
     const [remainingTime, setRemainingTime] = useState(0);
     const [unlimitedCredits, setUnlimitedCredits] = useState(false);
+    const [elapsedSeconds, setElapsedSeconds] = useState(0);
     const timerIntervalRef = useRef(null);
 
     // History State
     const [history, setHistory] = useState([]);
-    const [isHistoryOpen, setIsHistoryOpen] = useState(false);
+
+    // Left-edge drawer: 'history' | 'jd' | null
+    const [panel, setPanel] = useState(null);
+
+    // Candidate camera overlay tile (superadmin only)
+    const [camOverlayOn, setCamOverlayOn] = useState(false);
 
     // Role-based rendering
     const [userRole, setUserRole] = useState(null);
@@ -58,6 +66,9 @@ function InterviewApp() {
 
     // Socket.IO for user-side remote control (only for user role)
     const socket = useSocket(userRole === 'user');
+
+    // Candidate camera session (shared by the overlay tile + dashboard card)
+    const camera = useCandidateCameraSession(userRole === 'super_admin');
 
 
     const lastQuestionRef = useRef("");
@@ -136,10 +147,12 @@ function InterviewApp() {
         isSessionActiveRef,
     });
 
-    const formatTime = (seconds) => {
-        const mins = Math.floor(seconds / 60);
-        const secs = seconds % 60;
-        return `${mins}:${secs.toString().padStart(2, '0')}`;
+    // hh:mm:ss for the chrome status pill
+    const formatClock = (seconds) => {
+        const h = Math.floor(seconds / 3600);
+        const m = Math.floor((seconds % 3600) / 60);
+        const s = seconds % 60;
+        return [h, m, s].map((v) => v.toString().padStart(2, '0')).join(':');
     };
 
     const stopSession = useCallback(async () => {
@@ -348,6 +361,46 @@ function InterviewApp() {
         }
         return () => { if (timerIntervalRef.current) clearInterval(timerIntervalRef.current); };
     }, [isSessionActive, credits, architecture, unlimitedCredits]);
+
+    // Elapsed session clock for unlimited accounts (nothing to count down)
+    useEffect(() => {
+        if (!isSessionActive || !unlimitedCredits) return undefined;
+        setElapsedSeconds(0);
+        const interval = setInterval(() => setElapsedSeconds((prev) => prev + 1), 1000);
+        return () => clearInterval(interval);
+    }, [isSessionActive, unlimitedCredits]);
+
+    // Keyboard shortcuts: S start/stop, M mute, Esc closes drawers/popovers.
+    // (D switches views; handled by the superadmin console shell.)
+    useEffect(() => {
+        const onKey = (event) => {
+            const tag = event.target && event.target.tagName;
+            if (tag === 'INPUT' || tag === 'TEXTAREA' || event.target?.isContentEditable) return;
+            const key = event.key.toLowerCase();
+            if (key === 'escape') {
+                setPanel(null);
+                setIsSettingsOpen(false);
+            } else if (key === 's') {
+                if (isSessionActive) stopSession();
+                else startSessionRouter();
+            } else if (key === 'm' && isSessionActive) {
+                toggleMute();
+            }
+        };
+        window.addEventListener('keydown', onKey);
+        return () => window.removeEventListener('keydown', onKey);
+    });
+
+    // Preferences popover closes on outside click
+    useEffect(() => {
+        if (!isSettingsOpen) return undefined;
+        const onPointerDown = (e) => {
+            if (e.target.closest('.prefs-popover') || e.target.closest('.prefs-btn')) return;
+            setIsSettingsOpen(false);
+        };
+        document.addEventListener('pointerdown', onPointerDown, true);
+        return () => document.removeEventListener('pointerdown', onPointerDown, true);
+    }, [isSettingsOpen]);
 
     const isStartingRef = useRef(false);
     const mediaRecorderRef = useRef(null);
@@ -629,7 +682,11 @@ function InterviewApp() {
             // CRITICAL FIX: Create card NOW before answer arrives
             typeQueueRef.current = [];
             isTypingRef.current = false;
-            setQaList(prev => [...prev, { question: "Processing...", answer: "" }]);
+            setQaList(prev => [...prev, {
+                question: "Processing...",
+                answer: "",
+                time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+            }]);
         }
         else if (type === "conversation.item.input_audio_transcription.completed") {
             if (event.transcript) {
@@ -985,7 +1042,36 @@ This is your chance to really impress. Leave nothing on the table.`;
         localStorage.setItem('app_opacity', val); // Persist
         if (window.electron && window.electron.setOpacity) {
             window.electron.setOpacity(val);
+        } else {
+            // Browser fallback so the slider still gives visual feedback
+            document.documentElement.style.opacity = val;
         }
+    };
+
+    // Re-ask the same question for a fresh answer (Live/Turbo data channel)
+    const handleRegenerate = (index, question) => {
+        if (!window._lastDC || !question || question === 'Processing...') return;
+
+        setQaList(prev => {
+            const newList = [...prev];
+            if (newList[index]) {
+                newList[index] = { ...newList[index], answer: "" };
+            }
+            return newList;
+        });
+        typeQueueRef.current = [];
+        isTypingRef.current = false;
+
+        window._lastDC.send(JSON.stringify({
+            type: "conversation.item.create",
+            item: {
+                type: "message",
+                role: "user",
+                content: [{ type: "input_text", text: `Answer this question again, differently: ${question}` }]
+            }
+        }));
+        window._lastDC.send(JSON.stringify({ type: "response.create", response: { modalities: ["text"] } }));
+        setStatus("REGENERATING...");
     };
 
     const handleManualSearch = async (index, question) => {
@@ -1074,125 +1160,88 @@ This is your chance to really impress. Leave nothing on the table.`;
         return <AdminDashboard />;
     }
 
-    const interviewExperience = (
-        <div className={`app-container ${userRole === 'super_admin' ? 'app-container-workspace' : ''}`}>
-            <div className="void-bg">
-                <div className="aurora"></div>
-                <div className="noise"></div>
+    const isSuperAdmin = userRole === 'super_admin';
+    const timerWarning = !unlimitedCredits && isSessionActive && remainingTime < 300;
+    const timerLabel = unlimitedCredits
+        ? formatClock(isSessionActive ? elapsedSeconds : 0)
+        : formatClock(remainingTime);
+    const creditsLabel = unlimitedCredits ? 'Unlimited' : `${credits} min`;
+
+    const closePanel = () => setPanel(null);
+
+    // The Whisperer tool: floating toolbar, transcript, dock, prefs, drawers.
+    // Renders inside the console's whisperer pane (superadmin) or the full
+    // window (user role).
+    const whispererView = (
+        <div className="whisper-view">
+            {/* Floating toolbar, top-left */}
+            <div className="whisper-toolbar">
+                <button
+                    className={`toolbar-btn ${panel === 'history' ? 'active' : ''}`}
+                    onClick={() => setPanel(panel === 'history' ? null : 'history')}
+                >
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <circle cx="12" cy="12" r="10"></circle>
+                        <polyline points="12 6 12 12 16 14"></polyline>
+                    </svg>
+                    History
+                </button>
+                <button
+                    className={`toolbar-btn ${panel === 'jd' ? 'active' : ''}`}
+                    onClick={() => setPanel(panel === 'jd' ? null : 'jd')}
+                >
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                        <polyline points="14 2 14 8 20 8"></polyline>
+                    </svg>
+                    Job description
+                </button>
+                {isSuperAdmin && (
+                    <button
+                        className={`toolbar-btn icon-only ${camOverlayOn ? 'active' : ''}`}
+                        onClick={() => setCamOverlayOn(!camOverlayOn)}
+                        title="Camera overlay"
+                    >
+                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <path d="M23 7l-7 5 7 5V7z"></path>
+                            <rect x="1" y="5" width="15" height="14" rx="2"></rect>
+                        </svg>
+                    </button>
+                )}
             </div>
 
-            {userRole !== 'super_admin' && (
-                <>
-                    {/* Session Info - Timer & Credits */}
-                    <div className="session-info">
-                        <div className="session-timer">
-                            <span className="label">Time Left</span>
-                            <span className={`value timer ${!unlimitedCredits && remainingTime < 300 ? 'warning' : ''}`}>
-                                {unlimitedCredits ? 'Unlimited' : formatTime(remainingTime)}
-                            </span>
-                        </div>
-                        <div className="session-credits">
-                            <span className="label">Credits</span>
-                            <span className="value">{unlimitedCredits ? 'Unlimited' : `${credits} min`}</span>
-                        </div>
-                    </div>
+            {/* Transcript / empty state */}
+            <div className="whisper-stage">
+                <QAList
+                    qaList={qaList}
+                    onManualSearch={handleManualSearch}
+                    onRegenerate={architecture !== 'reasoning' ? handleRegenerate : null}
+                    isProcessing={isProcessing}
+                />
+            </div>
 
-                    <div className="status-pill-wrapper">
-                        <StatusPill
-                            status={status}
-                            isListening={isListening}
-                            isProcessing={isProcessing}
-                        />
-                    </div>
-
-                    <button className="power-btn" onClick={handleLogout} title="Sign Out">
-                        <svg className="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                            <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
-                            <polyline points="16 17 21 12 16 7"></polyline>
-                            <line x1="21" y1="12" x2="9" y2="12"></line>
-                        </svg>
-                    </button>
-
-                    {/* Button to open history */}
-                    <button
-                        className="hamburger-btn"
-                        onClick={() => setIsHistoryOpen(true)}
-                        title="Interview History"
-                        style={{
-                            position: 'absolute',
-                            top: '20px',
-                            left: '20px',
-                            zIndex: 100,
-                            background: 'none',
-                            border: 'none',
-                            color: 'rgba(255, 255, 255, 0.5)',
-                            cursor: 'pointer',
-                            fontSize: '14px',
-                            fontWeight: 500,
-                            textTransform: 'uppercase',
-                            letterSpacing: '0.05em',
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: '8px'
-                        }}
-                    >
-                        <svg viewBox="0 0 24 24" width="20" height="20" stroke="currentColor" strokeWidth="2" fill="none" strokeLinecap="round" strokeLinejoin="round">
-                            <line x1="3" y1="12" x2="21" y2="12"></line>
-                            <line x1="3" y1="6" x2="21" y2="6"></line>
-                            <line x1="3" y1="18" x2="21" y2="18"></line>
-                        </svg>
-                        History
-                    </button>
-                </>
-            )}
-
+            {/* Drawer scrim + drawers */}
+            {panel && <div className="iw-drawer-scrim" onClick={closePanel} />}
             <HistoryDrawer
-                isOpen={isHistoryOpen}
-                onClose={() => setIsHistoryOpen(false)}
+                isOpen={panel === 'history'}
+                onClose={closePanel}
                 history={history}
                 onSelect={loadHistoryItem}
                 onDelete={deleteHistoryItem}
                 onNewInterview={handleNewInterview}
             />
-
-            <button
-                className={`settings-btn ${isSettingsOpen ? 'active' : ''}`}
-                onClick={() => setIsSettingsOpen(!isSettingsOpen)}
-                title="Preferences"
-            >
-                <svg className="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <line x1="4" y1="21" x2="4" y2="14"></line>
-                    <line x1="4" y1="10" x2="4" y2="3"></line>
-                    <line x1="12" y1="21" x2="12" y2="12"></line>
-                    <line x1="12" y1="8" x2="12" y2="3"></line>
-                    <line x1="20" y1="21" x2="20" y2="16"></line>
-                    <line x1="20" y1="12" x2="20" y2="3"></line>
-                    <line x1="1" y1="14" x2="7" y2="14"></line>
-                    <line x1="9" y1="8" x2="15" y2="8"></line>
-                    <line x1="17" y1="16" x2="23" y2="16"></line>
-                </svg>
-            </button>
-
-            <SettingsPopover
-                isOpen={isSettingsOpen}
-                speed={speed}
-                setSpeed={setSpeed}
-                visionModel={visionModel}
-                setVisionModel={setVisionModel}
-                interviewMode={interviewMode}
-                setInterviewMode={setInterviewMode}
-                architecture={architecture}
-                setArchitecture={setArchitecture}
-                permissions={permissions}
-                lockedFeatures={lockedFeatures}
-                opacity={opacity}
-                setOpacity={handleOpacityChange}
-                isElectron={window.electron && window.electron.isElectron}
+            <JobDescription
+                isOpen={panel === 'jd'}
+                onClose={closePanel}
+                jd={jd}
+                setJd={setJd}
+                onSave={handleSaveJd}
             />
 
-            <main className="stage">
-                <QAList qaList={qaList} onManualSearch={handleManualSearch} />
-            </main>
+            {/* Candidate camera overlay tile (superadmin) */}
+            {isSuperAdmin && camOverlayOn && (
+                <CameraOverlayTile camera={camera} onClose={() => setCamOverlayOn(false)} />
+            )}
 
             <CommandDock
                 onStart={startSessionRouter}
@@ -1210,10 +1259,38 @@ This is your chance to really impress. Leave nothing on the table.`;
                 onToggleRecording={toggleRecording}
             />
 
-            <JobDescription
-                jd={jd}
-                setJd={setJd}
-                onSave={handleSaveJd}
+            {/* Preferences: round floating button, popover opens upward */}
+            <button
+                className={`prefs-btn ${isSettingsOpen ? 'active' : ''}`}
+                onClick={() => setIsSettingsOpen(!isSettingsOpen)}
+                title="Preferences"
+            >
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <line x1="4" y1="21" x2="4" y2="14"></line>
+                    <line x1="4" y1="10" x2="4" y2="3"></line>
+                    <line x1="12" y1="21" x2="12" y2="12"></line>
+                    <line x1="12" y1="8" x2="12" y2="3"></line>
+                    <line x1="20" y1="21" x2="20" y2="16"></line>
+                    <line x1="20" y1="12" x2="20" y2="3"></line>
+                    <line x1="1" y1="14" x2="7" y2="14"></line>
+                    <line x1="9" y1="8" x2="15" y2="8"></line>
+                    <line x1="17" y1="16" x2="23" y2="16"></line>
+                </svg>
+            </button>
+            <SettingsPopover
+                isOpen={isSettingsOpen}
+                speed={speed}
+                setSpeed={setSpeed}
+                visionModel={visionModel}
+                setVisionModel={setVisionModel}
+                interviewMode={interviewMode}
+                setInterviewMode={setInterviewMode}
+                architecture={architecture}
+                setArchitecture={setArchitecture}
+                permissions={permissions}
+                lockedFeatures={lockedFeatures}
+                opacity={opacity}
+                setOpacity={handleOpacityChange}
             />
 
             {/* User Help Button for Remote Control */}
@@ -1236,21 +1313,50 @@ This is your chance to really impress. Leave nothing on the table.`;
         </div>
     );
 
-    if (userRole === 'super_admin') {
+    if (isSuperAdmin) {
         return (
             <SuperAdminWorkspace
-                interviewContent={interviewExperience}
+                interviewContent={whispererView}
+                camera={camera}
                 status={status}
                 isListening={isListening}
                 isProcessing={isProcessing}
-                timeLabel={unlimitedCredits ? 'Unlimited' : formatTime(remainingTime)}
-                creditsLabel={unlimitedCredits ? 'Unlimited' : `${credits} min`}
-                onOpenHistory={() => setIsHistoryOpen(true)}
+                isSessionActive={isSessionActive}
+                timerLabel={timerLabel}
+                timerWarning={timerWarning}
+                creditsLabel={creditsLabel}
+                onViewChange={() => { setPanel(null); setIsSettingsOpen(false); }}
                 onLogout={handleLogout}
             />
         );
     }
-    return interviewExperience;
+
+    // User role: single-view console with the same floating chrome
+    return (
+        <div className="solo-console">
+            <header className="solo-chrome">
+                <div className="solo-pill-slot">
+                    <StatusPill
+                        status={status}
+                        isListening={isListening}
+                        isProcessing={isProcessing}
+                        isSessionActive={isSessionActive}
+                        timerLabel={timerLabel}
+                        timerWarning={timerWarning}
+                        creditsLabel={creditsLabel}
+                    />
+                </div>
+                <button className="solo-signout" onClick={handleLogout} title="Sign out">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
+                        <polyline points="16 17 21 12 16 7"></polyline>
+                        <line x1="21" y1="12" x2="9" y2="12"></line>
+                    </svg>
+                </button>
+            </header>
+            {whispererView}
+        </div>
+    );
 }
 
 export default function App() {

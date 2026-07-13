@@ -1,20 +1,45 @@
 import React from 'react';
-import { motion } from 'framer-motion';
 import './StatusPill.css';
 
-export default function StatusPill({ status, isListening, isProcessing }) {
+/**
+ * Floating chrome status pill (IW Console v8).
+ * [SUPERADMIN] · dot · STATUS · timer · credits
+ */
+export default function StatusPill({
+    status,
+    isListening,
+    isProcessing,
+    isSessionActive = false,
+    timerLabel = null,
+    timerWarning = false,
+    creditsLabel = null,
+    superAdmin = false,
+}) {
+    const live = isSessionActive || isListening || isProcessing;
     return (
-        <motion.div
-            className="status-pill"
-            initial={{ y: -50, opacity: 0 }}
-            animate={{ y: 0, opacity: 1 }}
-            transition={{ type: "spring", stiffness: 300, damping: 30 }}
-        >
-            <div className={`status-dot ${isListening ? 'active' : ''}`} id="pListening"></div>
-            <span className="status-text">{status || "SYSTEM READY"}</span>
-            {isProcessing && (
-                <div className="status-dot processing" id="pProcessing"></div>
+        <div className="status-pill" role="status" aria-live="polite">
+            {superAdmin && (
+                <>
+                    <span className="status-pill-identity">Superadmin</span>
+                    <span className="status-pill-divider" />
+                </>
             )}
-        </motion.div>
+            <span className={`status-pill-dot ${live ? 'live' : ''}`} />
+            <span className="status-pill-text">{status || 'SYSTEM READY'}</span>
+            {timerLabel !== null && (
+                <>
+                    <span className="status-pill-divider" />
+                    <span className={`status-pill-timer ${live ? 'live' : ''} ${timerWarning ? 'warning' : ''}`}>
+                        {timerLabel}
+                    </span>
+                </>
+            )}
+            {creditsLabel !== null && (
+                <>
+                    <span className="status-pill-divider" />
+                    <span className="status-pill-credits" title="Credits">{creditsLabel}</span>
+                </>
+            )}
+        </div>
     );
 }
