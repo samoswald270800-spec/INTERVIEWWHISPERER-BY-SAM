@@ -7,7 +7,7 @@ import SettingsPopover from './components/SettingsPopover';
 import { useAudioCapture } from './hooks/useAudioCapture';
 import { useReasoningFlow } from './hooks/useReasoningFlow';
 import HistoryDrawer from './components/HistoryDrawer';
-import SuperAdminDashboard from './components/SuperAdminDashboard';
+import SuperAdminWorkspace from './components/SuperAdminWorkspace';
 import AdminDashboard from './components/AdminDashboard';
 import useSocket from './hooks/useSocket';
 import UserHelpButton from './components/UserHelpButton';
@@ -45,6 +45,7 @@ function InterviewApp() {
     const [opacity, setOpacity] = useState(1);
     const [credits, setCredits] = useState(0);
     const [remainingTime, setRemainingTime] = useState(0);
+    const [unlimitedCredits, setUnlimitedCredits] = useState(false);
     const timerIntervalRef = useRef(null);
 
     // History State
@@ -202,7 +203,12 @@ function InterviewApp() {
 
             if (data.permissions) setPermissions(data.permissions);
             if (data.lockedFeatures) setLockedFeatures(data.lockedFeatures);
-            if (data.credits !== undefined) {
+            const hasUnlimitedCredits = data.unlimitedCredits === true;
+            setUnlimitedCredits(hasUnlimitedCredits);
+            if (hasUnlimitedCredits) {
+                setCredits(0);
+                setRemainingTime(0);
+            } else if (data.credits !== undefined) {
                 setCredits(data.credits);
                 // Architecture-aware: Live = 6 mins/credit, Turbo = 3 mins/credit
                 const minsPerCredit = architecture === 'turbo' ? 3 : 6;
@@ -326,7 +332,7 @@ function InterviewApp() {
 
     // Countdown timer (architecture-aware: Turbo = 2x burn rate)
     useEffect(() => {
-        if (isSessionActive && remainingTime > 0) {
+        if (isSessionActive && !unlimitedCredits && remainingTime > 0) {
             timerIntervalRef.current = setInterval(() => {
                 setRemainingTime(prev => {
                     if (prev <= 1) {
@@ -341,7 +347,7 @@ function InterviewApp() {
             if (timerIntervalRef.current) clearInterval(timerIntervalRef.current);
         }
         return () => { if (timerIntervalRef.current) clearInterval(timerIntervalRef.current); };
-    }, [isSessionActive, credits, architecture]);
+    }, [isSessionActive, credits, architecture, unlimitedCredits]);
 
     const isStartingRef = useRef(false);
     const mediaRecorderRef = useRef(null);
@@ -1063,18 +1069,12 @@ This is your chance to really impress. Leave nothing on the table.`;
         );
     }
 
-    // Role-based rendering: Super Admin Dashboard
-    if (userRole === 'super_admin') {
-        return <SuperAdminDashboard />;
-    }
-
     // Role-based rendering: Admin Dashboard
     if (userRole === 'admin') {
         return <AdminDashboard />;
     }
 
-    // Default: User interview UI
-    return (
+    const interviewExperience = (
         <div className="app-container">
             <div className="void-bg">
                 <div className="aurora"></div>
@@ -1085,13 +1085,13 @@ This is your chance to really impress. Leave nothing on the table.`;
             <div className="session-info">
                 <div className="session-timer">
                     <span className="label">Time Left</span>
-                    <span className={`value timer ${remainingTime < 300 ? 'warning' : ''}`}>
-                        {formatTime(remainingTime)}
+                    <span className={`value timer ${!unlimitedCredits && remainingTime < 300 ? 'warning' : ''}`}>
+                        {unlimitedCredits ? 'Unlimited' : formatTime(remainingTime)}
                     </span>
                 </div>
                 <div className="session-credits">
                     <span className="label">Credits</span>
-                    <span className="value">{credits} min</span>
+                    <span className="value">{unlimitedCredits ? 'Unlimited' : `${credits} min`}</span>
                 </div>
             </div>
 
@@ -1231,6 +1231,11 @@ This is your chance to really impress. Leave nothing on the table.`;
             )}
         </div>
     );
+
+    if (userRole === 'super_admin') {
+        return <SuperAdminWorkspace interviewContent={interviewExperience} />;
+    }
+    return interviewExperience;
 }
 
 export default function App() {

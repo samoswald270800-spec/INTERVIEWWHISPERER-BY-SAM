@@ -8,8 +8,7 @@ function formatExpiry(expiresAt) {
     return new Date(expiresAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 }
 
-export default function CandidateCameraPanel() {
-    const camera = useCandidateCameraSession();
+export function CandidateCameraPanelView({ camera }) {
     const videoRef = useRef(null);
     const microphoneRef = useRef(null);
     const [monitorMicrophone, setMonitorMicrophone] = useState(true);
@@ -147,4 +146,9 @@ export default function CandidateCameraPanel() {
             <audio ref={microphoneRef} autoPlay playsInline muted={!monitorMicrophone} />
         </section>
     );
+}
+
+export default function CandidateCameraPanel() {
+    const camera = useCandidateCameraSession();
+    return <CandidateCameraPanelView camera={camera} />;
 }

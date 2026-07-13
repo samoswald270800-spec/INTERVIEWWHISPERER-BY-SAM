@@ -238,7 +238,8 @@ router.get('/me', async (req, res) => {
     return res.json({
       userId: req.session.userId,
       role: 'super_admin',
-      credits: Infinity,
+      credits: 0,
+      unlimitedCredits: true,
       permissions: { canExpand: true, canAnalyze: true, canReasoning: true, canTurbo: true, canStartSession: true },
       lockedFeatures: {},
     });

@@ -5,6 +5,7 @@
     border-radius: 8px;
     background: #17191c;
     color: #f6f7f8;
+    container-type: inline-size;
 }
 
 .candidate-relay-heading {
@@ -67,6 +68,13 @@
 .candidate-relay-error { margin-top: 14px; border: 1px solid #8e3f47; border-radius: 6px; padding: 9px 11px; background: #3a2024; color: #ffd7da; font-size: 12px; }
 
 @media (max-width: 780px) {
+    .candidate-relay-empty { align-items: stretch; flex-direction: column; }
+    .candidate-link-row { grid-template-columns: 1fr 1fr; }
+    .candidate-link-row input { grid-column: 1 / -1; }
+    .candidate-relay-workspace { grid-template-columns: 1fr; }
+}
+
+@container (max-width: 700px) {
     .candidate-relay-empty { align-items: stretch; flex-direction: column; }
     .candidate-link-row { grid-template-columns: 1fr 1fr; }
     .candidate-link-row input { grid-column: 1 / -1; }
