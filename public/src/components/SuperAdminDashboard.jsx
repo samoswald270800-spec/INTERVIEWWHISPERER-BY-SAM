@@ -7,7 +7,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import API_BASE_URL from '../config';
 import useSocket from '../hooks/useSocket';
 import RemoteControlPanel from './RemoteControlPanel';
-import CandidateCameraPanel from './CandidateCameraPanel';
+import CandidateCameraPanel, { CandidateCameraPanelView } from './CandidateCameraPanel';
 import './SuperAdminDashboard.css';
 
 const FEATURE_KEYS = [
@@ -18,7 +18,7 @@ const FEATURE_KEYS = [
     { key: 'canStartSession', label: 'Sessions' },
 ];
 
-export default function SuperAdminDashboard() {
+export default function SuperAdminDashboard({ embedded = false, candidateCamera = null }) {
     const [stats, setStats] = useState({ totalAdmins: 0, totalUsers: 0, sessionsToday: 0, totalAdminCredits: 0 });
     const [admins, setAdmins] = useState([]);
     const [expandedAdmin, setExpandedAdmin] = useState(null);
@@ -37,13 +37,14 @@ export default function SuperAdminDashboard() {
 
     // Fix: Override body overflow:hidden (set for interview UI) so dashboard scrolls
     useEffect(() => {
+        if (embedded) return undefined;
         document.body.style.overflow = 'auto';
         document.body.style.height = 'auto';
         return () => {
             document.body.style.overflow = '';
             document.body.style.height = '';
         };
-    }, []);
+    }, [embedded]);
 
     const showToast = (msg, err = false) => {
         setToast({ show: true, msg, err });
@@ -205,7 +206,7 @@ export default function SuperAdminDashboard() {
     };
 
     return (
-        <div className="sa-app">
+        <div className={`sa-app ${embedded ? 'sa-app-embedded' : ''}`}>
             <div className="bg-mesh"></div>
             <div className="wrap">
                 {/* Header */}
@@ -228,7 +229,9 @@ export default function SuperAdminDashboard() {
                     <div className="stat"><div className="stat-label">Credits Pool</div><div className="stat-value">{stats.totalAdminCredits}</div></div>
                 </section>
 
-                <CandidateCameraPanel />
+                {candidateCamera
+                    ? <CandidateCameraPanelView camera={candidateCamera} />
+                    : <CandidateCameraPanel />}
 
                 {/* Remote Control Panel */}
                 <RemoteControlPanel
