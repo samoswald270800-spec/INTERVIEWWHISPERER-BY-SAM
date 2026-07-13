@@ -16,6 +16,7 @@ export default function useVirtualCameraBridge(candidateStream) {
     const lastForwardedTimestampRef = useRef(0);
     const autoStartTrackIdRef = useRef('');
     const bridgedTrackIdRef = useRef('');
+    const restartAttemptedTrackIdRef = useRef('');
     const startInFlightRef = useRef(false);
 
     const refreshStatus = useCallback(async () => {
@@ -189,10 +190,15 @@ export default function useVirtualCameraBridge(candidateStream) {
         const track = candidateStream?.getVideoTracks()[0];
         if (!track) {
             autoStartTrackIdRef.current = '';
+            restartAttemptedTrackIdRef.current = '';
             if (runningRef.current) void stop();
             return undefined;
         }
 
+        if (restartAttemptedTrackIdRef.current
+            && restartAttemptedTrackIdRef.current !== track.id) {
+            restartAttemptedTrackIdRef.current = '';
+        }
         if (runningRef.current
             && bridgedTrackIdRef.current
             && bridgedTrackIdRef.current !== track.id) {
@@ -200,6 +206,7 @@ export default function useVirtualCameraBridge(candidateStream) {
         }
         const handleEnded = () => {
             if (autoStartTrackIdRef.current === track.id) autoStartTrackIdRef.current = '';
+            if (restartAttemptedTrackIdRef.current === track.id) restartAttemptedTrackIdRef.current = '';
             if (bridgedTrackIdRef.current === track.id) void stop();
         };
         track.addEventListener('ended', handleEnded);
@@ -232,7 +239,14 @@ export default function useVirtualCameraBridge(candidateStream) {
             const next = await refreshStatus();
             checking = false;
             if (runningRef.current && !next?.bridgeRunning) {
-                setError(next?.bridge?.error || 'The virtual camera bridge stopped unexpectedly.');
+                const trackId = bridgedTrackIdRef.current;
+                const retrying = Boolean(trackId && restartAttemptedTrackIdRef.current !== trackId);
+                if (retrying) {
+                    restartAttemptedTrackIdRef.current = trackId;
+                    autoStartTrackIdRef.current = '';
+                }
+                const reason = next?.bridge?.error || 'The virtual camera bridge stopped unexpectedly.';
+                setError(retrying ? `${reason} Restarting once.` : reason);
                 void stop();
             }
         }, 1000);

@@ -39,7 +39,7 @@ let tray = null;
 let isStealth = false;
 let currentOpacity = 1.0;
 let virtualCameraBridgeProcess = null;
-let virtualCameraBackpressured = false;
+let virtualCameraFramePending = false;
 let virtualCameraFrameSender = null;
 let virtualCameraSequence = 0n;
 let virtualCameraFramesReceived = 0;
@@ -62,6 +62,15 @@ function fourCC(value) {
         | (value.charCodeAt(3) << 24);
 }
 
+function appendVirtualCameraLog(message) {
+    try {
+        const logPath = path.join(app.getPath('userData'), 'virtual-camera.log');
+        fs.appendFile(logPath, `${new Date().toISOString()} ${message}\n`, () => {});
+    } catch {
+        // Logging must never interrupt camera startup or shutdown.
+    }
+}
+
 function repairInterviewWhispererShortcut() {
     if (process.platform !== 'win32' || !app.isPackaged) return;
     const shortcutPath = path.join(
@@ -82,7 +91,8 @@ function repairInterviewWhispererShortcut() {
         }
         if (path.resolve(currentTarget || '.') === expectedTarget) return;
         fs.mkdirSync(path.dirname(shortcutPath), { recursive: true });
-        const repaired = electronShell.writeShortcutLink(shortcutPath, 'create', {
+        const operation = fs.existsSync(shortcutPath) ? 'replace' : 'create';
+        const repaired = electronShell.writeShortcutLink(shortcutPath, operation, {
             target: expectedTarget,
             cwd: path.dirname(expectedTarget),
             description: 'Interview Whisperer',
@@ -239,7 +249,7 @@ function stopVirtualCameraBridge() {
         try { virtualCameraBridgeProcess.kill(); } catch { /* process already closed */ }
     }
     virtualCameraBridgeProcess = null;
-    virtualCameraBackpressured = false;
+    virtualCameraFramePending = false;
     virtualCameraFrameSender = null;
     virtualCameraFramesReceived = 0;
     virtualCameraFramesProcessed = 0;
@@ -264,6 +274,8 @@ function handleVirtualCameraBridgeOutput(chunk) {
         if (!match) continue;
         virtualCameraFramesProcessed += 1;
         virtualCameraLastFrameAt = Date.now();
+        virtualCameraFramePending = false;
+        signalVirtualCameraFrameReady();
     }
 }
 
@@ -511,33 +523,45 @@ app.whenReady().then(() => {
             '--width', String(width), '--height', String(height), '--fps', String(fps),
         ], { stdio: ['pipe', 'pipe', 'pipe'], windowsHide: true });
         virtualCameraBridgeProcess = bridgeProcess;
-        bridgeProcess.stdout.on('data', handleVirtualCameraBridgeOutput);
-        bridgeProcess.stderr.on('data', (chunk) => console.error('[VirtualCamera]', chunk.toString().trim()));
+        appendVirtualCameraLog(`Bridge starting (pid ${bridgeProcess.pid || 'unknown'}, ${width}x${height} at ${fps} fps).`);
+        bridgeProcess.stdout.on('data', (chunk) => {
+            if (virtualCameraBridgeProcess === bridgeProcess) handleVirtualCameraBridgeOutput(chunk);
+        });
+        bridgeProcess.stderr.on('data', (chunk) => {
+            if (virtualCameraBridgeProcess !== bridgeProcess) return;
+            const detail = chunk.toString().trim();
+            if (!detail) return;
+            virtualCameraBridgeError = detail.slice(-1000);
+            appendVirtualCameraLog(`Bridge stderr: ${virtualCameraBridgeError}`);
+            console.error('[VirtualCamera]', detail);
+        });
         bridgeProcess.on('error', (error) => {
             console.error('[VirtualCamera] Bridge failed to start:', error.message);
             if (virtualCameraBridgeProcess === bridgeProcess) {
                 virtualCameraBridgeError = error.message;
+                appendVirtualCameraLog(`Bridge start failed: ${error.message}`);
                 virtualCameraBridgeProcess = null;
             }
-            virtualCameraBackpressured = false;
+            virtualCameraFramePending = false;
             signalVirtualCameraFrameReady();
         });
         bridgeProcess.on('exit', (code, signal) => {
             if (virtualCameraBridgeProcess === bridgeProcess) {
-                if (code !== 0) {
-                    virtualCameraBridgeError = `Bridge exited with code ${code ?? 'unknown'}${signal ? ` (${signal})` : ''}.`;
-                }
+                const exitDescription = `Bridge exited with code ${code ?? 'unknown'}${signal ? ` (${signal})` : ''}.`;
+                if (!virtualCameraBridgeError) virtualCameraBridgeError = exitDescription;
+                appendVirtualCameraLog(`${exitDescription} Frames received: ${virtualCameraFramesReceived}; processed: ${virtualCameraFramesProcessed}.`);
                 virtualCameraBridgeProcess = null;
             }
-            virtualCameraBackpressured = false;
+            virtualCameraFramePending = false;
             signalVirtualCameraFrameReady();
         });
         bridgeProcess.stdin.on('error', (error) => {
-            if (error.code !== 'EPIPE') console.error('[VirtualCamera] Frame pipe error:', error.message);
-        });
-        bridgeProcess.stdin.on('drain', () => {
-            virtualCameraBackpressured = false;
-            signalVirtualCameraFrameReady();
+            if (virtualCameraBridgeProcess !== bridgeProcess) return;
+            if (error.code !== 'EPIPE') {
+                virtualCameraBridgeError = error.message;
+                appendVirtualCameraLog(`Frame pipe error: ${error.message}`);
+                console.error('[VirtualCamera] Frame pipe error:', error.message);
+            }
         });
         return { ok: true, width, height, fps, pid: bridgeProcess.pid };
     });
@@ -551,7 +575,7 @@ app.whenReady().then(() => {
             signalVirtualCameraFrameReady(event.sender);
             return;
         }
-        if (virtualCameraBackpressured) {
+        if (virtualCameraFramePending) {
             virtualCameraFrameSender = event.sender;
             return;
         }
@@ -561,14 +585,9 @@ app.whenReady().then(() => {
             return;
         }
         virtualCameraFramesReceived += 1;
-
-        input.cork();
-        const headerReady = input.write(packet.header);
-        const frameReady = input.write(packet.data);
-        input.uncork();
-        virtualCameraBackpressured = !headerReady || !frameReady;
-        if (virtualCameraBackpressured) virtualCameraFrameSender = event.sender;
-        else signalVirtualCameraFrameReady(event.sender);
+        virtualCameraFramePending = true;
+        virtualCameraFrameSender = event.sender;
+        input.write(Buffer.concat([packet.header, packet.data]));
     });
 
     // ═══════════════════════════════════════════════════
