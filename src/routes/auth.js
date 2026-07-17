@@ -14,6 +14,7 @@ import {
 } from '../lib/redis.js';
 import { authenticateSuperAdmin, authenticateAdmin, authenticateUser, logAudit } from '../services/auth.js';
 import { resolveUserPermissions, resolveAdminPermissions } from '../services/permissions.js';
+import { checkLoginLockout, recordLoginFailure, clearLoginFailures } from '../middleware/rateLimit.js';
 
 const router = express.Router();
 
@@ -81,10 +82,21 @@ router.post('/auth/admin', async (req, res) => {
       return res.status(400).json({ error: 'Username and password are required' });
     }
 
+    // Brute-force lockout (100 failed tries per IP or username). Super admin is
+    // exempt — this only guards the admin login.
+    const adminIp = req.headers['x-forwarded-for'] || req.ip;
+    const adminLockKeys = [`ip:admin:${adminIp}`, `name:admin:${username}`];
+    const adminLock = await checkLoginLockout(adminLockKeys);
+    if (!adminLock.allowed) {
+      return res.status(429).json({ error: adminLock.error });
+    }
+
     const result = await authenticateAdmin(supabase, username, password);
     if (!result.success) {
+      await recordLoginFailure(adminLockKeys);
       return res.status(401).json({ error: result.error });
     }
+    await clearLoginFailures(adminLockKeys);
 
     req.session.regenerate(async (err) => {
       if (err) {
@@ -141,10 +153,21 @@ router.post('/auth/user', async (req, res) => {
       return res.status(400).json({ error: 'Username and password are required' });
     }
 
+    // Brute-force lockout (100 failed tries per IP or username). Super admin is
+    // exempt — this only guards the user login.
+    const userIp = req.headers['x-forwarded-for'] || req.ip;
+    const userLockKeys = [`ip:user:${userIp}`, `name:user:${username}`];
+    const userLock = await checkLoginLockout(userLockKeys);
+    if (!userLock.allowed) {
+      return res.status(429).json({ error: userLock.error });
+    }
+
     const result = await authenticateUser(supabase, username, password);
     if (!result.success) {
+      await recordLoginFailure(userLockKeys);
       return res.status(401).json({ error: result.error });
     }
+    await clearLoginFailures(userLockKeys);
 
     // Single device enforcement — force-kick any existing sessions so this login wins
     const activeSessions = await getActiveSessions(`supabase:${result.user.id}`);

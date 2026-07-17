@@ -41,7 +41,59 @@ export async function checkAnalyzeRateLimit(userId) {
   return { allowed: true };
 }
 
+/* ========================================================================
+   LOGIN BRUTE-FORCE PROTECTION
+   Blocks after LOGIN_MAX_ATTEMPTS failed attempts against the same IP or
+   username within a rolling window.
+
+   IMPORTANT: the SUPER ADMIN login is intentionally NOT protected by this —
+   the super admin is exempt from every rate limit / lockout by design. Only
+   the user and admin login routes call these helpers.
+   ======================================================================== */
+
+const LOGIN_MAX_ATTEMPTS = 100;            // lock out after 100 failed tries
+const LOGIN_WINDOW_SECONDS = 15 * 60;      // rolling 15-minute window
+
+/**
+ * Returns { allowed: false, error } if any of the given identifiers is at/over
+ * the failed-attempt threshold; otherwise { allowed: true }.
+ */
+export async function checkLoginLockout(keyParts) {
+  for (const part of keyParts) {
+    if (!part) continue;
+    const count = Number(await redisClient.get(`login_fail:${part}`)) || 0;
+    if (count >= LOGIN_MAX_ATTEMPTS) {
+      return {
+        allowed: false,
+        error: 'Too many failed login attempts. Please wait 15 minutes and try again.',
+      };
+    }
+  }
+  return { allowed: true };
+}
+
+/** Increment the failed-attempt counters (sliding 15-minute window). */
+export async function recordLoginFailure(keyParts) {
+  for (const part of keyParts) {
+    if (!part) continue;
+    const key = `login_fail:${part}`;
+    await redisClient.incr(key);
+    await redisClient.expire(key, LOGIN_WINDOW_SECONDS);
+  }
+}
+
+/** Clear the counters after a successful login. */
+export async function clearLoginFailures(keyParts) {
+  for (const part of keyParts) {
+    if (!part) continue;
+    await redisClient.del(`login_fail:${part}`);
+  }
+}
+
 export default {
   checkAnalyzeRateLimit,
+  checkLoginLockout,
+  recordLoginFailure,
+  clearLoginFailures,
 };
 

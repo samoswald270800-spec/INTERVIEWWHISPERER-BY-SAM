@@ -23,6 +23,7 @@ import superAdminRoutes from './routes/super-admin.js';
 import adminRoutes from './routes/admin.js';
 import { loadDocuments } from './routes/interview.js';
 import { buildIceServers } from './services/webrtc.js';
+import { reconcileStaleSessions } from './services/credits.js';
 import {
   forceLogoutUser,
   forceLogoutAdmin,
@@ -57,6 +58,22 @@ export async function createApp() {
 
   // Store clients in app.locals
   app.locals.supabase = supabase;
+
+  // Periodically close orphaned "active" sessions (app closed/crashed without
+  // calling /session/end). Without this, a stuck-open session is reused on the
+  // next start and the account is never charged again (free usage). Billing is
+  // capped at 4h. Super admins have no session rows, so they are never touched.
+  if (supabase) {
+    const STALE_SWEEP_MS = 15 * 60 * 1000; // every 15 minutes
+    const sweep = () =>
+      reconcileStaleSessions(supabase).catch((e) =>
+        console.error('Stale-session sweep failed:', e)
+      );
+    sweep();
+    const sweepTimer = setInterval(sweep, STALE_SWEEP_MS);
+    if (typeof sweepTimer.unref === 'function') sweepTimer.unref();
+  }
+
   app.locals.forceLogoutUser = forceLogoutUser;
   app.locals.forceLogoutAdmin = forceLogoutAdmin;
   app.locals.forceLogoutAllUsersUnderAdmin = forceLogoutAllUsersUnderAdmin;

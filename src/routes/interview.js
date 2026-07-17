@@ -376,7 +376,11 @@ router.post('/session/end', requireAuth, async (req, res) => {
     }
 
     const userId = req.session.supabaseId;
-    const activeSession = await getActiveSession(supabase, userId);
+    // Pass the role so admin sessions (stored under a placeholder user) are
+    // found and closed. Without the role this defaulted to 'user' and admin
+    // sessions could never be ended — leaving them stuck open (billed once,
+    // then reused for free).
+    const activeSession = await getActiveSession(supabase, userId, req.session.role);
 
     if (!activeSession) {
       return res.json({ ok: true, message: 'No active session to end' });
@@ -410,6 +414,22 @@ router.post('/analyze-screen', requireAuth, async (req, res) => {
       const limitCheck = await checkAnalyzeRateLimit(req.session.userId);
       if (!limitCheck.allowed) {
         return res.status(429).json({ error: limitCheck.error });
+      }
+    }
+
+    // Credit gate for screen analysis (1 token). Super admin is fully exempt —
+    // never limited, never charged. Users are charged their own credits; admins
+    // are charged the admin balance. We pre-check here so we don't run the
+    // (paid) AI call for an account that can't afford it, then deduct on success.
+    const supabaseClient = req.app.locals.supabase;
+    const chargeRole = req.session.role;
+    const chargeAccountId = req.session.supabaseId;
+    const chargeable = Boolean(supabaseClient && chargeAccountId && chargeRole !== 'super_admin');
+    if (chargeable) {
+      const table = chargeRole === 'admin' ? 'admins' : 'users';
+      const { data: acct } = await supabaseClient.from(table).select('credits').eq('id', chargeAccountId).single();
+      if (!acct || acct.credits < config.SCREEN_ANALYSIS_COST) {
+        return res.status(402).json({ error: 'Insufficient credits for screen analysis', code: 'INSUFFICIENT_CREDITS' });
       }
     }
 
@@ -604,6 +624,15 @@ router.post('/analyze-screen', requireAuth, async (req, res) => {
         await storeScreenAnalysis(req.sessionID, screenAnalysisContext);
       } catch (err) {
         console.warn('[analyze-screen] failed to persist screen analysis', err);
+      }
+    }
+
+    // Charge for the analysis now that it succeeded. Super admin is exempt.
+    if (chargeable) {
+      const adminId = chargeRole === 'user' ? req.session.adminId : chargeAccountId;
+      const charge = await chargeScreenAnalysis(supabaseClient, chargeAccountId, adminId, chargeRole);
+      if (!charge.success) {
+        console.warn('[analyze-screen] post-analysis charge failed:', charge.error);
       }
     }
 

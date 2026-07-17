@@ -394,7 +394,10 @@ router.post('/admins/:id/credits', async (req, res) => {
     const { id } = req.params;
     const { amount, description } = req.body;
 
-    if (typeof amount !== 'number' || amount === 0) {
+    // Number.isFinite rejects NaN/Infinity — a bare `typeof amount === 'number'`
+    // does NOT catch NaN (NaN is a "number"), which previously let a typo in the
+    // "Add credits" box write null and wipe the admin's balance.
+    if (typeof amount !== 'number' || !Number.isFinite(amount) || amount === 0) {
       return res.status(400).json({ error: 'amount must be a non-zero number' });
     }
 

@@ -739,6 +739,22 @@ function InterviewApp() {
         };
     }, []);
 
+    // Best-effort: tell the backend to END the interview session when the app
+    // window is closed/quit or navigated away. Uses sendBeacon so the request
+    // still goes out during teardown. This is a convenience — the server-side
+    // stale-session sweep is the real guarantee — but it closes sessions
+    // promptly so they aren't reused for free after a hard close.
+    useEffect(() => {
+        const endOnExit = () => {
+            if (!isSessionActiveRef.current) return;
+            try {
+                navigator.sendBeacon(`${API_BASE_URL}/session/end`);
+            } catch (_) { /* best effort */ }
+        };
+        window.addEventListener('pagehide', endOnExit);
+        return () => window.removeEventListener('pagehide', endOnExit);
+    }, []);
+
     const handleServerEvent = (event) => {
         const type = event.type;
         const eventId = event.event_id;
