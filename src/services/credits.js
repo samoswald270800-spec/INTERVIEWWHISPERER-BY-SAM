@@ -3,7 +3,7 @@
  * Handles credit management for sessions
  * 
  * CREDIT RATES:
- * - Interview: 1 token = 6 minutes, minimum 15 minutes (3 tokens)
+ * - Interview: 1 token = 6 minutes, minimum 6 minutes (1 token)
  * - Screen Analysis: 1 token per analysis
  */
 
@@ -13,9 +13,11 @@ import config from '../config/index.js';
 // orphaned/stale sessions draining credits.
 export const MAX_SESSION_SECONDS = 4 * 60 * 60; // 14400s
 // A session still 'active' past this age is treated as orphaned — the desktop
-// app was closed/crashed without calling /session/end. The stale-session sweep
-// closes and bills these so they can't be reused for free.
-export const STALE_SESSION_SECONDS = MAX_SESSION_SECONDS + 30 * 60; // 4.5h
+// app was closed/crashed without calling /session/end (or the user simply left
+// it running). The stale-session sweep closes and bills these so they can't be
+// reused for free. Set to the 4h billing cap: "if it is left after 4h it ends
+// automatically".
+export const STALE_SESSION_SECONDS = MAX_SESSION_SECONDS; // 4h
 
 /**
  * Atomically deduct credits from an account using optimistic locking.
@@ -379,7 +381,13 @@ export async function getActiveSession(supabase, accountId, role = 'user') {
     query = query.eq('user_id', accountId);
   }
 
-  const { data } = await query.single();
+  // Use maybeSingle + limit(1) instead of single(): if an account somehow ends
+  // up with two active sessions, single() throws and the caller would start a
+  // THIRD. This returns the most recent active session (or null) without error.
+  const { data } = await query
+    .order('start_time', { ascending: false })
+    .limit(1)
+    .maybeSingle();
 
   return data || null;
 }

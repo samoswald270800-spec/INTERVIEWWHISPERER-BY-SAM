@@ -33,7 +33,7 @@ router.get('/stats', async (req, res) => {
 
     const { data: admin } = await supabase
       .from('admins')
-      .select('credits, name')
+      .select('credits, name, org_code')
       .eq('id', adminId)
       .single();
 
@@ -68,6 +68,7 @@ router.get('/stats', async (req, res) => {
       ok: true,
       stats: {
         adminName: admin?.name,
+        orgCode: admin?.org_code || null,
         credits: admin?.credits || 0,
         totalUsers: userCount || 0,
         activeUsers: activeUsers || 0,

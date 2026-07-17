@@ -15,6 +15,31 @@ import {
 import { authenticateSuperAdmin, authenticateAdmin, authenticateUser, logAudit } from '../services/auth.js';
 import { resolveUserPermissions, resolveAdminPermissions } from '../services/permissions.js';
 import { checkLoginLockout, recordLoginFailure, clearLoginFailures } from '../middleware/rateLimit.js';
+import { getActiveSession, endSession } from '../services/credits.js';
+
+// Shared message shown on the device that gets kicked by a newer login.
+const KICKED_MESSAGE = 'You have been signed out because your account was signed in on another device.';
+
+/**
+ * Enforce single active session: delete any existing sessions for this account
+ * and live-kick those devices (socket popup + redirect). Super admin never calls
+ * this — the super admin may be signed in on multiple devices at once.
+ */
+async function enforceSingleDevice(req, supabaseId) {
+  const activeSessions = await getActiveSessions(`supabase:${supabaseId}`);
+  if (!activeSessions.length) return;
+  console.log(`[Auth] Single-device: kicking ${activeSessions.length} old session(s) for ${supabaseId}`);
+  // Live popup on the old device(s) before their session is destroyed.
+  try {
+    req.app.locals.kickSessions?.(activeSessions, KICKED_MESSAGE);
+  } catch (e) {
+    console.warn('[Auth] kickSessions failed:', e?.message);
+  }
+  for (const oldSessionId of activeSessions) {
+    await redisClient.del(`sess:${oldSessionId}`);
+  }
+  await redisClient.del(`active_sessions:supabase:${supabaseId}`);
+}
 
 const router = express.Router();
 
@@ -98,6 +123,9 @@ router.post('/auth/admin', async (req, res) => {
     }
     await clearLoginFailures(adminLockKeys);
 
+    // Single-device: kick any older admin session (live popup + redirect).
+    await enforceSingleDevice(req, result.user.id);
+
     req.session.regenerate(async (err) => {
       if (err) {
         console.error('Admin session regenerate error:', err);
@@ -148,9 +176,17 @@ router.post('/auth/user', async (req, res) => {
       return res.status(503).json({ error: 'Database not configured' });
     }
 
-    const { username, password } = req.body || {};
+    const { username, password, orgCode } = req.body || {};
     if (!username || !password) {
       return res.status(400).json({ error: 'Username and password are required' });
+    }
+
+    // Organization code is required for user login. Usernames are only unique
+    // WITHIN an organization, so the code tells us which org to sign into and
+    // removes cross-organization ambiguity.
+    const normalizedOrgCode = (orgCode || '').toString().trim().toUpperCase();
+    if (!normalizedOrgCode) {
+      return res.status(400).json({ error: 'Organization code is required' });
     }
 
     // Brute-force lockout (100 failed tries per IP or username). Super admin is
@@ -162,22 +198,27 @@ router.post('/auth/user', async (req, res) => {
       return res.status(429).json({ error: userLock.error });
     }
 
-    const result = await authenticateUser(supabase, username, password);
+    // Resolve the org code → the admin/organization it belongs to.
+    const { data: org } = await supabase
+      .from('admins')
+      .select('id')
+      .eq('org_code', normalizedOrgCode)
+      .maybeSingle();
+    if (!org) {
+      await recordLoginFailure(userLockKeys);
+      return res.status(401).json({ error: 'Invalid credentials' });
+    }
+
+    // Scope the login to that organization.
+    const result = await authenticateUser(supabase, username, password, org.id);
     if (!result.success) {
       await recordLoginFailure(userLockKeys);
       return res.status(401).json({ error: result.error });
     }
     await clearLoginFailures(userLockKeys);
 
-    // Single device enforcement — force-kick any existing sessions so this login wins
-    const activeSessions = await getActiveSessions(`supabase:${result.user.id}`);
-    if (activeSessions.length > 0) {
-      console.log(`[Auth] Force-logging out ${activeSessions.length} existing session(s) for user ${result.user.id}`);
-      for (const oldSessionId of activeSessions) {
-        await redisClient.del(`sess:${oldSessionId}`);
-      }
-      await redisClient.del(`active_sessions:supabase:${result.user.id}`);
-    }
+    // Single-device: kick any older session for this user (live popup + redirect).
+    await enforceSingleDevice(req, result.user.id);
 
     req.session.regenerate(async (err) => {
       if (err) {
@@ -224,9 +265,22 @@ router.post('/auth/user', async (req, res) => {
  * POST /api/logout - Logout current user
  */
 router.post('/logout', async (req, res) => {
-  const userId = req.session?.userId;
   const sessionId = req.sessionID;
   const supabaseId = req.session?.supabaseId;
+  const role = req.session?.role;
+  const supabase = req.app.locals.supabase;
+
+  // Finalize (end + bill) any active interview session on explicit logout, so
+  // credits are charged for the real time used. Super admin has no session rows
+  // and is never billed, so it is skipped.
+  if (supabase && supabaseId && (role === 'user' || role === 'admin')) {
+    try {
+      const active = await getActiveSession(supabase, supabaseId, role);
+      if (active) await endSession(supabase, active.id);
+    } catch (e) {
+      console.warn('[Logout] end session failed:', e?.message);
+    }
+  }
 
   // Remove from active sessions
   if (supabaseId && sessionId) {
@@ -272,16 +326,18 @@ router.get('/me', async (req, res) => {
   if (role === 'admin') {
     let credits = req.session.credits || 0;
     let adminPerms = {};
+    let orgCode = null;
 
     if (supabase && req.session.supabaseId) {
       const { data } = await supabase
         .from('admins')
-        .select('credits, permissions, name')
+        .select('credits, permissions, name, org_code')
         .eq('id', req.session.supabaseId)
         .single();
       if (data) {
         credits = data.credits;
         adminPerms = data.permissions || {};
+        orgCode = data.org_code || null;
       }
     }
 
@@ -292,6 +348,7 @@ router.get('/me', async (req, res) => {
       role: 'admin',
       supabaseId: req.session.supabaseId,
       adminName: req.session.adminName,
+      orgCode,
       credits,
       permissions,
       lockedFeatures,
@@ -302,6 +359,7 @@ router.get('/me', async (req, res) => {
   let credits = req.session.credits || 0;
   let userPerms = req.session.permissions || {};
   let adminPerms = {};
+  let orgCode = null;
 
   if (supabase && req.session.supabaseId) {
     const { data } = await supabase
@@ -317,10 +375,13 @@ router.get('/me', async (req, res) => {
       if (data.admin_id) {
         const { data: adminData } = await supabase
           .from('admins')
-          .select('permissions')
+          .select('permissions, org_code')
           .eq('id', data.admin_id)
           .single();
-        if (adminData) adminPerms = adminData.permissions || {};
+        if (adminData) {
+          adminPerms = adminData.permissions || {};
+          orgCode = adminData.org_code || null;
+        }
       }
     }
   }
@@ -334,6 +395,7 @@ router.get('/me', async (req, res) => {
     supabaseId: req.session.supabaseId,
     adminId: req.session.adminId,
     adminName: req.session.adminName,
+    orgCode,
     credits,
     permissions,
     lockedFeatures,

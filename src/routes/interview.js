@@ -206,27 +206,36 @@ router.post('/session', requireAuth, async (req, res) => {
     const role = req.session.role;
     const accountId = req.session.supabaseId;
 
-    // Server-side permission enforcement (cannot be bypassed by stale frontend)
+    // Server-side permission enforcement (cannot be bypassed by a stale/modified
+    // frontend). Super admin is excluded from this block entirely, so it is never
+    // gated. We resolve the effective permissions once and enforce both the
+    // "can start a session at all" flag and the architecture-specific flag.
     if (supabase && accountId && (role === 'user' || role === 'admin')) {
+      let resolved;
+      if (role === 'user') {
+        const { data: userData } = await supabase.from('users').select('permissions, admin_id').eq('id', accountId).single();
+        let adminPerms = {};
+        if (userData?.admin_id) {
+          const { data: adminData } = await supabase.from('admins').select('permissions').eq('id', userData.admin_id).single();
+          adminPerms = adminData?.permissions || {};
+        }
+        resolved = resolveUserPermissions(userData?.permissions || {}, adminPerms);
+      } else {
+        const { data: adminData } = await supabase.from('admins').select('permissions').eq('id', accountId).single();
+        resolved = resolveAdminPermissions(adminData?.permissions || {});
+      }
+
+      // Gate 1: starting any interview session at all (Live/Turbo/Reasoning).
+      if (resolved.permissions.canStartSession === false) {
+        console.log(`[Session] Blocked: ${role} ${accountId} lacks canStartSession`);
+        return res.status(403).json({ error: 'Starting interview sessions is disabled for your account.', code: 'FEATURE_LOCKED' });
+      }
+
+      // Gate 2: architecture-specific flag (Turbo / Reasoning).
       const permKey = isTurbo ? 'canTurbo' : (architecture === 'reasoning' ? 'canReasoning' : null);
-      if (permKey) {
-        let resolved;
-        if (role === 'user') {
-          const { data: userData } = await supabase.from('users').select('permissions, admin_id').eq('id', accountId).single();
-          let adminPerms = {};
-          if (userData?.admin_id) {
-            const { data: adminData } = await supabase.from('admins').select('permissions').eq('id', userData.admin_id).single();
-            adminPerms = adminData?.permissions || {};
-          }
-          resolved = resolveUserPermissions(userData?.permissions || {}, adminPerms);
-        } else {
-          const { data: adminData } = await supabase.from('admins').select('permissions').eq('id', accountId).single();
-          resolved = resolveAdminPermissions(adminData?.permissions || {});
-        }
-        if (resolved.permissions[permKey] === false) {
-          console.log(`[Session] Blocked: ${role} ${accountId} lacks ${permKey} permission`);
-          return res.status(403).json({ error: `${architecture} mode is not available for your account.`, code: 'FEATURE_LOCKED' });
-        }
+      if (permKey && resolved.permissions[permKey] === false) {
+        console.log(`[Session] Blocked: ${role} ${accountId} lacks ${permKey} permission`);
+        return res.status(403).json({ error: `${architecture} mode is not available for your account.`, code: 'FEATURE_LOCKED' });
       }
     }
 
@@ -411,7 +420,10 @@ router.post('/analyze-screen', requireAuth, async (req, res) => {
         return res.status(403).json({ error: 'Screen analysis is disabled for your account.' });
       }
 
-      const limitCheck = await checkAnalyzeRateLimit(req.session.userId);
+      // Key the limit by the unique account id, not the username — usernames are
+      // only unique per organization, so keying by username made two different
+      // users (in different orgs) share one daily limit.
+      const limitCheck = await checkAnalyzeRateLimit(req.session.supabaseId || req.session.userId);
       if (!limitCheck.allowed) {
         return res.status(429).json({ error: limitCheck.error });
       }

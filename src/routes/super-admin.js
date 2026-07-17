@@ -68,7 +68,7 @@ router.get('/admins', async (req, res) => {
 
     const { data: admins, error } = await supabase
       .from('admins')
-      .select('id, name, username, credits, status, created_at, last_login')
+      .select('id, name, username, org_code, credits, status, created_at, last_login')
       .order('created_at', { ascending: false });
 
     if (error) throw error;
@@ -321,11 +321,10 @@ router.delete('/users/:id', async (req, res) => {
     // Force logout first
     await forceLogoutUser(id);
 
-    // Delete related data (sessions, transactions) will cascade if FK is set,
-    // otherwise we clean up manually
-    await supabase.from('sessions').delete().eq('user_id', id);
-    await supabase.from('credit_transactions').delete().eq('user_id', id);
-
+    // Delete the user. Sessions cascade-delete via FK; credit_transactions are
+    // detached (user_id set NULL by the FK) so the financial/audit history is
+    // PRESERVED. Previously this hard-deleted credit_transactions, destroying
+    // the money trail and behaving differently from the admin-side delete.
     const { error } = await supabase.from('users').delete().eq('id', id);
     if (error) throw error;
 
