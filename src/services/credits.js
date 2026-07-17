@@ -3,11 +3,21 @@
  * Handles credit management for sessions
  * 
  * CREDIT RATES:
- * - Interview: 1 token = 6 minutes, minimum 15 minutes (3 tokens)
+ * - Interview: 1 token = 6 minutes, minimum 6 minutes (1 token)
  * - Screen Analysis: 1 token per analysis
  */
 
 import config from '../config/index.js';
+
+// Billing cap: a single session never bills more than 4 hours. Protects against
+// orphaned/stale sessions draining credits.
+export const MAX_SESSION_SECONDS = 4 * 60 * 60; // 14400s
+// A session still 'active' past this age is treated as orphaned — the desktop
+// app was closed/crashed without calling /session/end (or the user simply left
+// it running). The stale-session sweep closes and bills these so they can't be
+// reused for free. Set to the 4h billing cap: "if it is left after 4h it ends
+// automatically".
+export const STALE_SESSION_SECONDS = MAX_SESSION_SECONDS; // 4h
 
 /**
  * Atomically deduct credits from an account using optimistic locking.
@@ -192,7 +202,6 @@ export async function endSession(supabase, sessionId) {
 
   // Cap at 4 hours to protect against stale/orphaned sessions draining credits.
   // Super admins never reach this code path so they are unaffected.
-  const MAX_SESSION_SECONDS = 4 * 60 * 60; // 14400 seconds
   const totalSeconds = Math.min(rawSeconds, MAX_SESSION_SECONDS);
 
   if (rawSeconds > MAX_SESSION_SECONDS) {
@@ -301,6 +310,40 @@ export async function endSession(supabase, sessionId) {
 }
 
 /**
+ * Close and bill any sessions still 'active' past STALE_SESSION_SECONDS.
+ *
+ * These are orphaned sessions — the desktop app was closed/crashed/lost network
+ * without calling /session/end. Left alone, an orphaned 'active' session is
+ * reused on the account's next "start" and never charged again (free usage).
+ * Billing is capped at 4h by endSession(). Super admins never create session
+ * rows, so they are never affected by this sweep.
+ */
+export async function reconcileStaleSessions(supabase, maxAgeSeconds = STALE_SESSION_SECONDS) {
+  if (!supabase) return { closed: 0, failed: 0 };
+  const cutoff = new Date(Date.now() - maxAgeSeconds * 1000).toISOString();
+
+  const { data: stale, error } = await supabase
+    .from('sessions')
+    .select('id')
+    .eq('status', 'active')
+    .lt('start_time', cutoff);
+
+  if (error || !stale || stale.length === 0) return { closed: 0, failed: 0 };
+
+  let closed = 0;
+  let failed = 0;
+  for (const s of stale) {
+    const result = await endSession(supabase, s.id);
+    if (result.success) closed += 1;
+    else failed += 1;
+  }
+  if (closed || failed) {
+    console.log(`[Sessions] Stale sweep: closed ${closed}, failed ${failed}`);
+  }
+  return { closed, failed };
+}
+
+/**
  * Get active session for a user
  */
 export async function getActiveSession(supabase, accountId, role = 'user') {
@@ -338,7 +381,13 @@ export async function getActiveSession(supabase, accountId, role = 'user') {
     query = query.eq('user_id', accountId);
   }
 
-  const { data } = await query.single();
+  // Use maybeSingle + limit(1) instead of single(): if an account somehow ends
+  // up with two active sessions, single() throws and the caller would start a
+  // THIRD. This returns the most recent active session (or null) without error.
+  const { data } = await query
+    .order('start_time', { ascending: false })
+    .limit(1)
+    .maybeSingle();
 
   return data || null;
 }
@@ -405,7 +454,7 @@ export function getScreenAnalysisCost() {
  */
 export async function assignCreditsToUser(supabase, { userId, adminId, amount, description }) {
   if (!supabase) return { success: false, error: 'Supabase not configured' };
-  if (amount <= 0) return { success: false, error: 'Amount must be positive' };
+  if (!Number.isFinite(amount) || amount <= 0) return { success: false, error: 'Amount must be a positive number' };
 
   const { data: admin } = await supabase
     .from('admins')
@@ -455,7 +504,7 @@ export async function assignCreditsToUser(supabase, { userId, adminId, amount, d
  */
 export async function reclaimCreditsFromUser(supabase, { userId, adminId, amount, description }) {
   if (!supabase) return { success: false, error: 'Supabase not configured' };
-  if (amount <= 0) return { success: false, error: 'Amount must be positive' };
+  if (!Number.isFinite(amount) || amount <= 0) return { success: false, error: 'Amount must be a positive number' };
 
   const { data: admin } = await supabase.from('admins').select('credits').eq('id', adminId).single();
   const { data: user } = await supabase.from('users').select('credits, admin_id').eq('id', userId).single();
@@ -495,7 +544,7 @@ export async function reclaimCreditsFromUser(supabase, { userId, adminId, amount
  */
 export async function addCreditsToAdmin(supabase, { adminId, amount, description }) {
   if (!supabase) return { success: false, error: 'Supabase not configured' };
-  if (amount <= 0) return { success: false, error: 'Amount must be positive' };
+  if (!Number.isFinite(amount) || amount <= 0) return { success: false, error: 'Amount must be a positive number' };
 
   const { data: admin } = await supabase.from('admins').select('credits').eq('id', adminId).single();
   if (!admin) return { success: false, error: 'Admin not found' };
@@ -519,7 +568,7 @@ export async function addCreditsToAdmin(supabase, { adminId, amount, description
  */
 export async function deductCreditsFromAdmin(supabase, { adminId, amount, description }) {
   if (!supabase) return { success: false, error: 'Supabase not configured' };
-  if (amount <= 0) return { success: false, error: 'Amount must be positive' };
+  if (!Number.isFinite(amount) || amount <= 0) return { success: false, error: 'Amount must be a positive number' };
 
   const { data: admin } = await supabase.from('admins').select('credits').eq('id', adminId).single();
   if (!admin) return { success: false, error: 'Admin not found' };
@@ -611,6 +660,7 @@ export async function getAdminSessionHistory(supabase, adminId, limit = 100) {
 export default {
   startSession,
   endSession,
+  reconcileStaleSessions,
   getActiveSession,
   chargeScreenAnalysis,
   getMinimumChargeTokens,

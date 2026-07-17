@@ -5,17 +5,24 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import API_BASE_URL from '../config';
+import useSocket from '../hooks/useSocket';
 import './AdminDashboard.css';
 
 const FEATURE_KEYS = [
     { key: 'canExpand', label: 'Expand' },
     { key: 'canAnalyze', label: 'Analyze' },
     { key: 'canReasoning', label: 'Reasoning' },
-    { key: 'canAutomatic', label: 'Automatic' },
+    // Renamed from the dead 'canAutomatic' key: this now maps to the real
+    // Turbo permission the backend actually enforces.
+    { key: 'canTurbo', label: 'Turbo' },
     { key: 'canStartSession', label: 'Sessions' },
 ];
 
 export default function AdminDashboard() {
+    // Live single-device kick: connects a socket so a newer admin login shows an
+    // instant "signed in elsewhere" popup on this device and redirects to login.
+    useSocket();
+
     const [stats, setStats] = useState({ totalUsers: 0, activeUsers: 0, creditsUsedToday: 0, sessionsToday: 0, credits: 0 });
     const [users, setUsers] = useState([]);
     const [expandedUser, setExpandedUser] = useState(null);
@@ -160,6 +167,11 @@ export default function AdminDashboard() {
                         <p>Manage your users</p>
                     </div>
                     <div className="hdr-right">
+                        {stats.orgCode && (
+                            <div className="credit-badge" title="Your organization code — give this to your users so they can sign in">
+                                Org code: <span>{stats.orgCode}</span>
+                            </div>
+                        )}
                         <div className="credit-badge">Credits: <span>{stats.credits || 0}</span></div>
                         <button className="btn btn-ghost" onClick={handleLogout}>Sign Out</button>
                         <button className="btn btn-primary" onClick={() => setShowModal(true)}>+ New User</button>

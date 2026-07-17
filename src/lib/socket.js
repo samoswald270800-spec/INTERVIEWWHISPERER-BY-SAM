@@ -38,6 +38,25 @@ import { buildIceServers } from '../services/webrtc.js';
 const onlineUsers = new Map();   // userId -> { socketId, username, adminName }
 const onlineAdmins = new Map();  // socketId -> { role, userId }
 const activeSessions = new Map(); // sessionKey -> { adminSocketId, userSocketId, userId, startedAt }
+const socketsBySession = new Map(); // express sessionID -> socket (main namespace) — for single-device live kick
+
+/**
+ * Live-kick specific sessions: tell each device it was signed out (popup +
+ * redirect on the client), then drop its socket. Used by the login routes to
+ * enforce single-device ("only the latest login survives"). Super admin logins
+ * never call this, so super admin devices are never kicked.
+ */
+export function kickSessions(sessionIds = [], message = 'You have been signed out.') {
+  for (const sid of sessionIds) {
+    const socket = socketsBySession.get(sid);
+    if (!socket) continue;
+    try {
+      socket.emit('session:force-logout', { message });
+      // Give the client a moment to show the popup before cutting the socket.
+      setTimeout(() => { try { socket.disconnect(true); } catch (_) { /* noop */ } }, 500);
+    } catch (_) { /* noop */ }
+  }
+}
 
 /**
  * Initialize Socket.IO on the HTTP server
@@ -70,6 +89,11 @@ export function initSocketIO(httpServer, sessionMiddleware) {
     const role = session.role || 'user';
     const userId = session.supabaseId || session.userId;
     const username = session.userId;
+
+    // Register this socket under its express session id so a newer login can
+    // live-kick it (single-device enforcement).
+    const sessionId = socket.request.sessionID;
+    if (sessionId) socketsBySession.set(sessionId, socket);
 
     console.log(`[Socket] ${role} connected: ${username} (${socket.id})`);
 
@@ -235,6 +259,10 @@ export function initSocketIO(httpServer, sessionMiddleware) {
     // Disconnect cleanup
     socket.on('disconnect', () => {
       console.log(`[Socket] ${role} disconnected: ${username} (${socket.id})`);
+
+      if (sessionId && socketsBySession.get(sessionId) === socket) {
+        socketsBySession.delete(sessionId);
+      }
 
       if (role === 'user') {
         onlineUsers.delete(userId);

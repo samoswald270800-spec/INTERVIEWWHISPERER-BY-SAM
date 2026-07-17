@@ -62,6 +62,7 @@ function InterviewApp() {
     const [credits, setCredits] = useState(0);
     const [remainingTime, setRemainingTime] = useState(0);
     const [unlimitedCredits, setUnlimitedCredits] = useState(false);
+    const [orgCode, setOrgCode] = useState(null);
     const [elapsedSeconds, setElapsedSeconds] = useState(0);
     const timerIntervalRef = useRef(null);
 
@@ -257,6 +258,12 @@ function InterviewApp() {
     const fetchCredits = async () => {
         try {
             const res = await fetch(`${API_BASE_URL}/api/me`, { credentials: 'include' });
+            // Session gone/expired/kicked: bounce to the login page instead of
+            // showing a stale, unusable logged-in UI (the "reopen" bug).
+            if (res.status === 401) {
+                window.location.href = '/login';
+                return;
+            }
             if (!res.ok) throw new Error("Failed to fetch info");
             const data = await res.json();
 
@@ -264,6 +271,7 @@ function InterviewApp() {
             if (data.role) setUserRole(data.role);
             setIsAppLoading(false);
 
+            if (data.orgCode) setOrgCode(data.orgCode);
             if (data.permissions) setPermissions(data.permissions);
             if (data.lockedFeatures) setLockedFeatures(data.lockedFeatures);
             const hasUnlimitedCredits = data.unlimitedCredits === true;
@@ -496,12 +504,13 @@ function InterviewApp() {
 
     const startSessionRouter = async () => {
         if (architecture === "reasoning") {
-            // Reasoning: auto-VAD → Whisper → GPT SSE streaming
-            await startReasoningPipeline();
-        } else {
-            // 'live' and 'turbo' both use the realtime WebRTC pipeline
-            await startRealtime();
+            // Reasoning is temporarily disabled (under development). The engine
+            // picker also blocks selecting it; this is a defensive guard.
+            setStatus("REASONING — UNDER DEVELOPMENT");
+            return;
         }
+        // 'live' and 'turbo' both use the realtime WebRTC pipeline
+        await startRealtime();
     };
 
     const startReasoningPipeline = async () => {
@@ -739,6 +748,22 @@ function InterviewApp() {
         };
     }, []);
 
+    // Best-effort: tell the backend to END the interview session when the app
+    // window is closed/quit or navigated away. Uses sendBeacon so the request
+    // still goes out during teardown. This is a convenience — the server-side
+    // stale-session sweep is the real guarantee — but it closes sessions
+    // promptly so they aren't reused for free after a hard close.
+    useEffect(() => {
+        const endOnExit = () => {
+            if (!isSessionActiveRef.current) return;
+            try {
+                navigator.sendBeacon(`${API_BASE_URL}/session/end`);
+            } catch (_) { /* best effort */ }
+        };
+        window.addEventListener('pagehide', endOnExit);
+        return () => window.removeEventListener('pagehide', endOnExit);
+    }, []);
+
     const handleServerEvent = (event) => {
         const type = event.type;
         const eventId = event.event_id;
@@ -887,7 +912,7 @@ function InterviewApp() {
         }
     };
 
-    const expandLastAnswer = () => {
+    const expandLastAnswer = async () => {
         // Route expand to the correct architecture
         if (architecture === "reasoning") {
             // Use reasoning SSE expand
@@ -899,6 +924,23 @@ function InterviewApp() {
 
         // Live/WebRTC expand (original)
         if (!window._lastDC || !lastQuestionRef.current || isExpanding) return;
+
+        // Server-side permission gate — resolved fresh from the DB so a locked
+        // "Expand" can't be re-enabled by a stale/edited frontend flag. Super
+        // admin is always allowed. On a network hiccup we allow (fail-open) so a
+        // paid session isn't broken.
+        try {
+            const authRes = await fetch(`${API_BASE_URL}/session/expand-authorize`, {
+                method: 'POST',
+                credentials: 'include',
+            });
+            if (authRes.status === 403) {
+                const d = await authRes.json().catch(() => ({}));
+                setStatus((d.error || 'EXPAND DISABLED').toUpperCase());
+                setCanExpand(false);
+                return;
+            }
+        } catch (_) { /* fail-open on network error */ }
 
         setIsExpanding(true);
 
@@ -1499,6 +1541,14 @@ This is your chance to really impress. Leave nothing on the table.`;
                         creditsLabel={creditsLabel}
                     />
                 </div>
+                {orgCode && (
+                    <span
+                        title="Your organization code (needed to sign in)"
+                        style={{ fontSize: '11px', letterSpacing: '0.08em', color: 'rgba(255,255,255,0.4)', marginRight: '10px', fontFamily: 'var(--font-body)', whiteSpace: 'nowrap' }}
+                    >
+                        ORG {orgCode}
+                    </span>
+                )}
                 <button className="solo-signout" onClick={handleLogout} title="Sign out">
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                         <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>

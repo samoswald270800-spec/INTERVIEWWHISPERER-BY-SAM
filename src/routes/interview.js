@@ -206,27 +206,36 @@ router.post('/session', requireAuth, async (req, res) => {
     const role = req.session.role;
     const accountId = req.session.supabaseId;
 
-    // Server-side permission enforcement (cannot be bypassed by stale frontend)
+    // Server-side permission enforcement (cannot be bypassed by a stale/modified
+    // frontend). Super admin is excluded from this block entirely, so it is never
+    // gated. We resolve the effective permissions once and enforce both the
+    // "can start a session at all" flag and the architecture-specific flag.
     if (supabase && accountId && (role === 'user' || role === 'admin')) {
+      let resolved;
+      if (role === 'user') {
+        const { data: userData } = await supabase.from('users').select('permissions, admin_id').eq('id', accountId).single();
+        let adminPerms = {};
+        if (userData?.admin_id) {
+          const { data: adminData } = await supabase.from('admins').select('permissions').eq('id', userData.admin_id).single();
+          adminPerms = adminData?.permissions || {};
+        }
+        resolved = resolveUserPermissions(userData?.permissions || {}, adminPerms);
+      } else {
+        const { data: adminData } = await supabase.from('admins').select('permissions').eq('id', accountId).single();
+        resolved = resolveAdminPermissions(adminData?.permissions || {});
+      }
+
+      // Gate 1: starting any interview session at all (Live/Turbo/Reasoning).
+      if (resolved.permissions.canStartSession === false) {
+        console.log(`[Session] Blocked: ${role} ${accountId} lacks canStartSession`);
+        return res.status(403).json({ error: 'Starting interview sessions is disabled for your account.', code: 'FEATURE_LOCKED' });
+      }
+
+      // Gate 2: architecture-specific flag (Turbo / Reasoning).
       const permKey = isTurbo ? 'canTurbo' : (architecture === 'reasoning' ? 'canReasoning' : null);
-      if (permKey) {
-        let resolved;
-        if (role === 'user') {
-          const { data: userData } = await supabase.from('users').select('permissions, admin_id').eq('id', accountId).single();
-          let adminPerms = {};
-          if (userData?.admin_id) {
-            const { data: adminData } = await supabase.from('admins').select('permissions').eq('id', userData.admin_id).single();
-            adminPerms = adminData?.permissions || {};
-          }
-          resolved = resolveUserPermissions(userData?.permissions || {}, adminPerms);
-        } else {
-          const { data: adminData } = await supabase.from('admins').select('permissions').eq('id', accountId).single();
-          resolved = resolveAdminPermissions(adminData?.permissions || {});
-        }
-        if (resolved.permissions[permKey] === false) {
-          console.log(`[Session] Blocked: ${role} ${accountId} lacks ${permKey} permission`);
-          return res.status(403).json({ error: `${architecture} mode is not available for your account.`, code: 'FEATURE_LOCKED' });
-        }
+      if (permKey && resolved.permissions[permKey] === false) {
+        console.log(`[Session] Blocked: ${role} ${accountId} lacks ${permKey} permission`);
+        return res.status(403).json({ error: `${architecture} mode is not available for your account.`, code: 'FEATURE_LOCKED' });
       }
     }
 
@@ -376,7 +385,11 @@ router.post('/session/end', requireAuth, async (req, res) => {
     }
 
     const userId = req.session.supabaseId;
-    const activeSession = await getActiveSession(supabase, userId);
+    // Pass the role so admin sessions (stored under a placeholder user) are
+    // found and closed. Without the role this defaulted to 'user' and admin
+    // sessions could never be ended — leaving them stuck open (billed once,
+    // then reused for free).
+    const activeSession = await getActiveSession(supabase, userId, req.session.role);
 
     if (!activeSession) {
       return res.json({ ok: true, message: 'No active session to end' });
@@ -396,6 +409,51 @@ router.post('/session/end', requireAuth, async (req, res) => {
 });
 
 /**
+ * POST /session/expand-authorize
+ * Server-side permission gate for the Live/Turbo "Expand" action. In those
+ * modes the Expand itself happens browser↔OpenAI directly (no server round
+ * trip), so the app must pass this check first. The decision is resolved fresh
+ * from the DB, so it cannot be bypassed by a stale/edited frontend permission
+ * flag. Super admin is always allowed.
+ */
+router.post('/session/expand-authorize', requireAuth, async (req, res) => {
+  try {
+    const supabase = req.app.locals.supabase;
+    const role = req.session.role;
+    const accountId = req.session.supabaseId;
+
+    // Super admin (and any non-DB-backed session) is exempt.
+    if (role === 'super_admin' || !supabase || !accountId || (role !== 'user' && role !== 'admin')) {
+      return res.json({ allowed: true });
+    }
+
+    let resolved;
+    if (role === 'user') {
+      const { data: userData } = await supabase.from('users').select('permissions, admin_id').eq('id', accountId).single();
+      let adminPerms = {};
+      if (userData?.admin_id) {
+        const { data: adminData } = await supabase.from('admins').select('permissions').eq('id', userData.admin_id).single();
+        adminPerms = adminData?.permissions || {};
+      }
+      resolved = resolveUserPermissions(userData?.permissions || {}, adminPerms);
+    } else {
+      const { data: adminData } = await supabase.from('admins').select('permissions').eq('id', accountId).single();
+      resolved = resolveAdminPermissions(adminData?.permissions || {});
+    }
+
+    if (resolved.permissions.canExpand === false) {
+      return res.status(403).json({ allowed: false, error: 'Expand is disabled for your account.', code: 'FEATURE_LOCKED' });
+    }
+    return res.json({ allowed: true });
+  } catch (e) {
+    // Fail-open: a DB hiccup shouldn't break a paid, in-progress session. The
+    // UI gate still applies; this endpoint is the extra server-side backstop.
+    console.warn('[Expand Authorize] check failed, allowing:', e?.message);
+    return res.json({ allowed: true });
+  }
+});
+
+/**
  * POST /analyze-screen - Analyze screenshot with AI
  */
 router.post('/analyze-screen', requireAuth, async (req, res) => {
@@ -407,9 +465,28 @@ router.post('/analyze-screen', requireAuth, async (req, res) => {
         return res.status(403).json({ error: 'Screen analysis is disabled for your account.' });
       }
 
-      const limitCheck = await checkAnalyzeRateLimit(req.session.userId);
+      // Key the limit by the unique account id, not the username — usernames are
+      // only unique per organization, so keying by username made two different
+      // users (in different orgs) share one daily limit.
+      const limitCheck = await checkAnalyzeRateLimit(req.session.supabaseId || req.session.userId);
       if (!limitCheck.allowed) {
         return res.status(429).json({ error: limitCheck.error });
+      }
+    }
+
+    // Credit gate for screen analysis (1 token). Super admin is fully exempt —
+    // never limited, never charged. Users are charged their own credits; admins
+    // are charged the admin balance. We pre-check here so we don't run the
+    // (paid) AI call for an account that can't afford it, then deduct on success.
+    const supabaseClient = req.app.locals.supabase;
+    const chargeRole = req.session.role;
+    const chargeAccountId = req.session.supabaseId;
+    const chargeable = Boolean(supabaseClient && chargeAccountId && chargeRole !== 'super_admin');
+    if (chargeable) {
+      const table = chargeRole === 'admin' ? 'admins' : 'users';
+      const { data: acct } = await supabaseClient.from(table).select('credits').eq('id', chargeAccountId).single();
+      if (!acct || acct.credits < config.SCREEN_ANALYSIS_COST) {
+        return res.status(402).json({ error: 'Insufficient credits for screen analysis', code: 'INSUFFICIENT_CREDITS' });
       }
     }
 
@@ -604,6 +681,15 @@ router.post('/analyze-screen', requireAuth, async (req, res) => {
         await storeScreenAnalysis(req.sessionID, screenAnalysisContext);
       } catch (err) {
         console.warn('[analyze-screen] failed to persist screen analysis', err);
+      }
+    }
+
+    // Charge for the analysis now that it succeeded. Super admin is exempt.
+    if (chargeable) {
+      const adminId = chargeRole === 'user' ? req.session.adminId : chargeAccountId;
+      const charge = await chargeScreenAnalysis(supabaseClient, chargeAccountId, adminId, chargeRole);
+      if (!charge.success) {
+        console.warn('[analyze-screen] post-analysis charge failed:', charge.error);
       }
     }
 

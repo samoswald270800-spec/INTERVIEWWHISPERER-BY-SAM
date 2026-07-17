@@ -10,6 +10,28 @@ import config from '../config/index.js';
 
 const SALT_ROUNDS = 12;
 
+// Organization login code. Uses an unambiguous alphabet (no 0/O, 1/I/L) so it's
+// easy to read aloud and type. Shown in the admin + super-admin dashboards and
+// (small) in the user's own space; required on the user login screen.
+const ORG_CODE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+
+function randomOrgCode(length = 6) {
+  const bytes = crypto.randomBytes(length);
+  let code = '';
+  for (let i = 0; i < length; i++) code += ORG_CODE_ALPHABET[bytes[i] % ORG_CODE_ALPHABET.length];
+  return code;
+}
+
+/** Generate an org code that isn't already taken by another admin. */
+async function generateUniqueOrgCode(supabase) {
+  for (let attempt = 0; attempt < 10; attempt++) {
+    const code = randomOrgCode(6);
+    const { data } = await supabase.from('admins').select('id').eq('org_code', code).maybeSingle();
+    if (!data) return code;
+  }
+  return randomOrgCode(8); // extremely unlikely fallback
+}
+
 /**
  * Hash a password
  */
@@ -169,6 +191,7 @@ export async function createAdmin(supabase, { name, username, password, credits 
   }
 
   const passwordHash = await hashPassword(password);
+  const orgCode = await generateUniqueOrgCode(supabase);
 
   const { data, error } = await supabase
     .from('admins')
@@ -178,6 +201,7 @@ export async function createAdmin(supabase, { name, username, password, credits 
       password_hash: passwordHash,
       credits,
       status: 'active',
+      org_code: orgCode,
     })
     .select()
     .single();

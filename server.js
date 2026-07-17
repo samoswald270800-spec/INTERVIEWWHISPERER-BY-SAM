@@ -9,7 +9,7 @@
 import http from 'http';
 import { createApp } from './src/app.js';
 import config from './src/config/index.js';
-import { initSocketIO } from './src/lib/socket.js';
+import { initSocketIO, kickSessions } from './src/lib/socket.js';
 
 async function main() {
   try {
@@ -21,6 +21,9 @@ async function main() {
     // Reuse the SAME session middleware from Express for Socket.IO
     const sessionMw = app.locals.sessionMiddleware;
     initSocketIO(httpServer, sessionMw);
+
+    // Expose the live-kick helper so login routes can force-logout old devices.
+    app.locals.kickSessions = kickSessions;
 
     httpServer.listen(config.PORT, config.HOST, () => {
       console.log(`✅ Server listening on http://${config.HOST}:${config.PORT}`);

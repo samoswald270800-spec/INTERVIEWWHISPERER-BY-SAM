@@ -3,7 +3,8 @@ import './SettingsPopover.css';
 
 const ENGINES = [
     { id: 'live', label: 'Live', lockKey: null, permKey: null, accent: 'green' },
-    { id: 'reasoning', label: 'Reasoning', lockKey: 'canReasoning', permKey: 'canReasoning', accent: 'acc' },
+    // Reasoning is temporarily disabled while it's being finished.
+    { id: 'reasoning', label: 'Reasoning', lockKey: 'canReasoning', permKey: 'canReasoning', accent: 'acc', underDevelopment: true },
     { id: 'turbo', label: 'Turbo', lockKey: 'canTurbo', permKey: 'canTurbo', accent: 'gold' },
 ];
 
@@ -58,7 +59,7 @@ export default function SettingsPopover({
     };
 
     const isEngineLocked = (engine) =>
-        Boolean(engine.lockKey && (lockedFeatures[engine.lockKey] || permissions[engine.permKey] === false));
+        Boolean(engine.underDevelopment || (engine.lockKey && (lockedFeatures[engine.lockKey] || permissions[engine.permKey] === false)));
 
     const pickEngine = (engine) => {
         if (isEngineLocked(engine)) return;
@@ -78,7 +79,7 @@ export default function SettingsPopover({
                                 key={engine.id}
                                 className={`prefs-chip ${active ? `active accent-${engine.accent}` : ''} ${locked ? 'locked' : ''}`}
                                 onClick={() => pickEngine(engine)}
-                                title={locked ? 'Premium users only' : ''}
+                                title={engine.underDevelopment ? 'Under development — coming soon' : (locked ? 'Premium users only' : '')}
                             >
                                 {locked && <Padlock />}
                                 {engine.label}

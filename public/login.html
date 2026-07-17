@@ -6,11 +6,6 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Interview Whisperer — Sign In</title>
   <link rel="icon" type="image/png" href="/favicon.png">
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link
-    href="https://fonts.googleapis.com/css2?family=Manrope:wght@300;400;500;600;700&family=Space+Grotesk:wght@300;400;500;600;700&display=swap"
-    rel="stylesheet">
   <style>
     :root {
       --bg-void: #050505;
@@ -393,6 +388,12 @@
       </div>
 
       <form id="loginForm">
+        <div class="form-group" id="orgGroup">
+          <label class="form-label">Organization code</label>
+          <input type="text" class="form-input" id="orgCode" placeholder="Your organization code"
+            autocomplete="off" autocapitalize="characters" spellcheck="false">
+        </div>
+
         <div class="form-group">
           <label class="form-label">Username</label>
           <input type="text" class="form-input" id="username" placeholder="Enter your username" required>
@@ -432,8 +433,16 @@
     const loginBtn = document.getElementById('loginBtn');
     const usernameInput = document.getElementById('username');
     const passwordInput = document.getElementById('password');
+    const orgGroup = document.getElementById('orgGroup');
+    const orgInput = document.getElementById('orgCode');
     const errorEl = document.getElementById('error');
     const roleTabs = document.querySelectorAll('.role-tab');
+
+    // The organization code only applies to user (candidate) login.
+    function updateOrgVisibility() {
+      orgGroup.style.display = selectedRole === 'user' ? 'block' : 'none';
+    }
+    updateOrgVisibility();
 
     // Tab switching
     roleTabs.forEach(tab => {
@@ -442,7 +451,8 @@
         tab.classList.add('active');
         selectedRole = tab.dataset.role;
         errorEl.classList.remove('show');
-        usernameInput.focus();
+        updateOrgVisibility();
+        (selectedRole === 'user' ? orgInput : usernameInput).focus();
       });
     });
 
@@ -455,14 +465,25 @@
 
       const username = usernameInput.value.trim();
       const password = passwordInput.value;
+      const orgCode = orgInput.value.trim().toUpperCase();
+
+      // Organization code is required for user (candidate) login.
+      if (selectedRole === 'user' && !orgCode) {
+        errorEl.textContent = 'Please enter your organization code.';
+        errorEl.classList.add('show');
+        resetButton();
+        return;
+      }
 
       try {
         const endpoint = roleEndpoints[selectedRole];
+        const payload = { username, password };
+        if (selectedRole === 'user') payload.orgCode = orgCode;
         const res = await fetch(`${API_BASE}${endpoint}`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           credentials: 'include',
-          body: JSON.stringify({ username, password })
+          body: JSON.stringify(payload)
         });
 
         const data = await res.json();
