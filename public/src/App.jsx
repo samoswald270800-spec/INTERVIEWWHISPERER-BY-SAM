@@ -912,7 +912,7 @@ function InterviewApp() {
         }
     };
 
-    const expandLastAnswer = () => {
+    const expandLastAnswer = async () => {
         // Route expand to the correct architecture
         if (architecture === "reasoning") {
             // Use reasoning SSE expand
@@ -924,6 +924,23 @@ function InterviewApp() {
 
         // Live/WebRTC expand (original)
         if (!window._lastDC || !lastQuestionRef.current || isExpanding) return;
+
+        // Server-side permission gate — resolved fresh from the DB so a locked
+        // "Expand" can't be re-enabled by a stale/edited frontend flag. Super
+        // admin is always allowed. On a network hiccup we allow (fail-open) so a
+        // paid session isn't broken.
+        try {
+            const authRes = await fetch(`${API_BASE_URL}/session/expand-authorize`, {
+                method: 'POST',
+                credentials: 'include',
+            });
+            if (authRes.status === 403) {
+                const d = await authRes.json().catch(() => ({}));
+                setStatus((d.error || 'EXPAND DISABLED').toUpperCase());
+                setCanExpand(false);
+                return;
+            }
+        } catch (_) { /* fail-open on network error */ }
 
         setIsExpanding(true);
 

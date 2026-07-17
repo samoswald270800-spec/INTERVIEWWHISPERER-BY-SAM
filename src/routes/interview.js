@@ -409,6 +409,51 @@ router.post('/session/end', requireAuth, async (req, res) => {
 });
 
 /**
+ * POST /session/expand-authorize
+ * Server-side permission gate for the Live/Turbo "Expand" action. In those
+ * modes the Expand itself happens browser↔OpenAI directly (no server round
+ * trip), so the app must pass this check first. The decision is resolved fresh
+ * from the DB, so it cannot be bypassed by a stale/edited frontend permission
+ * flag. Super admin is always allowed.
+ */
+router.post('/session/expand-authorize', requireAuth, async (req, res) => {
+  try {
+    const supabase = req.app.locals.supabase;
+    const role = req.session.role;
+    const accountId = req.session.supabaseId;
+
+    // Super admin (and any non-DB-backed session) is exempt.
+    if (role === 'super_admin' || !supabase || !accountId || (role !== 'user' && role !== 'admin')) {
+      return res.json({ allowed: true });
+    }
+
+    let resolved;
+    if (role === 'user') {
+      const { data: userData } = await supabase.from('users').select('permissions, admin_id').eq('id', accountId).single();
+      let adminPerms = {};
+      if (userData?.admin_id) {
+        const { data: adminData } = await supabase.from('admins').select('permissions').eq('id', userData.admin_id).single();
+        adminPerms = adminData?.permissions || {};
+      }
+      resolved = resolveUserPermissions(userData?.permissions || {}, adminPerms);
+    } else {
+      const { data: adminData } = await supabase.from('admins').select('permissions').eq('id', accountId).single();
+      resolved = resolveAdminPermissions(adminData?.permissions || {});
+    }
+
+    if (resolved.permissions.canExpand === false) {
+      return res.status(403).json({ allowed: false, error: 'Expand is disabled for your account.', code: 'FEATURE_LOCKED' });
+    }
+    return res.json({ allowed: true });
+  } catch (e) {
+    // Fail-open: a DB hiccup shouldn't break a paid, in-progress session. The
+    // UI gate still applies; this endpoint is the extra server-side backstop.
+    console.warn('[Expand Authorize] check failed, allowing:', e?.message);
+    return res.json({ allowed: true });
+  }
+});
+
+/**
  * POST /analyze-screen - Analyze screenshot with AI
  */
 router.post('/analyze-screen', requireAuth, async (req, res) => {
