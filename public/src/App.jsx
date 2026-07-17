@@ -62,6 +62,7 @@ function InterviewApp() {
     const [credits, setCredits] = useState(0);
     const [remainingTime, setRemainingTime] = useState(0);
     const [unlimitedCredits, setUnlimitedCredits] = useState(false);
+    const [orgCode, setOrgCode] = useState(null);
     const [elapsedSeconds, setElapsedSeconds] = useState(0);
     const timerIntervalRef = useRef(null);
 
@@ -257,6 +258,12 @@ function InterviewApp() {
     const fetchCredits = async () => {
         try {
             const res = await fetch(`${API_BASE_URL}/api/me`, { credentials: 'include' });
+            // Session gone/expired/kicked: bounce to the login page instead of
+            // showing a stale, unusable logged-in UI (the "reopen" bug).
+            if (res.status === 401) {
+                window.location.href = '/login';
+                return;
+            }
             if (!res.ok) throw new Error("Failed to fetch info");
             const data = await res.json();
 
@@ -264,6 +271,7 @@ function InterviewApp() {
             if (data.role) setUserRole(data.role);
             setIsAppLoading(false);
 
+            if (data.orgCode) setOrgCode(data.orgCode);
             if (data.permissions) setPermissions(data.permissions);
             if (data.lockedFeatures) setLockedFeatures(data.lockedFeatures);
             const hasUnlimitedCredits = data.unlimitedCredits === true;
@@ -496,12 +504,13 @@ function InterviewApp() {
 
     const startSessionRouter = async () => {
         if (architecture === "reasoning") {
-            // Reasoning: auto-VAD → Whisper → GPT SSE streaming
-            await startReasoningPipeline();
-        } else {
-            // 'live' and 'turbo' both use the realtime WebRTC pipeline
-            await startRealtime();
+            // Reasoning is temporarily disabled (under development). The engine
+            // picker also blocks selecting it; this is a defensive guard.
+            setStatus("REASONING — UNDER DEVELOPMENT");
+            return;
         }
+        // 'live' and 'turbo' both use the realtime WebRTC pipeline
+        await startRealtime();
     };
 
     const startReasoningPipeline = async () => {
@@ -1515,6 +1524,14 @@ This is your chance to really impress. Leave nothing on the table.`;
                         creditsLabel={creditsLabel}
                     />
                 </div>
+                {orgCode && (
+                    <span
+                        title="Your organization code (needed to sign in)"
+                        style={{ fontSize: '11px', letterSpacing: '0.08em', color: 'rgba(255,255,255,0.4)', marginRight: '10px', fontFamily: 'var(--font-body)', whiteSpace: 'nowrap' }}
+                    >
+                        ORG {orgCode}
+                    </span>
+                )}
                 <button className="solo-signout" onClick={handleLogout} title="Sign out">
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                         <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>

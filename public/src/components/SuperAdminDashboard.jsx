@@ -147,8 +147,10 @@ export default function SuperAdminDashboard({ embedded = false, candidateCamera 
                 method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include',
                 body: JSON.stringify(form),
             });
-            if (!r.ok) { const d = await r.json(); throw new Error(d.error || 'Failed'); }
-            showToast('Admin created');
+            const d = await r.json().catch(() => ({}));
+            if (!r.ok) throw new Error(d.error || 'Failed');
+            const code = d?.admin?.org_code;
+            showToast(code ? `Admin created — org code ${code}` : 'Admin created');
             setShowModal(false);
             setForm({ name: '', username: '', password: '', credits: 100 });
             loadAll();
@@ -420,7 +422,7 @@ export default function SuperAdminDashboard({ embedded = false, candidateCamera 
                                             <span className="sadash-admin-username">@{admin.username}</span>
                                         </div>
                                         <div className="sadash-admin-sub">
-                                            {admin.userCount || 0} users · {admin.sessionCount || 0} sessions
+                                            {admin.userCount || 0} users · {admin.sessionCount || 0} sessions{admin.org_code ? ` · code ${admin.org_code}` : ''}
                                         </div>
                                     </div>
                                     <div className="sadash-spacer" />

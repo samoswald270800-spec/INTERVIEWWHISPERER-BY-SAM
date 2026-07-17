@@ -341,6 +341,13 @@ export default function useSocket(enabled = true) {
             setTimeout(() => setError(null), 4000);
         });
 
+        // Single-device: a newer login on another device kicked this one.
+        // Show a live popup and send this device back to the login screen.
+        socket.on('session:force-logout', ({ message } = {}) => {
+            try { window.alert(message || 'You have been signed out because your account was signed in on another device.'); } catch (_) { /* noop */ }
+            window.location.href = '/login';
+        });
+
         return () => {
             closeWebRTCRef.current();
             socket.disconnect();
