@@ -90,10 +90,13 @@ export default function ProfilePage({ accent, theme, onAccentChange, onThemeChan
   const credits = me?.credits ?? 0;
   const adminName = me?.adminName || 'your admin';
 
+  // Feature names match the rest of the app (AdminDashboard / SettingsPopover):
+  // Reasoning and Turbo are two DISTINCT engine permissions — don't conflate them.
   const permRows = [
     { key: 'canExpand', title: 'Expand answers', desc: 'Longer, more detailed responses', on: !!permissions.canExpand },
     { key: 'canAnalyze', title: 'Screen analysis', desc: 'Analyze shared screens · 1 credit each', on: !!permissions.canAnalyze },
-    { key: 'canTurbo', title: 'Turbo engine', desc: 'Premium engine tier', on: !!permissions.canTurbo },
+    { key: 'canReasoning', title: 'Reasoning', desc: 'Reasoning engine tier', on: !!permissions.canReasoning },
+    { key: 'canTurbo', title: 'Turbo', desc: 'Premium engine tier', on: !!permissions.canTurbo },
   ];
 
   return (
