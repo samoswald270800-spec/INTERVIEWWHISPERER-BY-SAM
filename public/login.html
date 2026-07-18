@@ -1,515 +1,1304 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-theme="dark">
 
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Interview Whisperer — Sign In</title>
-  <link rel="icon" type="image/png" href="/favicon.png">
+  <link rel="icon" type="image/svg+xml"
+    href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 34 34'%3E%3Cpath d='M4 17 Q6.5 6.5 9 17 Q11.2 25.5 13.4 17 Q15.2 11 17 17 Q18.4 21.5 19.8 17 Q20.9 14.5 22 17 L25 17' stroke='%236B6B73' stroke-width='2.3' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3Ccircle cx='29' cy='17' r='2.9' fill='%23F5A97F'/%3E%3C/svg%3E">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="anonymous">
+  <link
+    href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600&family=Instrument+Sans:ital,wght@0,400;0,500;0,600;1,400&family=Newsreader:ital,opsz,wght@0,6..72,300;1,6..72,300&family=JetBrains+Mono:wght@400;500&display=swap"
+    rel="stylesheet">
   <style>
-    :root {
-      --bg-void: #050505;
-      --glass-frosted: rgba(10, 10, 10, 0.6);
-      --glass-border: rgba(255, 255, 255, 0.08);
-      --glass-shine: rgba(255, 255, 255, 0.12);
-      --lux-violet: #8B5CF6;
-      --lux-cyan: #06B6D4;
-      --lux-rose: #E11D48;
-      --font-display: 'Space Grotesk', sans-serif;
-      --font-body: 'Manrope', sans-serif;
-      --text-white: #F3F4F6;
-      --text-muted: #9CA3AF;
-      --theme-primary: var(--lux-violet);
-      --theme-glow: rgba(139, 92, 246, 0.2);
+    /* ============================================================
+       Interview Whisperer — Login + promo intro
+       Recreated from the "IW Login v4" design handoff as a static
+       page (vanilla HTML/CSS/JS). Accent: ember (user preference).
+       ============================================================ */
+
+    /* ---- Theme tokens (dark = default, light overrides) ---- */
+    :root,
+    :root[data-theme="dark"] {
+      --bg: #0A0A0C;
+      --ink: #F2F2F0;
+      --sub: #9B9BA3;
+      --faint: #5A5A63;
+      --border: rgba(242, 242, 240, 0.1);
+      --chip: rgba(242, 242, 240, 0.05);
+      --field: rgba(242, 242, 240, 0.045);
+      --ring1: rgba(242, 242, 240, 0.05);
+      --ring2: rgba(242, 242, 240, 0.03);
+      --mark-bg: #141418;
+      --mark-shadow: 0 20px 50px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.07);
+      --ind-bg: rgba(242, 242, 240, 0.1);
+      --ind-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+      --btn-bg: #F2F2F0;
+      --btn-ink: #0A0A0C;
+      --btn-shadow: 0 10px 28px -10px rgba(242, 242, 240, 0.3);
+      /* accent — set by JS (accent switcher); ember is the fallback */
+      --accent: #F5A97F;
+      --accent-ring: rgba(245, 169, 127, 0.16);
+      --glow: rgba(245, 169, 127, 0.07);
+      --intro-accent: #F5A97F;
+    }
+
+    :root[data-theme="light"] {
+      --bg: #F5F4F1;
+      --ink: #161618;
+      --sub: #61616A;
+      --faint: #9B9BA0;
+      --border: rgba(22, 22, 24, 0.11);
+      --chip: rgba(22, 22, 24, 0.04);
+      --field: #FFFFFF;
+      --ring1: rgba(22, 22, 24, 0.05);
+      --ring2: rgba(22, 22, 24, 0.03);
+      --mark-bg: #FFFFFF;
+      --mark-shadow: 0 20px 45px rgba(22, 22, 24, 0.12), inset 0 1px 0 rgba(255, 255, 255, 0.9);
+      --ind-bg: #FFFFFF;
+      --ind-shadow: 0 2px 8px rgba(22, 22, 24, 0.1);
+      --btn-bg: #161618;
+      --btn-ink: #F5F4F1;
+      --btn-shadow: 0 10px 28px -10px rgba(22, 22, 24, 0.4);
+      /* ember */
+      --accent: #D96E30;
+      --accent-ring: rgba(217, 110, 48, 0.14);
+      --glow: rgba(217, 110, 48, 0.09);
     }
 
     * {
       margin: 0;
       padding: 0;
       box-sizing: border-box;
-      outline: none;
+    }
+
+    html,
+    body {
+      height: 100%;
     }
 
     body {
-      background-color: var(--bg-void);
-      color: var(--text-white);
-      font-family: var(--font-body);
-      min-height: 100vh;
-      display: flex;
-      align-items: center;
-      justify-content: center;
+      font-family: 'Instrument Sans', sans-serif;
       overflow: hidden;
-      position: relative;
+      -webkit-font-smoothing: antialiased;
+      text-rendering: optimizeLegibility;
     }
 
-    .void-bg {
-      position: fixed;
-      top: 0;
-      left: 0;
+    ::selection {
+      background: rgba(127, 127, 127, 0.25);
+    }
+
+    input {
+      outline: none;
+    }
+
+    a {
+      text-decoration: none;
+    }
+
+    /* ---- keyframes ---- */
+    @keyframes ringOut {
+      0% { opacity: 0.5; transform: scale(0.5); }
+      100% { opacity: 0; transform: scale(2.2); }
+    }
+    @keyframes riseIn {
+      from { opacity: 0; transform: translateY(12px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    @keyframes fadeIn {
+      from { opacity: 0; }
+      to { opacity: 1; }
+    }
+    @keyframes fadeOut {
+      from { opacity: 1; }
+      to { opacity: 0; }
+    }
+    @keyframes breathe {
+      0%, 100% { transform: translate(-50%, -50%) scale(1); opacity: 0.85; }
+      50% { transform: translate(-50%, -50%) scale(1.12); opacity: 1; }
+    }
+    @keyframes toastIn {
+      from { opacity: 0; transform: translate(-50%, 12px); }
+      to { opacity: 1; transform: translate(-50%, 0); }
+    }
+    @keyframes introDot {
+      0% { opacity: 0; transform: scale(0); }
+      60% { opacity: 1; transform: scale(1.35); }
+      100% { opacity: 1; transform: scale(1); }
+    }
+    @keyframes drawWave {
+      from { stroke-dashoffset: 75; }
+      to { stroke-dashoffset: 0; }
+    }
+    @keyframes trackIn {
+      from { opacity: 0; letter-spacing: 0.6em; }
+      to { opacity: 1; letter-spacing: 0.22em; }
+    }
+    @keyframes checkIn {
+      0% { opacity: 0; transform: translateY(8px); }
+      100% { opacity: 1; transform: translateY(0); }
+    }
+    @keyframes introRing {
+      0% { opacity: 0.6; transform: translate(-50%, -50%) scale(0.3); }
+      100% { opacity: 0; transform: translate(-50%, -50%) scale(3.4); }
+    }
+    @keyframes introBar {
+      from { transform: scaleX(0); }
+      to { transform: scaleX(1); }
+    }
+
+    /* ---- stage ---- */
+    .stage {
+      position: relative;
       width: 100vw;
       height: 100vh;
-      z-index: -2;
-      background: radial-gradient(circle at 50% -20%, #1a1a2e, #050505 60%);
+      overflow: hidden;
+      background: var(--bg);
+      color: var(--ink);
+      transition: background 0.6s ease, color 0.6s ease;
     }
 
-    .aurora {
+    /* ---- ambient scene ---- */
+    .glow {
       position: absolute;
-      width: 100%;
-      height: 100%;
-      background:
-        radial-gradient(circle at 0% 0%, rgba(139, 92, 246, 0.05), transparent 40%),
-        radial-gradient(circle at 100% 0%, rgba(6, 182, 212, 0.05), transparent 40%);
-      filter: blur(80px);
-      animation: breathe 10s infinite alternate ease-in-out;
+      top: 50%;
+      left: 50%;
+      width: 130vmin;
+      height: 130vmin;
+      border-radius: 50%;
+      background: radial-gradient(circle, var(--glow), transparent 62%);
+      animation: breathe 9s ease-in-out infinite;
+      pointer-events: none;
+      transition: background 0.6s ease;
     }
 
-    @keyframes breathe {
-      0% {
-        opacity: 0.5;
-      }
-
-      100% {
-        opacity: 1;
-      }
+    .ring {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      border-radius: 50%;
+      pointer-events: none;
+      transition: border-color 0.6s ease;
     }
 
-    .noise {
-      position: fixed;
+    .ring1 {
+      width: 88vmin;
+      height: 88vmin;
+      border: 1px solid var(--ring1);
+    }
+
+    .ring2 {
+      width: 128vmin;
+      height: 128vmin;
+      border: 1px solid var(--ring2);
+    }
+
+    /* ---- top chrome ---- */
+    .topbar {
+      position: absolute;
       top: 0;
       left: 0;
-      width: 100%;
-      height: 100%;
-      opacity: 0.03;
-      pointer-events: none;
-      z-index: -1;
-      background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)' opacity='1'/%3E%3C/svg%3E");
-    }
-
-    .login-container {
-      width: 100%;
-      max-width: 900px;
-      display: flex;
-      gap: 60px;
-      align-items: center;
-      padding: 40px;
-      z-index: 1;
-    }
-
-    .info-panel {
-      flex: 1;
-      opacity: 0;
-      animation: slideIn 0.8s cubic-bezier(0.2, 0.8, 0.2, 1) 0.2s forwards;
-    }
-
-    @keyframes slideIn {
-      from {
-        opacity: 0;
-        transform: translateX(-20px);
-      }
-
-      to {
-        opacity: 1;
-        transform: translateX(0);
-      }
-    }
-
-    .info-panel h1 {
-      font-family: var(--font-display);
-      font-size: 48px;
-      font-weight: 300;
-      letter-spacing: -0.03em;
-      color: var(--text-white);
-      margin-bottom: 16px;
-    }
-
-    .info-panel p {
-      font-size: 16px;
-      line-height: 1.7;
-      color: var(--text-muted);
-      margin-bottom: 16px;
-    }
-
-    .features {
-      margin-top: 32px;
-      display: flex;
-      flex-direction: column;
-      gap: 16px;
-    }
-
-    .feature {
+      right: 0;
+      z-index: 5;
       display: flex;
       align-items: center;
-      gap: 12px;
-      color: var(--text-muted);
-      font-size: 14px;
+      justify-content: flex-end;
+      gap: 14px;
+      padding: 22px 28px;
+      animation: fadeIn 0.8s ease 1.5s both;
     }
 
-    .feature-icon {
-      width: 24px;
-      height: 24px;
-      border-radius: 8px;
-      background: rgba(139, 92, 246, 0.1);
+    /* accent switcher — a row of colour dots */
+    .accents {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 0 4px;
+    }
+
+    .swatch {
+      width: 15px;
+      height: 15px;
+      padding: 0;
+      border-radius: 50%;
+      border: 1px solid var(--border);
+      background: var(--sw, #888);
+      cursor: pointer;
+      transition: transform 0.2s ease, box-shadow 0.3s ease;
+    }
+
+    .swatch:hover {
+      transform: scale(1.18);
+    }
+
+    .swatch.active {
+      box-shadow: 0 0 0 2px var(--bg), 0 0 0 3.5px var(--accent-ring);
+    }
+
+    .theme-btn {
+      width: 34px;
+      height: 34px;
       display: flex;
       align-items: center;
       justify-content: center;
-      color: var(--lux-violet);
+      background: var(--chip);
+      border: 1px solid var(--border);
+      border-radius: 999px;
+      color: var(--sub);
+      cursor: pointer;
+      transition: background 0.4s, border-color 0.4s, color 0.4s;
     }
 
-    .login-panel {
-      width: 380px;
-      background: rgba(10, 10, 10, 0.6);
-      backdrop-filter: blur(24px);
-      border: 1px solid var(--glass-border);
-      border-radius: 24px;
-      padding: 40px;
-      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
-      opacity: 0;
-      animation: slideIn 0.8s cubic-bezier(0.2, 0.8, 0.2, 1) 0.4s forwards;
+    .theme-btn:hover {
+      color: var(--ink);
+    }
+
+    /* ---- centered composition ---- */
+    /* Fills the stage so the composition centers and the top/bottom bars
+       anchor to the viewport edges. */
+    #page {
+      position: absolute;
+      inset: 0;
+    }
+
+    .center {
+      position: relative;
+      z-index: 2;
+      width: 100%;
+      height: 100%;
       display: flex;
       flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
     }
 
-    .login-header {
-      text-align: center;
-      margin-bottom: 32px;
+    .mark-wrap {
+      position: relative;
+      margin-bottom: 14px;
     }
 
-    .login-header h2 {
-      font-family: var(--font-display);
-      font-size: 24px;
-      font-weight: 600;
-      color: var(--text-white);
-      margin-bottom: 8px;
+    .mark-ring {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      margin: -34px 0 0 -34px;
+      width: 68px;
+      height: 68px;
+      border-radius: 50%;
+      border: 1px solid var(--accent);
+      animation: ringOut 1.4s cubic-bezier(0.16, 1, 0.3, 1) 0.55s both;
+      pointer-events: none;
     }
 
-    .login-header p {
-      font-size: 13px;
-      color: var(--text-muted);
+    .mark {
+      width: 64px;
+      height: 64px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: var(--mark-bg);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      box-shadow: var(--mark-shadow);
+      animation: fadeIn 0.3s ease both;
+      transition: background 0.6s, border-color 0.6s, opacity 0.25s;
     }
 
-    .form-group {
-      margin-bottom: 20px;
+    /* During the intro handoff the page's own mark stays hidden until the
+       gliding logo swaps out; suppress its entrance so there's no double image. */
+    .stage.handoff .mark {
+      animation: none !important;
+      opacity: 0;
     }
 
-    .form-label {
-      display: block;
-      font-size: 11px;
-      font-weight: 600;
-      text-transform: uppercase;
-      letter-spacing: 0.1em;
-      color: var(--text-muted);
-      margin-bottom: 8px;
-    }
-
-    .form-input {
-      width: 100%;
-      padding: 12px 16px;
-      background: rgba(255, 255, 255, 0.03);
-      border: 1px solid var(--glass-border);
-      border-radius: 12px;
-      color: var(--text-white);
-      font-family: var(--font-body);
-      font-size: 14px;
-      transition: all 0.3s;
-    }
-
-    .form-input:focus {
-      background: rgba(255, 255, 255, 0.05);
-      border-color: var(--theme-primary);
-      box-shadow: 0 0 0 3px var(--theme-glow);
-    }
-
-    .login-btn {
-      width: 100%;
-      padding: 14px;
-      background: var(--theme-primary);
-      border: none;
-      border-radius: 12px;
-      color: #fff;
-      font-family: var(--font-display);
-      font-size: 14px;
-      font-weight: 600;
-      letter-spacing: 0.05em;
-      cursor: pointer;
-      transition: all 0.3s;
-      text-transform: uppercase;
-    }
-
-    .login-btn:hover {
-      transform: translateY(-2px);
-      box-shadow: 0 8px 24px var(--theme-glow);
-    }
-
-    .login-btn:disabled {
-      opacity: 0.6;
-      cursor: not-allowed;
-      transform: none;
-    }
-
-    .error {
-      margin-top: 16px;
-      padding: 12px;
-      background: rgba(225, 29, 72, 0.1);
-      border: 1px solid rgba(225, 29, 72, 0.3);
-      border-radius: 8px;
-      color: var(--lux-rose);
-      font-size: 13px;
-      text-align: center;
+    .stage.handoff .mark-ring {
       display: none;
     }
 
-    .error.show {
-      display: block;
-    }
-
-    .footer-mark {
-      margin-top: 24px;
-      font-size: 12px;
-      color: var(--text-muted);
-      opacity: 0.6;
-      letter-spacing: 0.05em;
+    .brand {
       text-align: center;
+      animation: riseIn 0.8s cubic-bezier(0.16, 1, 0.3, 1) 0.85s both;
     }
 
-    /* Role Tabs */
-    .role-tabs {
-      display: flex;
-      gap: 4px;
-      margin-bottom: 28px;
-      background: rgba(255, 255, 255, 0.03);
-      border-radius: 12px;
-      padding: 4px;
-      border: 1px solid var(--glass-border);
-    }
-
-    .role-tab {
-      flex: 1;
-      padding: 10px 8px;
-      border: none;
-      background: transparent;
-      color: var(--text-muted);
-      font-family: var(--font-body);
-      font-size: 12px;
+    .brand-title {
+      font-family: 'Space Grotesk', sans-serif;
+      font-size: 21px;
       font-weight: 600;
-      text-transform: uppercase;
-      letter-spacing: 0.06em;
+      letter-spacing: -0.01em;
+    }
+
+    .brand-sub {
+      margin-top: 7px;
+      font-size: 13px;
+      color: var(--sub);
+    }
+
+    /* ---- role switcher ---- */
+    .switcher {
+      position: relative;
+      display: flex;
+      padding: 3px;
+      margin-top: 20px;
+      background: var(--chip);
+      border: 1px solid var(--border);
+      border-radius: 999px;
+      animation: riseIn 0.8s cubic-bezier(0.16, 1, 0.3, 1) 1.05s both;
+      transition: background 0.4s, border-color 0.4s;
+    }
+
+    .thumb {
+      position: absolute;
+      top: 3px;
+      left: 3px;
+      height: calc(100% - 6px);
+      width: 108px;
+      background: var(--ind-bg);
+      border-radius: 999px;
+      box-shadow: var(--ind-shadow);
+      transform: translateX(0);
+      transition: transform 0.5s cubic-bezier(0.16, 1, 0.3, 1), width 0.5s cubic-bezier(0.16, 1, 0.3, 1), background 0.4s;
+    }
+
+    .role-btn {
+      position: relative;
+      z-index: 1;
+      width: 108px;
+      height: 32px;
+      background: none;
+      border: none;
+      border-radius: 999px;
+      font-family: 'Instrument Sans', sans-serif;
+      font-size: 12.5px;
+      font-weight: 500;
+      color: var(--faint);
       cursor: pointer;
-      border-radius: 9px;
-      transition: all 0.3s;
+      transition: color 0.35s;
+    }
+
+    .role-btn.active {
+      color: var(--ink);
+    }
+
+    /* ---- form ---- */
+    .form {
+      width: 340px;
+      max-width: 100%;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      margin-top: 18px;
+      animation: riseIn 0.8s cubic-bezier(0.16, 1, 0.3, 1) 1.2s both;
+    }
+
+    .field-wrap {
+      position: relative;
+    }
+
+    .input {
+      box-sizing: border-box;
+      width: 100%;
+      height: 46px;
+      padding: 0 18px;
+      background: var(--field);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      color: var(--ink);
+      font-family: 'Instrument Sans', sans-serif;
+      font-size: 14px;
+      transition: border-color 0.35s, box-shadow 0.35s, background 0.4s;
+    }
+
+    .input::placeholder {
+      color: var(--faint);
+    }
+
+    .input:focus {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3.5px var(--accent-ring);
+    }
+
+    .input.org {
+      padding: 0 84px 0 18px;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 13.5px;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+    }
+
+    .input.org::placeholder {
+      text-transform: none;
+      letter-spacing: normal;
+      font-family: 'Instrument Sans', sans-serif;
+    }
+
+    .input.pw {
+      padding: 0 44px 0 18px;
+    }
+
+    .org-tag {
+      position: absolute;
+      top: 50%;
+      right: 14px;
+      transform: translateY(-50%);
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 9px;
+      letter-spacing: 0.1em;
+      color: var(--faint);
+      cursor: help;
+    }
+
+    .pw-btn {
+      position: absolute;
+      top: 50%;
+      right: 8px;
+      transform: translateY(-50%);
+      width: 32px;
+      height: 32px;
       display: flex;
       align-items: center;
       justify-content: center;
-      gap: 6px;
+      background: none;
+      border: none;
+      border-radius: 8px;
+      color: var(--faint);
+      cursor: pointer;
+      transition: color 0.3s;
     }
 
-    .role-tab:hover {
-      color: var(--text-white);
-      background: rgba(255, 255, 255, 0.05);
+    .pw-btn:hover {
+      color: var(--sub);
     }
 
-    .role-tab.active {
-      background: rgba(139, 92, 246, 0.15);
-      color: var(--lux-violet);
-      box-shadow: 0 0 12px rgba(139, 92, 246, 0.15);
+    .err {
+      font-size: 12.5px;
+      color: #E5484D;
+      text-align: center;
+      animation: fadeIn 0.3s ease;
     }
 
-    .role-tab .tab-icon {
+    .submit {
+      height: 46px;
+      margin-top: 2px;
+      background: var(--btn-bg);
+      border: none;
+      border-radius: 12px;
+      color: var(--btn-ink);
+      font-family: 'Instrument Sans', sans-serif;
       font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      box-shadow: var(--btn-shadow);
+      transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1), background 0.35s, box-shadow 0.35s, opacity 0.25s;
     }
 
-    @media (max-width: 768px) {
-      .login-container {
-        flex-direction: column;
-        gap: 40px;
-      }
+    .submit:hover {
+      transform: translateY(-1px);
+    }
 
-      .info-panel h1 {
-        font-size: 36px;
-      }
+    .submit:active {
+      transform: scale(0.985);
+    }
 
-      .login-panel {
-        width: 100%;
-        max-width: 380px;
+    .submit:disabled {
+      cursor: default;
+      opacity: 0.7;
+      transform: none;
+    }
+
+    .forgot-row {
+      display: flex;
+      justify-content: center;
+      gap: 6px;
+      font-size: 12px;
+      color: var(--faint);
+    }
+
+    .forgot-row a {
+      color: var(--sub);
+      transition: color 0.3s;
+    }
+
+    .forgot-row a:hover {
+      color: var(--ink);
+    }
+
+    /* ---- bottom chrome ---- */
+    .bottombar {
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      z-index: 5;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 20px 28px;
+      animation: fadeIn 0.8s ease 1.6s both;
+    }
+
+    .meta {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 10px;
+      letter-spacing: 0.1em;
+      color: var(--faint);
+    }
+
+    .about {
+      cursor: pointer;
+      user-select: none;
+      transition: color 0.3s;
+    }
+
+    .about:hover {
+      color: var(--sub);
+    }
+
+    .bottombar .spacer {
+      flex: 1;
+    }
+
+    /* ---- toast ---- */
+    .toast {
+      position: fixed;
+      bottom: 64px;
+      left: 50%;
+      z-index: 100;
+      padding: 9px 20px;
+      background: var(--mark-bg);
+      border: 1px solid var(--border);
+      border-radius: 999px;
+      color: var(--sub);
+      font-size: 12.5px;
+      font-weight: 500;
+      box-shadow: 0 12px 32px rgba(0, 0, 0, 0.25);
+      animation: toastIn 0.35s cubic-bezier(0.16, 1, 0.3, 1) both;
+    }
+
+    /* ---- promo intro ---- */
+    #intro {
+      position: fixed;
+      inset: 0;
+      z-index: 200;
+      background: #08080A;
+      transition: background 0.7s ease;
+    }
+
+    #intro.transparent {
+      background: transparent;
+      pointer-events: none;
+    }
+
+    .scene {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .progress {
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      height: 2px;
+      background: rgba(242, 242, 240, 0.07);
+    }
+
+    .progress-fill {
+      height: 100%;
+      background: var(--intro-accent);
+      transform-origin: left;
+      animation: introBar 25.9s linear 0.1s both;
+    }
+
+    .skip {
+      position: absolute;
+      bottom: 26px;
+      right: 28px;
+      height: 36px;
+      display: flex;
+      align-items: center;
+      gap: 9px;
+      padding: 0 18px;
+      background: rgba(242, 242, 240, 0.05);
+      border: 1px solid rgba(242, 242, 240, 0.16);
+      border-radius: 999px;
+      color: #9B9BA3;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 10px;
+      letter-spacing: 0.14em;
+      cursor: pointer;
+      animation: fadeIn 0.8s ease 0.8s both;
+      transition: color 0.3s, border-color 0.3s;
+    }
+
+    .skip:hover {
+      color: #F2F2F0;
+      border-color: rgba(242, 242, 240, 0.35);
+    }
+
+    /* The gliding logo that hands off into the page-header mark spot. */
+    #introMark {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      width: 120px;
+      height: 120px;
+      margin: -78px 0 0 -60px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: transform 1.2s cubic-bezier(0.3, 0.85, 0.25, 1), opacity 0.35s ease;
+    }
+
+    #introWordmark {
+      position: absolute;
+      top: calc(50% + 66px);
+      left: 0;
+      right: 0;
+      text-align: center;
+      transition: opacity 0.35s ease;
+    }
+
+    .hidden {
+      display: none !important;
+    }
+
+    /* Small screens: keep the login usable and the intro from overflowing. */
+    @media (max-width: 640px) {
+      .scene { padding: 0 20px; }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      * {
+        animation-duration: 0.001s !important;
+        animation-delay: 0s !important;
       }
     }
   </style>
 </head>
 
 <body>
-  <div class="void-bg">
-    <div class="aurora"></div>
-    <div class="noise"></div>
-  </div>
+  <div class="stage" id="stage">
+    <!-- ambient scene -->
+    <div class="glow"></div>
+    <div class="ring ring1"></div>
+    <div class="ring ring2"></div>
 
-  <div class="login-container">
-    <div class="info-panel">
-      <h1>Interview Whisperer</h1>
-      <p>
-        Your AI-powered interview companion. Real-time transcription, intelligent answer suggestions,
-        and screen analysis—all working together to help you shine in every interview.
-      </p>
-
-      <div class="features">
-        <div class="feature">
-          <div class="feature-icon">✨</div>
-          <span>Real-time audio transcription</span>
+    <!-- ═══ promo intro (built by JS, revealed only when it plays) ═══ -->
+    <div id="intro" class="hidden" aria-hidden="true">
+      <div id="introScenes"></div>
+      <div id="introChrome">
+        <div class="progress">
+          <div class="progress-fill"></div>
         </div>
-        <div class="feature">
-          <div class="feature-icon">🧠</div>
-          <span>AI-generated answer suggestions</span>
-        </div>
-        <div class="feature">
-          <div class="feature-icon">📸</div>
-          <span>Screen context analysis</span>
-        </div>
-        <div class="feature">
-          <div class="feature-icon">⚡</div>
-          <span>Instant response generation</span>
-        </div>
+        <button id="skipBtn" class="skip" type="button">SKIP INTRO <span aria-hidden="true"
+            style="font-size:12px;">→</span></button>
       </div>
     </div>
 
-    <div class="login-panel">
-      <div class="login-header">
-        <h2>Sign In</h2>
-        <p>Access your interview assistant</p>
+    <!-- ═══ login page (hidden until intro finishes / is skipped) ═══ -->
+    <div id="page" class="hidden">
+      <!-- top chrome: accent switcher + theme toggle -->
+      <div class="topbar">
+        <div class="accents" id="accents" role="group" aria-label="Accent color"></div>
+        <button id="themeBtn" class="theme-btn" type="button" title="Toggle theme" aria-label="Toggle theme"></button>
       </div>
 
-      <div class="role-tabs">
-        <button type="button" class="role-tab active" data-role="user" id="tabUser">
-          <span class="tab-icon">👤</span> User
-        </button>
-        <button type="button" class="role-tab" data-role="admin" id="tabAdmin">
-          <span class="tab-icon">🏢</span> Admin
-        </button>
-        <button type="button" class="role-tab" data-role="super_admin" id="tabSuperAdmin">
-          <span class="tab-icon">🛡️</span> Super
-        </button>
+      <!-- centered composition -->
+      <div class="center">
+        <div class="mark-wrap">
+          <span class="mark-ring"></span>
+          <div class="mark" id="pageMark">
+            <svg width="38" height="38" viewBox="0 0 34 34" fill="none">
+              <path
+                d="M4 17 Q6.5 6.5 9 17 Q11.2 25.5 13.4 17 Q15.2 11 17 17 Q18.4 21.5 19.8 17 Q20.9 14.5 22 17 L25 17"
+                stroke="var(--ink)" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"
+                style="animation: fadeIn 0.5s ease 0.75s both; transition: stroke 0.6s;"></path>
+              <circle cx="29" cy="17" r="2.9" fill="var(--accent)" style="animation: fadeIn 0.4s ease 0.95s both;">
+              </circle>
+            </svg>
+          </div>
+        </div>
+
+        <div class="brand">
+          <div class="brand-title">Interview Whisperer</div>
+          <div class="brand-sub" id="brandSub"></div>
+        </div>
+
+        <!-- role switcher -->
+        <div class="switcher" id="switcher" role="tablist" aria-label="Sign-in role">
+          <span class="thumb" id="thumb"></span>
+          <!-- role buttons injected by JS -->
+        </div>
+
+        <!-- form -->
+        <form class="form" id="loginForm" novalidate>
+          <div class="field-wrap" id="orgGroup">
+            <input type="text" class="input org" id="orgCode" placeholder="Organization code"
+              aria-label="Organization code" autocomplete="off" autocapitalize="characters" spellcheck="false">
+            <span class="org-tag" title="Your consultancy gives you this code">ORG</span>
+          </div>
+
+          <input type="text" class="input" id="username" placeholder="Username" aria-label="Username"
+            autocomplete="username" spellcheck="false">
+
+          <div class="field-wrap">
+            <input type="password" class="input pw" id="password" placeholder="Password" aria-label="Password"
+              autocomplete="current-password">
+            <button type="button" class="pw-btn" id="pwToggle" title="Show password"
+              aria-label="Show password"></button>
+          </div>
+
+          <div class="err hidden" id="error" role="alert"></div>
+
+          <button type="submit" class="submit" id="submitBtn">Continue</button>
+
+          <div class="forgot-row">
+            <a href="#" id="forgot">Forgot password?</a>
+          </div>
+        </form>
       </div>
 
-      <form id="loginForm">
-        <div class="form-group" id="orgGroup">
-          <label class="form-label">Organization code</label>
-          <input type="text" class="form-input" id="orgCode" placeholder="Your organization code"
-            autocomplete="off" autocapitalize="characters" spellcheck="false">
-        </div>
-
-        <div class="form-group">
-          <label class="form-label">Username</label>
-          <input type="text" class="form-input" id="username" placeholder="Enter your username" required>
-        </div>
-
-        <div class="form-group">
-          <label class="form-label">Password</label>
-          <input type="password" class="form-input" id="password" placeholder="Enter password" required>
-        </div>
-
-        <button type="submit" class="login-btn" id="loginBtn">Sign In</button>
-
-        <div class="error" id="error"></div>
-      </form>
-
-      <div class="footer-mark">Interview Whisperer Desktop</div>
+      <!-- bottom chrome -->
+      <div class="bottombar">
+        <span class="meta about" id="about">ABOUT THIS TOOL</span>
+        <span class="spacer"></span>
+        <span class="meta">0.4S TO SUGGESTION · INVISIBLE TO SCREEN SHARE</span>
+        <span class="spacer"></span>
+        <span class="meta">V2.0</span>
+      </div>
     </div>
   </div>
 
   <script>
-    // Detect Electron environment
-    const isElectron = navigator.userAgent.includes('Electron');
+    'use strict';
+    (function () {
+      // ── environment / API wiring (matches the existing login) ──────────
+      const isElectron = navigator.userAgent.includes('Electron');
+      const API_BASE = (window.electron && window.electron.apiUrl) || '';
 
-    // API Base URL
-    const API_BASE = window.electron?.apiUrl || '';
+      // ── SVG icon helpers ───────────────────────────────────────────────
+      function icon(inner, size) {
+        return '<svg width="' + (size || 14) + '" height="' + (size || 14) + '" viewBox="0 0 24 24" fill="none" ' +
+          'stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">' + inner + '</svg>';
+      }
+      const ICON = {
+        sun: icon('<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/>', 15),
+        moon: icon('<path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>', 15),
+        eye: icon('<path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>'),
+        eyeOff: icon('<path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94"/><path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"/><line x1="1" y1="1" x2="23" y2="23"/>'),
+      };
 
-    // Role selection
-    let selectedRole = 'user';
-    const roleEndpoints = {
-      'user': '/api/auth/user',
-      'admin': '/api/auth/admin',
-      'super_admin': '/api/auth/super-admin'
-    };
+      // ── per-role copy + endpoints ──────────────────────────────────────
+      // Keys map to the design's tabs; endpoints match src/routes/auth.js.
+      const ROLES = {
+        user:  { label: 'Candidate', endpoint: '/api/auth/user',        subtitle: 'sign in to your assistant', placeholder: 'Username',          btn: 'Continue',          busy: 'Signing in…' },
+        admin: { label: 'Business',  endpoint: '/api/auth/admin',        subtitle: 'manage your candidates',    placeholder: 'Business username', btn: 'Open console',      busy: 'Signing in…' },
+        super: { label: 'Admin',     endpoint: '/api/auth/super-admin',  subtitle: 'platform management',       placeholder: 'Admin username',    btn: 'Enter control room', busy: 'Verifying…' },
+      };
 
-    // DOM Elements
-    const form = document.getElementById('loginForm');
-    const loginBtn = document.getElementById('loginBtn');
-    const usernameInput = document.getElementById('username');
-    const passwordInput = document.getElementById('password');
-    const orgGroup = document.getElementById('orgGroup');
-    const orgInput = document.getElementById('orgCode');
-    const errorEl = document.getElementById('error');
-    const roleTabs = document.querySelectorAll('.role-tab');
+      // ── DOM refs ───────────────────────────────────────────────────────
+      const $ = (id) => document.getElementById(id);
+      const stage = $('stage');
+      const intro = $('intro');
+      const introScenes = $('introScenes');
+      const introChrome = $('introChrome');
+      const skipBtn = $('skipBtn');
+      const page = $('page');
+      const themeBtn = $('themeBtn');
+      const accentsEl = $('accents');
+      const brandSub = $('brandSub');
+      const switcher = $('switcher');
+      const thumb = $('thumb');
+      const orgGroup = $('orgGroup');
+      const orgInput = $('orgCode');
+      const usernameInput = $('username');
+      const passwordInput = $('password');
+      const pwToggle = $('pwToggle');
+      const errorEl = $('error');
+      const submitBtn = $('submitBtn');
+      const aboutEl = $('about');
+      const loginForm = $('loginForm');
 
-    // The organization code only applies to user (candidate) login.
-    function updateOrgVisibility() {
-      orgGroup.style.display = selectedRole === 'user' ? 'block' : 'none';
-    }
-    updateOrgVisibility();
+      // ── state ──────────────────────────────────────────────────────────
+      const state = {
+        role: 'user',
+        showPw: false,
+        dark: true,
+        accent: 'ember',
+        adminRevealed: false,
+        clicks: 0,
+        busy: false,
+      };
+      let clicksTimer = null;
+      let toastTimer = null;
 
-    // Tab switching
-    roleTabs.forEach(tab => {
-      tab.addEventListener('click', () => {
-        roleTabs.forEach(t => t.classList.remove('active'));
-        tab.classList.add('active');
-        selectedRole = tab.dataset.role;
-        errorEl.classList.remove('show');
-        updateOrgVisibility();
-        (selectedRole === 'user' ? orgInput : usernameInput).focus();
-      });
-    });
-
-    // Login Handler
-    form.addEventListener('submit', async (e) => {
-      e.preventDefault();
-      errorEl.classList.remove('show');
-      loginBtn.disabled = true;
-      loginBtn.textContent = 'Signing in...';
-
-      const username = usernameInput.value.trim();
-      const password = passwordInput.value;
-      const orgCode = orgInput.value.trim().toUpperCase();
-
-      // Organization code is required for user (candidate) login.
-      if (selectedRole === 'user' && !orgCode) {
-        errorEl.textContent = 'Please enter your organization code.';
-        errorEl.classList.add('show');
-        resetButton();
-        return;
+      // ── theme ──────────────────────────────────────────────────────────
+      function applyTheme() {
+        document.documentElement.setAttribute('data-theme', state.dark ? 'dark' : 'light');
+        themeBtn.innerHTML = state.dark ? ICON.sun : ICON.moon;
+      }
+      function toggleTheme() {
+        state.dark = !state.dark;
+        try { localStorage.setItem('iw_theme', state.dark ? 'dark' : 'light'); } catch (_) {}
+        applyTheme();
+        applyAccent(); // accent hexes differ per theme; recompute + recolor swatches
       }
 
-      try {
-        const endpoint = roleEndpoints[selectedRole];
-        const payload = { username, password };
-        if (selectedRole === 'user') payload.orgCode = orgCode;
-        const res = await fetch(`${API_BASE}${endpoint}`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          credentials: 'include',
-          body: JSON.stringify(payload)
+      // ── accent (switchable, applies everywhere, persisted) ─────────────
+      const ACCENTS = {
+        violet: { dark: '#8B7CF6', light: '#6D5AE6' },
+        cyan:   { dark: '#22D3EE', light: '#0891B2' },
+        ember:  { dark: '#F5A97F', light: '#D96E30' },
+        mono:   { dark: '#ECECEA', light: '#141416' },
+      };
+      const ACCENT_ORDER = ['violet', 'cyan', 'ember', 'mono'];
+      const ACCENT_LABEL = { violet: 'Violet', cyan: 'Cyan', ember: 'Ember', mono: 'Mono' };
+
+      function hexToRgb(hex) {
+        const m = /^#?([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})$/i.exec(hex || '');
+        return m ? { r: parseInt(m[1], 16), g: parseInt(m[2], 16), b: parseInt(m[3], 16) } : { r: 136, g: 136, b: 136 };
+      }
+      function rgba(hex, a) {
+        const c = hexToRgb(hex);
+        return 'rgba(' + c.r + ',' + c.g + ',' + c.b + ',' + a + ')';
+      }
+
+      function applyAccent() {
+        const a = ACCENTS[state.accent] || ACCENTS.ember;
+        const accent = state.dark ? a.dark : a.light;
+        const root = document.documentElement.style;
+        root.setProperty('--accent', accent);
+        root.setProperty('--accent-ring', rgba(accent, state.dark ? 0.16 : 0.14));
+        root.setProperty('--glow', rgba(accent, state.dark ? 0.07 : 0.09));
+        // The promo intro plays on a near-black stage, so it always uses the
+        // dark-variant accent regardless of the page's light/dark theme.
+        root.setProperty('--intro-accent', a.dark);
+        updateSwatches();
+      }
+
+      function renderSwatches() {
+        accentsEl.innerHTML = '';
+        ACCENT_ORDER.forEach((key) => {
+          const b = document.createElement('button');
+          b.type = 'button';
+          b.className = 'swatch';
+          b.dataset.accent = key;
+          b.title = ACCENT_LABEL[key] + ' accent';
+          b.setAttribute('aria-label', ACCENT_LABEL[key] + ' accent');
+          b.addEventListener('click', () => setAccent(key));
+          accentsEl.appendChild(b);
+        });
+        updateSwatches();
+      }
+
+      function updateSwatches() {
+        accentsEl.querySelectorAll('.swatch').forEach((b) => {
+          const a = ACCENTS[b.dataset.accent] || ACCENTS.ember;
+          b.style.setProperty('--sw', state.dark ? a.dark : a.light);
+          const on = b.dataset.accent === state.accent;
+          b.classList.toggle('active', on);
+          b.setAttribute('aria-pressed', on ? 'true' : 'false');
+        });
+      }
+
+      function setAccent(key) {
+        if (!ACCENTS[key]) return;
+        state.accent = key;
+        try { localStorage.setItem('iw_accent', key); } catch (_) {}
+        applyAccent();
+      }
+
+      // ── greeting from local time ───────────────────────────────────────
+      function greeting() {
+        const h = new Date().getHours();
+        return h < 5 ? 'Working late' : h < 12 ? 'Good morning' : h < 18 ? 'Good afternoon' : 'Good evening';
+      }
+
+      // ── toast ──────────────────────────────────────────────────────────
+      function showToast(msg) {
+        let el = document.querySelector('.toast');
+        if (el) el.remove();
+        el = document.createElement('div');
+        el.className = 'toast';
+        el.textContent = msg;
+        stage.appendChild(el);
+        clearTimeout(toastTimer);
+        toastTimer = setTimeout(() => { el.remove(); }, 2000);
+      }
+
+      // ── role switcher ──────────────────────────────────────────────────
+      function roleKeys() {
+        return state.adminRevealed ? ['user', 'admin', 'super'] : ['user', 'admin'];
+      }
+
+      function renderRoles() {
+        // Remove existing buttons (keep the sliding thumb).
+        switcher.querySelectorAll('.role-btn').forEach((b) => b.remove());
+        roleKeys().forEach((key) => {
+          const b = document.createElement('button');
+          b.type = 'button';
+          b.className = 'role-btn' + (key === state.role ? ' active' : '');
+          b.dataset.role = key;
+          b.textContent = ROLES[key].label;
+          b.setAttribute('role', 'tab');
+          b.setAttribute('aria-selected', key === state.role ? 'true' : 'false');
+          b.addEventListener('click', () => setRole(key));
+          switcher.appendChild(b);
+        });
+        updateThumb();
+      }
+
+      function updateThumb() {
+        const keys = roleKeys();
+        const idx = Math.max(0, keys.indexOf(state.role));
+        thumb.style.transform = 'translateX(' + (idx * 108) + 'px)';
+      }
+
+      function setRole(key, opts) {
+        opts = opts || {};
+        state.role = key;
+        const meta = ROLES[key];
+        // active state + thumb
+        switcher.querySelectorAll('.role-btn').forEach((b) => {
+          const on = b.dataset.role === key;
+          b.classList.toggle('active', on);
+          b.setAttribute('aria-selected', on ? 'true' : 'false');
+        });
+        updateThumb();
+        // copy
+        brandSub.textContent = greeting() + ' — ' + meta.subtitle;
+        usernameInput.placeholder = meta.placeholder;
+        submitBtn.textContent = state.busy ? meta.busy : meta.btn;
+        // org field only for candidates
+        orgGroup.classList.toggle('hidden', key !== 'user');
+        // clear any error
+        hideError();
+        if (opts.focus) {
+          (key === 'user' ? orgInput : usernameInput).focus();
+        }
+      }
+
+      // ── error helpers ──────────────────────────────────────────────────
+      function showError(msg) {
+        errorEl.textContent = msg;
+        errorEl.classList.remove('hidden');
+      }
+      function hideError() {
+        errorEl.classList.add('hidden');
+        errorEl.textContent = '';
+      }
+
+      // ── password visibility ────────────────────────────────────────────
+      function togglePw() {
+        state.showPw = !state.showPw;
+        passwordInput.type = state.showPw ? 'text' : 'password';
+        pwToggle.innerHTML = state.showPw ? ICON.eyeOff : ICON.eye;
+        pwToggle.title = state.showPw ? 'Hide password' : 'Show password';
+        pwToggle.setAttribute('aria-label', pwToggle.title);
+      }
+
+      // ── busy/button ────────────────────────────────────────────────────
+      function setBusy(on) {
+        state.busy = on;
+        const meta = ROLES[state.role];
+        submitBtn.disabled = on;
+        submitBtn.textContent = on ? meta.busy : meta.btn;
+      }
+
+      // ── submit → real auth ─────────────────────────────────────────────
+      async function submit(e) {
+        if (e) e.preventDefault();
+        if (state.busy) return;
+        hideError();
+
+        const username = usernameInput.value.trim();
+        const password = passwordInput.value;
+        const orgCode = orgInput.value.trim().toUpperCase();
+
+        if (state.role === 'user' && !orgCode) {
+          showError('Enter your organization code.');
+          orgInput.focus();
+          return;
+        }
+        if (!username || !password) {
+          showError('Enter your username and password.');
+          (!username ? usernameInput : passwordInput).focus();
+          return;
+        }
+
+        setBusy(true);
+        try {
+          const meta = ROLES[state.role];
+          const payload = { username, password };
+          if (state.role === 'user') payload.orgCode = orgCode;
+
+          const res = await fetch(API_BASE + meta.endpoint, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'include',
+            body: JSON.stringify(payload),
+          });
+          const data = await res.json().catch(() => ({}));
+
+          if (data && data.ok) {
+            window.location.href = isElectron ? 'index.html' : '/';
+            return;
+          }
+          showError((data && data.error) || 'Invalid credentials. Try again.');
+          setBusy(false);
+        } catch (err) {
+          showError('Connection error. Please try again.');
+          setBusy(false);
+        }
+      }
+
+      // ── easter egg: 5 clicks on "ABOUT THIS TOOL" reveals the Admin tab ─
+      const JOKES = [
+        'Nothing to see here',
+        'Bro why are you tapping?',
+        'Appreciate your enthusiasm!',
+        "You sure you're supposed to be here?",
+        "Chill, it's just an About section",
+      ];
+      function aboutClick() {
+        const c = state.clicks + 1;
+        clearTimeout(clicksTimer);
+        clicksTimer = setTimeout(() => { state.clicks = 0; }, 3000);
+        if (c >= 5 && !state.adminRevealed) {
+          state.clicks = 0;
+          state.adminRevealed = true;
+          renderRoles();
+          showToast('Super Admin unlocked');
+        } else {
+          state.clicks = c;
+          showToast(JOKES[Math.floor(Math.random() * JOKES.length)]);
+        }
+      }
+
+      // ── forgot password (no self-serve reset in this app) ──────────────
+      function forgotClick(e) {
+        e.preventDefault();
+        showToast('Contact your administrator to reset your password.');
+      }
+
+      // ── reveal the login page ──────────────────────────────────────────
+      // handoff=true keeps the mark hidden until the intro logo swaps in.
+      function revealPage(handoff) {
+        stage.classList.toggle('handoff', !!handoff);
+        page.classList.remove('hidden');
+        if (!handoff) {
+          // Focus the first relevant field once entrance settles.
+          setTimeout(() => { (state.role === 'user' ? orgInput : usernameInput).focus(); }, 500);
+        }
+      }
+
+      // ══ promo intro ════════════════════════════════════════════════════
+      const A = "var(--intro-accent)";
+      const SCENES = {
+        1: '<div class="scene" style="gap:70px;animation:fadeOut .9s ease 2.2s both;">' +
+             stat('212', '#5A5A63', 'APPLICATIONS', '#5A5A63', '.6s', '.2s') +
+             stat('6', '#9B9BA3', 'INTERVIEWS', '#5A5A63', '.6s', '1s') +
+             stat('1', A, 'OFFER', A, '.7s', '1.9s') +
+           '</div>',
+        2: '<div class="scene" style="flex-direction:column;gap:14px;animation:fadeIn .9s ease both,fadeOut .9s ease 2.7s both;">' +
+             '<div style="font-family:\'Newsreader\',serif;font-weight:300;font-size:44px;color:#F2F2F0;animation:riseIn 1s cubic-bezier(.16,1,.3,1) .1s both;">The best candidate doesn&rsquo;t always win.</div>' +
+             '<div style="font-family:\'Newsreader\',serif;font-weight:300;font-style:italic;font-size:44px;color:' + A + ';animation:riseIn 1.1s cubic-bezier(.16,1,.3,1) 1.8s both;">The best interview does.</div>' +
+           '</div>',
+        3: '<div class="scene" style="flex-direction:column;animation:fadeIn .9s ease both,fadeOut .9s ease 3.7s both;">' +
+             '<div style="font-family:\'JetBrains Mono\',monospace;font-size:11px;letter-spacing:.28em;color:#5A5A63;animation:fadeIn .6s ease .2s both;">INTRODUCING</div>' +
+             '<div style="margin-top:20px;font-family:\'Space Grotesk\',sans-serif;font-size:64px;font-weight:600;letter-spacing:-.02em;color:#F2F2F0;animation:riseIn 1.1s cubic-bezier(.16,1,.3,1) .5s both;">Your unfair advantage.</div>' +
+             '<div style="margin-top:18px;font-family:\'Newsreader\',serif;font-style:italic;font-weight:300;font-size:22px;color:#9B9BA3;animation:fadeIn 1s ease 2s both;">An AI that sits in the room &mdash; and only you know it&rsquo;s there.</div>' +
+           '</div>',
+        4: '<div class="scene" style="flex-direction:column;gap:14px;animation:fadeIn .9s ease both,fadeOut .9s ease 6.7s both;">' +
+             '<div style="width:620px;max-width:calc(100vw - 40px);box-sizing:border-box;padding:16px 20px;background:rgba(242,242,240,.04);border:1px solid rgba(242,242,240,.1);border-radius:14px 14px 14px 4px;animation:riseIn .6s cubic-bezier(.16,1,.3,1) .2s both;">' +
+               '<div style="font-family:\'JetBrains Mono\',monospace;font-size:9px;letter-spacing:.18em;color:#5A5A63;margin-bottom:7px;">THEM &middot; 00:14:32</div>' +
+               '<div style="font-size:15px;line-height:1.6;color:#D6D6D2;">&ldquo;Why should we pick you over someone with more years in this stack?&rdquo;</div>' +
+             '</div>' +
+             '<div style="width:620px;max-width:calc(100vw - 40px);box-sizing:border-box;display:flex;justify-content:flex-end;">' +
+               '<div style="width:520px;max-width:100%;box-sizing:border-box;padding:16px 20px;background:rgba(20,20,24,.95);border:1px solid ' + A + ';border-radius:14px 14px 4px 14px;animation:riseIn .7s cubic-bezier(.16,1,.3,1) 2.4s both;">' +
+                 '<div style="font-family:\'JetBrains Mono\',monospace;font-size:9px;letter-spacing:.18em;color:' + A + ';margin-bottom:7px;">WHISPERED &middot; ONLY YOU SEE THIS</div>' +
+                 '<div style="font-size:15px;line-height:1.6;color:#F2F2F0;">Reframe: years &ne; outcomes. Lead with the launch you owned end-to-end, close with the ramp-up speed story.</div>' +
+               '</div>' +
+             '</div>' +
+             '<div style="margin-top:10px;font-family:\'Newsreader\',serif;font-style:italic;font-weight:300;font-size:20px;color:#9B9BA3;animation:fadeIn .8s ease 5s both;">You answered before the doubt even landed.</div>' +
+           '</div>',
+        5: '<div class="scene" style="flex-direction:column;animation:fadeIn .9s ease both,fadeOut .9s ease 2.7s both;">' +
+             '<div style="display:flex;align-items:center;gap:44px;">' +
+               '<span style="font-family:\'Space Grotesk\',sans-serif;font-size:40px;font-weight:500;color:#9B9BA3;animation:checkIn .5s ease .2s both;">Zoom</span>' +
+               '<span style="width:5px;height:5px;border-radius:50%;background:#5A5A63;"></span>' +
+               '<span style="font-family:\'Space Grotesk\',sans-serif;font-size:40px;font-weight:500;color:#9B9BA3;animation:checkIn .5s ease .6s both;">Meet</span>' +
+               '<span style="width:5px;height:5px;border-radius:50%;background:#5A5A63;"></span>' +
+               '<span style="font-family:\'Space Grotesk\',sans-serif;font-size:40px;font-weight:500;color:#9B9BA3;animation:checkIn .5s ease 1s both;">Teams</span>' +
+             '</div>' +
+             '<div style="margin-top:30px;font-family:\'Newsreader\',serif;font-weight:300;font-size:34px;color:#F2F2F0;text-align:center;animation:riseIn .8s cubic-bezier(.16,1,.3,1) 1.7s both;">Present in every call. <em style="font-style:italic;color:' + A + ';">Visible in none.</em></div>' +
+           '</div>',
+        6: '<div class="scene" style="animation:fadeIn .7s ease both,fadeOut .7s ease 1.8s both;">' +
+             '<div style="font-family:\'Newsreader\',serif;font-weight:300;font-size:46px;letter-spacing:-.01em;color:#F2F2F0;text-align:center;animation:riseIn .9s cubic-bezier(.16,1,.3,1) .1s both;">Stop rehearsing.<br><em style="font-style:italic;color:' + A + ';">Start answering.</em></div>' +
+           '</div>',
+      };
+
+      function stat(num, numColor, label, labelColor, dur, delay) {
+        return '<div style="text-align:center;animation:checkIn ' + dur + ' cubic-bezier(.16,1,.3,1) ' + delay + ' both;">' +
+          '<div style="font-family:\'Space Grotesk\',sans-serif;font-size:96px;font-weight:500;line-height:1;color:' + numColor + ';">' + num + '</div>' +
+          '<div style="margin-top:10px;font-family:\'JetBrains Mono\',monospace;font-size:10px;letter-spacing:.2em;color:' + labelColor + ';">' + label + '</div>' +
+          '</div>';
+      }
+
+      const LOGO_HTML =
+        '<div id="introMark">' +
+          '<span style="position:absolute;top:50%;left:50%;width:140px;height:140px;margin:-70px 0 0 -70px;border-radius:50%;border:1px solid ' + A + ';animation:introRing 1.4s cubic-bezier(.16,1,.3,1) 1.1s both;"></span>' +
+          '<svg width="120" height="120" viewBox="0 0 34 34" fill="none" style="overflow:visible;">' +
+            '<path d="M4 17 Q6.5 6.5 9 17 Q11.2 25.5 13.4 17 Q15.2 11 17 17 Q18.4 21.5 19.8 17 Q20.9 14.5 22 17 L25 17" stroke="#F2F2F0" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="60" stroke-dashoffset="60" style="animation:drawWave .9s cubic-bezier(.4,0,.2,1) .15s both;"></path>' +
+            '<circle cx="29" cy="17" r="2.2" fill="' + A + '" style="transform-origin:29px 17px;animation:introDot .6s cubic-bezier(.34,1.56,.64,1) 1s both;"></circle>' +
+          '</svg>' +
+        '</div>' +
+        '<div id="introWordmark">' +
+          '<div style="font-family:\'Space Grotesk\',sans-serif;font-size:14px;font-weight:600;letter-spacing:.22em;text-transform:uppercase;color:#F2F2F0;animation:trackIn .8s cubic-bezier(.16,1,.3,1) .8s both;">Interview Whisperer</div>' +
+          '<div style="margin-top:12px;font-family:\'Newsreader\',serif;font-style:italic;font-weight:300;font-size:19px;color:#9B9BA3;animation:fadeIn .6s ease 1.3s both;">Walk in prepared.</div>' +
+        '</div>';
+
+      let introTimers = [];
+      let introDone = false;
+      function T(fn, ms) { introTimers.push(setTimeout(fn, ms)); }
+      function clearIntroTimers() { introTimers.forEach(clearTimeout); introTimers = []; }
+
+      function showScene(n) {
+        if (n <= 6) {
+          introScenes.innerHTML = SCENES[n];
+        } else if (n === 7) {
+          introScenes.innerHTML = LOGO_HTML;
+        }
+        // n === 8 is the landing handoff, handled separately.
+      }
+
+      function landLogo() {
+        const l = document.getElementById('introMark');
+        const m = document.getElementById('pageMark');
+        if (!l || !m) return;
+        const lr = l.getBoundingClientRect();
+        const mr = m.getBoundingClientRect();
+        const dx = (mr.left + mr.width / 2) - (lr.left + lr.width / 2);
+        const dy = (mr.top + mr.height / 2) - (lr.top + lr.height / 2);
+        const scale = (mr.width / 120 * 0.98).toFixed(3);
+        l.style.transform = 'translate(' + dx + 'px, ' + dy + 'px) scale(' + scale + ')';
+      }
+
+      function startIntro() {
+        intro.classList.remove('hidden');
+        // Reveal (mount) the page underneath so the mark exists to measure —
+        // but keep it hidden behind the opaque overlay until the handoff.
+        // The page itself is shown at scene 8.
+        const scenes = [[0, 1], [3000, 2], [6500, 3], [11000, 4], [18500, 5], [22000, 6], [24500, 7], [26000, 8]];
+        scenes.forEach(([at, sc]) => T(() => {
+          if (sc === 8) {
+            introChrome.classList.add('hidden');
+            intro.classList.add('transparent');
+            const wm = document.getElementById('introWordmark');
+            if (wm) wm.style.opacity = '0';
+            revealPage(true);           // page appears under the transparent overlay
+            T(landLogo, 60);            // measure + glide once laid out
+          } else {
+            showScene(sc);
+          }
+        }, at));
+        // logo fades out, page's own mark fades in — the seamless swap
+        T(() => {
+          const l = document.getElementById('introMark');
+          if (l) l.style.opacity = '0';
+          stage.classList.remove('handoff'); // page mark fades in
+        }, 27200);
+        // intro fully ends
+        T(endIntro, 27650);
+      }
+
+      function endIntro() {
+        if (introDone) return;
+        introDone = true;
+        clearIntroTimers();
+        intro.remove();
+        (state.role === 'user' ? orgInput : usernameInput).focus();
+      }
+
+      function skipIntro() {
+        if (introDone) return;
+        clearIntroTimers();
+        introDone = true;
+        intro.remove();
+        stage.classList.remove('handoff');
+        revealPage(false); // full entrance, including the mark
+      }
+
+      // ── init ───────────────────────────────────────────────────────────
+      function init() {
+        // theme (persisted)
+        let saved = null;
+        try { saved = localStorage.getItem('iw_theme'); } catch (_) {}
+        state.dark = saved ? saved === 'dark' : true;
+        applyTheme();
+
+        // accent (persisted; defaults to ember, the handoff's stated preference)
+        let savedAccent = null;
+        try { savedAccent = localStorage.getItem('iw_accent'); } catch (_) {}
+        if (savedAccent && ACCENTS[savedAccent]) state.accent = savedAccent;
+        renderSwatches();
+        applyAccent();
+
+        // password toggle icon
+        pwToggle.innerHTML = ICON.eye;
+
+        // roles + copy
+        renderRoles();
+        setRole('user');
+
+        // listeners
+        themeBtn.addEventListener('click', toggleTheme);
+        pwToggle.addEventListener('click', togglePw);
+        aboutEl.addEventListener('click', aboutClick);
+        $('forgot').addEventListener('click', forgotClick);
+        loginForm.addEventListener('submit', submit);
+        skipBtn.addEventListener('click', skipIntro);
+        orgInput.addEventListener('input', () => {
+          const p = orgInput.selectionStart;
+          orgInput.value = orgInput.value.toUpperCase();
+          try { orgInput.setSelectionRange(p, p); } catch (_) {}
+        });
+        document.addEventListener('keydown', (e) => {
+          if (e.key === 'Escape' && !introDone) skipIntro();
         });
 
-        const data = await res.json();
+        // Surface auth-gate redirects like /login?error=suspended.
+        try {
+          const err = new URLSearchParams(window.location.search).get('error');
+          if (err === 'suspended') showError('Your account is suspended or inactive.');
+          else if (err) showError(decodeURIComponent(err));
+        } catch (_) {}
 
-        if (data.ok) {
-          if (isElectron) {
-            window.location.href = 'index.html';
-          } else {
-            window.location.href = '/';
-          }
+        // Decide whether to play the intro: once per tab-session, and never
+        // when the visitor prefers reduced motion.
+        let seen = false;
+        try { seen = sessionStorage.getItem('iw_intro_seen') === '1'; } catch (_) {}
+        const reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+        if (seen || reduce) {
+          revealPage(false);
         } else {
-          errorEl.textContent = data.error || 'Invalid credentials. Please try again.';
-          errorEl.classList.add('show');
-          resetButton();
+          try { sessionStorage.setItem('iw_intro_seen', '1'); } catch (_) {}
+          startIntro();
         }
-      } catch (err) {
-        errorEl.textContent = 'Connection error. Please try again.';
-        errorEl.classList.add('show');
-        resetButton();
       }
-    });
 
-    function resetButton() {
-      loginBtn.disabled = false;
-      loginBtn.textContent = 'Sign In';
-    }
+      if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', init);
+      } else {
+        init();
+      }
+    })();
   </script>
 </body>
 
