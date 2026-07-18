@@ -27,7 +27,7 @@ router.get('/me', async (req, res) => {
 
     const { data: user, error } = await supabase
       .from('users')
-      .select('id, username, credits, permissions, status, admins(id, name)')
+      .select('id, username, credits, permissions, status, created_at, admins(id, name, org_code)')
       .eq('id', userId)
       .single();
 
@@ -44,6 +44,8 @@ router.get('/me', async (req, res) => {
         permissions: user.permissions,
         status: user.status,
         adminName: user.admins?.name,
+        orgCode: user.admins?.org_code || null,
+        memberSince: user.created_at || null,
       },
       creditInfo: {
         minSessionCost: getMinimumChargeTokens(),
