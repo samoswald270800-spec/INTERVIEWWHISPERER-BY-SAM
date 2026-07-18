@@ -15,6 +15,7 @@ import useSocket from './hooks/useSocket';
 import useCandidateCameraSession from './hooks/useCandidateCameraSession';
 import UserHelpButton from './components/UserHelpButton';
 import CandidateCameraPage from './components/CandidateCameraPage';
+import ProfilePage from './components/ProfilePage';
 import './App.css';
 
 import API_BASE_URL from './config';
@@ -84,6 +85,45 @@ function InterviewApp() {
     // Role-based rendering
     const [userRole, setUserRole] = useState(null);
     const [isAppLoading, setIsAppLoading] = useState(true);
+
+    // ── Profile view + candidate theming (accent + light/dark) ──
+    // Shares localStorage keys with the login page so the two stay in sync.
+    const [view, setView] = useState('console'); // 'console' | 'profile'
+    const [profileMounted, setProfileMounted] = useState(false);
+    const [username, setUsername] = useState('');
+    const [accent, setAccentState] = useState(() => {
+        try {
+            const a = localStorage.getItem('iw_accent');
+            return ['violet', 'cyan', 'ember', 'mono'].includes(a) ? a : 'ember';
+        } catch { return 'ember'; }
+    });
+    const [theme, setThemeState] = useState(() => {
+        try { return localStorage.getItem('iw_theme') === 'light' ? 'light' : 'dark'; } catch { return 'dark'; }
+    });
+    const [profileToast, setProfileToast] = useState(null);
+    const profileToastTimer = useRef(null);
+
+    const applyAccent = (a) => { setAccentState(a); try { localStorage.setItem('iw_accent', a); } catch { /* ignore */ } };
+    const applyTheme = (t) => { setThemeState(t); try { localStorage.setItem('iw_theme', t); } catch { /* ignore */ } };
+    const showProfileToast = (msg) => {
+        setProfileToast(msg);
+        clearTimeout(profileToastTimer.current);
+        profileToastTimer.current = setTimeout(() => setProfileToast(null), 2400);
+    };
+    const openProfile = () => { setProfileMounted(true); setView('profile'); };
+
+    // Candidate app only: apply accent + light/dark to <html>. Admin and
+    // super-admin consoles are intentionally left on their default look.
+    useEffect(() => {
+        const root = document.documentElement;
+        if (userRole === 'user') {
+            root.setAttribute('data-accent', accent);
+            root.setAttribute('data-theme', theme);
+        } else {
+            root.removeAttribute('data-accent');
+            root.removeAttribute('data-theme');
+        }
+    }, [userRole, accent, theme]);
 
     // Socket.IO for user-side remote control (only for user role)
     const socket = useSocket(userRole === 'user');
@@ -269,6 +309,7 @@ function InterviewApp() {
 
             // Set role for conditional rendering
             if (data.role) setUserRole(data.role);
+            if (data.userId) setUsername(data.userId);
             setIsAppLoading(false);
 
             if (data.orgCode) setOrgCode(data.orgCode);
@@ -1530,6 +1571,15 @@ This is your chance to really impress. Leave nothing on the table.`;
     return (
         <div className="solo-console">
             <header className="solo-chrome">
+                {view === 'profile' && (
+                    <button className="profile-back" onClick={() => setView('console')} title="Back to console">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <line x1="19" y1="12" x2="5" y2="12"></line>
+                            <polyline points="12 19 5 12 12 5"></polyline>
+                        </svg>
+                        Back to console
+                    </button>
+                )}
                 <div className="solo-pill-slot">
                     <StatusPill
                         status={status}
@@ -1544,11 +1594,18 @@ This is your chance to really impress. Leave nothing on the table.`;
                 {orgCode && (
                     <span
                         title="Your organization code (needed to sign in)"
-                        style={{ fontSize: '11px', letterSpacing: '0.08em', color: 'rgba(255,255,255,0.4)', marginRight: '10px', fontFamily: 'var(--font-body)', whiteSpace: 'nowrap' }}
+                        style={{ fontSize: '11px', letterSpacing: '0.08em', color: 'var(--text-faint)', marginRight: '10px', fontFamily: 'var(--font-body)', whiteSpace: 'nowrap' }}
                     >
                         ORG {orgCode}
                     </span>
                 )}
+                <button
+                    className={'profile-avatar' + (view === 'profile' ? ' active' : '')}
+                    onClick={openProfile}
+                    title="Profile"
+                >
+                    {(username || '?').slice(0, 2).toUpperCase()}
+                </button>
                 <button className="solo-signout" onClick={handleLogout} title="Sign out">
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                         <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
@@ -1557,7 +1614,26 @@ This is your chance to really impress. Leave nothing on the table.`;
                     </svg>
                 </button>
             </header>
-            {whispererView}
+
+            <div className={'solo-console-view' + (view === 'profile' ? ' dimmed' : '')}>
+                {whispererView}
+            </div>
+
+            {profileMounted && (
+                <div className={'solo-profile-view' + (view === 'profile' ? ' open' : '')}>
+                    <ProfilePage
+                        accent={accent}
+                        theme={theme}
+                        onAccentChange={applyAccent}
+                        onThemeChange={applyTheme}
+                        onSignOut={handleLogout}
+                        orgCode={orgCode}
+                        showToast={showProfileToast}
+                    />
+                </div>
+            )}
+
+            {profileToast && <div className="profile-toast">{profileToast}</div>}
         </div>
     );
 }
