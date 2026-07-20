@@ -1,4 +1,5 @@
 import React, { useEffect, useRef } from 'react';
+import { copyText } from '../utils/clipboard';
 import './QAList.css';
 
 /**
@@ -16,9 +17,7 @@ export default function QAList({ qaList, onManualSearch, onRegenerate, isProcess
 
     const copyAnswer = (answer) => {
         if (!answer) return;
-        try {
-            navigator.clipboard.writeText(answer);
-        } catch { /* clipboard unavailable */ }
+        copyText(answer);
     };
 
     // Empty state only when there's nothing to show at all (no turns, and no

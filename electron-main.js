@@ -1,4 +1,4 @@
-import { app, BrowserWindow, globalShortcut, Tray, Menu, desktopCapturer, session, ipcMain, screen as electronScreen, shell as electronShell, systemPreferences } from 'electron';
+import { app, BrowserWindow, globalShortcut, Tray, Menu, desktopCapturer, session, ipcMain, screen as electronScreen, shell as electronShell, systemPreferences, clipboard } from 'electron';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import fs from 'fs';
@@ -878,6 +878,20 @@ Write-Output "READY"
             .then(() => simulateInputNative(data))
             .catch((e) => console.error('[InputSim] native queue error:', e.message));
     }
+
+    // Native clipboard write. The overlay is content-protected and usually
+    // unfocused, so the renderer's navigator.clipboard.writeText rejects with
+    // "Document is not focused" and every Copy button silently fails. The
+    // main-process clipboard has no focus requirement, so Copy routes here.
+    ipcMain.handle('clipboard:write', (_event, text) => {
+        try {
+            clipboard.writeText(typeof text === 'string' ? text : String(text == null ? '' : text));
+            return true;
+        } catch (e) {
+            console.error('[clipboard] write failed:', e.message);
+            return false;
+        }
+    });
 
     // macOS requires Accessibility permission to synthesize input — prompt early.
     ipcMain.on('rc:ensure-input-permission', () => {

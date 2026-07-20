@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { copyText } from '../utils/clipboard';
 import './ScreenInsight.css';
 
 const TYPE_LABEL = {
@@ -60,11 +61,12 @@ export default function ScreenInsight({ insight, loading, onClose }) {
   const canType = typeof window !== 'undefined' && !!window.electron?.typeCode && !!code;
 
   const copyCode = () => {
-    if (!code || !navigator.clipboard) return;
-    navigator.clipboard.writeText(code).then(() => {
+    if (!code) return;
+    copyText(code).then((ok) => {
+      if (!ok) return;
       setCodeCopied(true);
       setTimeout(() => setCodeCopied(false), 1400);
-    }).catch(() => {});
+    });
   };
 
   // Count down first so the candidate can click into their real editor — the
@@ -98,11 +100,12 @@ export default function ScreenInsight({ insight, loading, onClose }) {
       say ? 'SAY THIS\n' + say : '',
       points.length ? 'KEY POINTS\n' + points.map((p) => '• ' + p).join('\n') : '',
     ].filter(Boolean).join('\n\n');
-    if (!text || !navigator.clipboard) return;
-    navigator.clipboard.writeText(text).then(() => {
+    if (!text) return;
+    copyText(text).then((ok) => {
+      if (!ok) return;
       setCopied(true);
       setTimeout(() => setCopied(false), 1400);
-    }).catch(() => {});
+    });
   };
 
   return (
