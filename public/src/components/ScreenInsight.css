@@ -176,6 +176,54 @@
   color: var(--text-primary);
 }
 
+.si-code-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* "Type it in" — types the solution into the editor with a human cadence. */
+.si-typein {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  background: var(--acc-soft-bg);
+  border: 1px solid var(--acc-soft-border);
+  border-radius: 6px;
+  color: var(--acc-text);
+  font-family: var(--font-body);
+  font-size: 10.5px;
+  font-weight: 600;
+  padding: 2px 9px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: border-color 0.15s, color 0.15s, background 0.15s;
+}
+
+.si-typein:hover {
+  border-color: var(--acc-solid);
+  color: var(--text-primary);
+}
+
+/* Active = counting down or typing → offer a clear Stop affordance. */
+.si-typein.active {
+  background: rgba(240, 100, 90, 0.12);
+  border-color: rgba(240, 100, 90, 0.5);
+  color: #f0645a;
+}
+
+.si-kbd {
+  font-size: 12px;
+  line-height: 1;
+}
+
+.si-typein-hint {
+  margin: -2px 0 0;
+  font-size: 11.5px;
+  line-height: 1.45;
+  color: var(--acc-text);
+}
+
 .si-code {
   margin: 0;
   padding: 12px 13px;

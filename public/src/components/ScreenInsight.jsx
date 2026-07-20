@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import './ScreenInsight.css';
 
 const TYPE_LABEL = {
@@ -30,6 +30,15 @@ export default function ScreenInsight({ insight, loading, onClose }) {
   const [showFull, setShowFull] = useState(false);
   const [copied, setCopied] = useState(false);
   const [codeCopied, setCodeCopied] = useState(false);
+  // "Type it in": idle → countdown (focus your editor first) → typing.
+  const [typeState, setTypeState] = useState('idle');
+  const [typeCount, setTypeCount] = useState(0);
+  const countdownRef = useRef(null);
+
+  // Clear any pending focus countdown if the panel unmounts mid-way.
+  useEffect(() => () => {
+    if (countdownRef.current) clearInterval(countdownRef.current);
+  }, []);
 
   if (!loading && !insight) return null;
 
@@ -46,12 +55,42 @@ export default function ScreenInsight({ insight, loading, onClose }) {
   const codeLang = insight?.codeLang || '';
   const typeLabel = insight && !insight.error ? (TYPE_LABEL[insight.type] || 'Insight') : '';
 
+  // "Type it in" is a desktop-app power move — it drives the real keyboard, so
+  // it only appears when the Electron bridge is present and there's code.
+  const canType = typeof window !== 'undefined' && !!window.electron?.typeCode && !!code;
+
   const copyCode = () => {
     if (!code || !navigator.clipboard) return;
     navigator.clipboard.writeText(code).then(() => {
       setCodeCopied(true);
       setTimeout(() => setCodeCopied(false), 1400);
     }).catch(() => {});
+  };
+
+  // Count down first so the candidate can click into their real editor — the
+  // keystrokes go to whatever window has focus, not this overlay.
+  const beginTypeIn = () => {
+    if (!canType || typeState !== 'idle') return;
+    let n = 3;
+    setTypeCount(n);
+    setTypeState('countdown');
+    countdownRef.current = setInterval(() => {
+      n -= 1;
+      if (n > 0) { setTypeCount(n); return; }
+      clearInterval(countdownRef.current);
+      countdownRef.current = null;
+      setTypeState('typing');
+      window.electron.typeCode(code).finally(() => setTypeState('idle'));
+    }, 1000);
+  };
+
+  const stopTypeIn = () => {
+    if (typeState === 'countdown') {
+      if (countdownRef.current) { clearInterval(countdownRef.current); countdownRef.current = null; }
+      setTypeState('idle');
+    } else if (typeState === 'typing') {
+      window.electron?.cancelTypeCode?.();
+    }
   };
 
   const copyAll = () => {
@@ -111,8 +150,26 @@ export default function ScreenInsight({ insight, loading, onClose }) {
             <section className="si-sec">
               <div className="si-code-head">
                 <span className="si-label">Code to type</span>
-                <button className="si-copycode" onClick={copyCode}>{codeCopied ? 'Copied' : 'Copy'}</button>
+                <div className="si-code-actions">
+                  <button className="si-copycode" onClick={copyCode}>{codeCopied ? 'Copied' : 'Copy'}</button>
+                  {canType && (
+                    <button
+                      className={'si-typein' + (typeState !== 'idle' ? ' active' : '')}
+                      onClick={typeState === 'idle' ? beginTypeIn : stopTypeIn}
+                    >
+                      {typeState === 'idle' && (<><span className="si-kbd">⌨</span> Type it in</>)}
+                      {typeState === 'countdown' && `Focus editor… ${typeCount}`}
+                      {typeState === 'typing' && 'Stop'}
+                    </button>
+                  )}
+                </div>
               </div>
+              {typeState === 'countdown' && (
+                <p className="si-typein-hint">Click into your code editor — typing starts in {typeCount}…</p>
+              )}
+              {typeState === 'typing' && (
+                <p className="si-typein-hint">Typing into your editor… click Stop to halt.</p>
+              )}
               <pre className="si-code"><code>{code}</code></pre>
             </section>
           )}
