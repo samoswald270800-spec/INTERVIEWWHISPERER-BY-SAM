@@ -9,6 +9,10 @@ contextBridge.exposeInMainWorld('electron', {
     simulateInput: (event) => ipcRenderer.send('rc:simulate-input', event),
     // Ask the OS for input-control permission (macOS Accessibility prompt)
     ensureInputPermission: () => ipcRenderer.send('rc:ensure-input-permission'),
+    // "Type it in": type code into the focused editor with a human-like cadence.
+    // Resolves { ok, cancelled } when typing finishes or is cancelled.
+    typeCode: (text) => ipcRenderer.invoke('rc:type-human', { text }),
+    cancelTypeCode: () => ipcRenderer.send('rc:type-human-cancel'),
     relayAudio: {
         getStatus: () => ipcRenderer.invoke('relay-audio:get-status'),
     },

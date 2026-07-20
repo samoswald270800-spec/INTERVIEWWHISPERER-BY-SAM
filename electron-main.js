@@ -899,6 +899,117 @@ Write-Output "READY"
         enqueueNativeInput(data);
     });
 
+    // ═══════════════════════════════════════════════════
+    //  Human-like code typing (the "Type it in" action).
+    //  Runs entirely in the MAIN process: while it types,
+    //  the candidate's editor is focused and the Electron
+    //  overlay is backgrounded, so a renderer-side timer
+    //  loop would be throttled and lose its rhythm. Types
+    //  character-by-character with a varying cadence,
+    //  natural pauses at line breaks / brackets, and the
+    //  occasional self-corrected typo — so it reads as the
+    //  candidate actually typing, not an instant paste.
+    // ═══════════════════════════════════════════════════
+    let humanTypingActive = false;
+    let humanTypingCancel = false;
+
+    const typeSleep = (ms) => new Promise((r) => setTimeout(r, ms));
+    const typeRand = (min, max) => min + Math.random() * (max - min);
+
+    // QWERTY neighbours — a slip lands on a physically adjacent key, which is
+    // what real mistyping looks like (not a random character).
+    const QWERTY_NEIGHBORS = {
+        a: 'sqwz', b: 'vghn', c: 'xdfv', d: 'sefcx', e: 'wrsdf', f: 'drtgcv',
+        g: 'ftyhbv', h: 'gyujbn', i: 'ujko', j: 'huikmn', k: 'jiolm', l: 'kop',
+        m: 'njk', n: 'bhjm', o: 'iklp', p: 'ol', q: 'wa', r: 'edft',
+        s: 'awedxz', t: 'rfgy', u: 'yhji', v: 'cfgb', w: 'qase', x: 'zsdc',
+        y: 'tghu', z: 'asx',
+        0: '9', 1: '2', 2: '13', 3: '24', 4: '35', 5: '46',
+        6: '57', 7: '68', 8: '79', 9: '80',
+    };
+
+    function typoSlip(ch) {
+        const lower = ch.toLowerCase();
+        const near = QWERTY_NEIGHBORS[lower];
+        if (!near) return null;
+        const pick = near[Math.floor(Math.random() * near.length)];
+        const isUpper = ch !== lower && ch === ch.toUpperCase();
+        return isUpper ? pick.toUpperCase() : pick;
+    }
+
+    async function typeHumanLike(nut, text) {
+        const { keyboard, Key } = nut;
+        for (let i = 0; i < text.length; i++) {
+            if (humanTypingCancel) break;
+            const ch = text[i];
+
+            if (ch === '\r') continue; // fold CRLF → LF (handled by '\n')
+
+            if (ch === '\n') {
+                await keyboard.pressKey(Key.Enter);
+                await keyboard.releaseKey(Key.Enter);
+                // Glance at what comes next — humans pause on a fresh line.
+                await typeSleep(typeRand(140, 380));
+                continue;
+            }
+
+            if (ch === '\t') {
+                await keyboard.pressKey(Key.Tab);
+                await keyboard.releaseKey(Key.Tab);
+                await typeSleep(typeRand(40, 100));
+                continue;
+            }
+
+            // A short "thinking" beat before opening a call/block or a new word.
+            if (Math.random() < 0.05 && (ch === ' ' || ch === '(' || ch === '{')) {
+                await typeSleep(typeRand(160, 420));
+            }
+
+            // Occasional self-corrected slip on letters/digits only, so brackets,
+            // quotes and structure never get mangled.
+            if (/[A-Za-z0-9]/.test(ch) && Math.random() < 0.02) {
+                const wrong = typoSlip(ch);
+                if (wrong) {
+                    await keyboard.type(wrong);
+                    await typeSleep(typeRand(90, 240));   // "wait, that's wrong"
+                    await keyboard.pressKey(Key.Backspace);
+                    await keyboard.releaseKey(Key.Backspace);
+                    await typeSleep(typeRand(60, 170));
+                    if (humanTypingCancel) break;
+                }
+            }
+
+            await keyboard.type(ch);
+
+            // Base per-character cadence with jitter; spaces run a touch quicker.
+            await typeSleep(ch === ' ' ? typeRand(30, 85) : typeRand(45, 115));
+        }
+    }
+
+    ipcMain.handle('rc:type-human', async (_event, payload) => {
+        const text = payload && typeof payload.text === 'string' ? payload.text : '';
+        if (!text) return { ok: false, reason: 'empty' };
+        if (humanTypingActive) return { ok: false, reason: 'busy' };
+        const nut = await getNut();
+        if (!nut) return { ok: false, reason: 'no-input-engine' };
+        humanTypingActive = true;
+        humanTypingCancel = false;
+        try {
+            await typeHumanLike(nut, text);
+            return { ok: true, cancelled: humanTypingCancel };
+        } catch (e) {
+            console.error('[TypeIn] human typing error:', e.message);
+            return { ok: false, reason: e.message };
+        } finally {
+            humanTypingActive = false;
+            humanTypingCancel = false;
+        }
+    });
+
+    ipcMain.on('rc:type-human-cancel', () => {
+        if (humanTypingActive) humanTypingCancel = true;
+    });
+
     // Cleanup PS process on quit
     app.on('before-quit', () => {
         stopVirtualCameraBridge();
