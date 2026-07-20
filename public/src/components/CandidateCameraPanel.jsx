@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import useCandidateCameraSession from '../hooks/useCandidateCameraSession';
 import useVirtualCameraBridge from '../hooks/useVirtualCameraBridge';
+import { copyText } from '../utils/clipboard';
 import './CandidateCameraPanel.css';
 
 function formatExpiry(expiresAt) {
@@ -40,11 +41,13 @@ export function CandidateCameraPanelView({ camera }) {
         if (microphoneRef.current) microphoneRef.current.srcObject = camera.candidateStream;
     }, [camera.candidateStream]);
 
-    const copyLink = async () => {
+    const copyLink = () => {
         if (!camera.session?.link) return;
-        await navigator.clipboard.writeText(camera.session.link);
-        setCopied(true);
-        setTimeout(() => setCopied(false), 1500);
+        copyText(camera.session.link).then((ok) => {
+            if (!ok) return;
+            setCopied(true);
+            setTimeout(() => setCopied(false), 1500);
+        });
     };
 
     const stateLabel = {

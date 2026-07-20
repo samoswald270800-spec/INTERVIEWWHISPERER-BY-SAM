@@ -13,6 +13,9 @@ contextBridge.exposeInMainWorld('electron', {
     // Resolves { ok, cancelled } when typing finishes or is cancelled.
     typeCode: (text) => ipcRenderer.invoke('rc:type-human', { text }),
     cancelTypeCode: () => ipcRenderer.send('rc:type-human-cancel'),
+    // Native clipboard write — focus-independent, unlike navigator.clipboard,
+    // which the content-protected overlay can't use. Resolves true on success.
+    copyText: (text) => ipcRenderer.invoke('clipboard:write', text),
     relayAudio: {
         getStatus: () => ipcRenderer.invoke('relay-audio:get-status'),
     },
