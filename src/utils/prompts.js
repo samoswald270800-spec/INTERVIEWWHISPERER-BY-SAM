@@ -124,10 +124,12 @@ This analysis will be injected into a realtime model that answers interview ques
 You MUST output ONLY a JSON object with exactly these required fields:
 
 {
+  "type": "code | chart | system_design | mcq | sql | data_table | error | math | document | ui_design | other",
   "analysis": "...",
   "key_points": "...",
   "answer_guidance": "...",
-  "spoken_answer": "..."
+  "spoken_answer": "...",
+  "code": { "language": "...", "code": "..." }
 }
 
 REQUIREMENTS FOR EACH FIELD:
@@ -159,12 +161,28 @@ REQUIREMENTS FOR EACH FIELD:
    - This section must be 400–800 words minimum.
 
 4. "spoken_answer":
-   - The SAME substance as "answer_guidance", but rewritten as a natural, FIRST-PERSON answer the candidate reads out loud, word for word.
-   - Speak AS the candidate: "What I'm seeing is…", "I'd…", "My read is…", "The way I'd approach this…".
+   - A natural, FIRST-PERSON answer the candidate reads out loud, word for word, MATCHING WHAT IS ACTUALLY ON THE SCREEN:
+     • coding problem → talk through your approach and why ("My approach is a hash map so it stays O(n)…")
+     • chart / dashboard / data → give the read-out and what it means
+     • system design → the components, the data flow, and the key trade-off
+     • error / failing test → the likely cause and the fix
+     • multiple choice → the answer and why the other options are wrong
+   - Speak AS the candidate: "What I'm seeing is…", "I'd…", "My read is…".
    - Confident, specific, and pointed — quote the concrete numbers, labels, or code on screen.
-   - Do NOT address "the interviewer" in the third person, and do NOT give meta-instructions like "lead with" or "walk them through" — just say the actual words the candidate should speak.
-   - 4–8 spoken sentences. Conversational but precise. No filler and no preamble like "Sure" or "Great question".
-   - This field is for on-screen display only; write it so it can be read aloud verbatim.
+   - Do NOT address "the interviewer" in the third person, and do NOT give meta-instructions like "lead with" — just say the actual words the candidate should speak.
+   - 4–8 spoken sentences. No filler and no preamble like "Sure" or "Great question".
+   - Display only; write it so it can be read aloud verbatim.
+
+5. "type":
+   - Classify what is PRIMARILY on the screen as exactly one of:
+     code, chart, system_design, mcq, sql, data_table, error, math, document, ui_design, other.
+
+6. "code":
+   - ONLY when the screen is a coding problem or a SQL/query task (type "code" or "sql").
+   - Give the complete solution the candidate should type:
+     { "language": "<e.g. python, javascript, sql>", "code": "<the full solution, ready to type verbatim>" }
+   - Match the language visible on screen; if unclear, pick the most likely one. Keep it correct and idiomatic.
+   - For every OTHER type, return { "language": "", "code": "" }.
 
 GLOBAL RULES:
 - English only

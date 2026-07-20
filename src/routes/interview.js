@@ -663,6 +663,12 @@ router.post('/analyze-screen', requireAuth, async (req, res) => {
     // deliberately NOT part of screenAnalysisContext, so what reaches the model
     // is unchanged.
     const spokenAnswer = String(parsed.spoken_answer || '').trim();
+    // Screen type + extracted code — display-only (the code to type, a type
+    // badge). Also kept out of screenAnalysisContext.
+    const screenType = String(parsed.type || 'other').trim();
+    const code = parsed.code && typeof parsed.code === 'object'
+      ? { language: String(parsed.code.language || '').trim(), code: String(parsed.code.code || '').trim() }
+      : { language: '', code: '' };
 
     const screenAnalysisContext =
       analysis && answerGuidance
@@ -698,10 +704,12 @@ router.post('/analyze-screen', requireAuth, async (req, res) => {
     }
 
     return res.json({
+      type: screenType,
       analysis,
       key_points: keyPoints,
       answer_guidance: answerGuidance,
       spoken_answer: spokenAnswer,
+      code,
       screen_analysis_context: screenAnalysisContext,
     });
   } catch (err) {

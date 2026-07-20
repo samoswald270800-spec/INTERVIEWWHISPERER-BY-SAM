@@ -1,6 +1,20 @@
 import { useState } from 'react';
 import './ScreenInsight.css';
 
+const TYPE_LABEL = {
+  code: 'Code',
+  sql: 'SQL',
+  chart: 'Graph',
+  system_design: 'System design',
+  mcq: 'Multiple choice',
+  data_table: 'Data',
+  error: 'Error',
+  math: 'Math',
+  document: 'Document',
+  ui_design: 'UI',
+  other: 'Insight',
+};
+
 /**
  * Screen-insight panel — surfaces the result of a screen analysis in the
  * empty right gutter during an interview. Phase 1 renders what the vision
@@ -15,6 +29,7 @@ import './ScreenInsight.css';
 export default function ScreenInsight({ insight, loading, onClose }) {
   const [showFull, setShowFull] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [codeCopied, setCodeCopied] = useState(false);
 
   if (!loading && !insight) return null;
 
@@ -27,6 +42,17 @@ export default function ScreenInsight({ insight, loading, onClose }) {
   // First-person, read-aloud answer (falls back to the older guidance field
   // so responses from before this change still render).
   const say = insight?.spokenAnswer || insight?.answerGuidance || '';
+  const code = insight?.code || '';
+  const codeLang = insight?.codeLang || '';
+  const typeLabel = insight && !insight.error ? (TYPE_LABEL[insight.type] || 'Insight') : '';
+
+  const copyCode = () => {
+    if (!code || !navigator.clipboard) return;
+    navigator.clipboard.writeText(code).then(() => {
+      setCodeCopied(true);
+      setTimeout(() => setCodeCopied(false), 1400);
+    }).catch(() => {});
+  };
 
   const copyAll = () => {
     const text = [
@@ -45,6 +71,9 @@ export default function ScreenInsight({ insight, loading, onClose }) {
       <div className="si-head">
         <span className="si-dot" />
         <span className="iw-eyebrow">Screen insight</span>
+        {typeLabel && !loading && (
+          <span className="si-type">{typeLabel}{codeLang ? ' · ' + codeLang : ''}</span>
+        )}
         <span className="si-spacer" />
         {insight && !insight.error && (
           <button className="si-icon" onClick={copyAll} title="Copy insight" aria-label="Copy insight">
@@ -78,6 +107,16 @@ export default function ScreenInsight({ insight, loading, onClose }) {
         </div>
       ) : (
         <div className="si-body">
+          {code && (
+            <section className="si-sec">
+              <div className="si-code-head">
+                <span className="si-label">Code to type</span>
+                <button className="si-copycode" onClick={copyCode}>{codeCopied ? 'Copied' : 'Copy'}</button>
+              </div>
+              <pre className="si-code"><code>{code}</code></pre>
+            </section>
+          )}
+
           {say && (
             <section className="si-sec">
               <div className="si-label">Say this</div>
@@ -103,7 +142,7 @@ export default function ScreenInsight({ insight, loading, onClose }) {
             </section>
           )}
 
-          {!say && points.length === 0 && !insight.analysis && (
+          {!say && !code && points.length === 0 && !insight.analysis && (
             <div className="si-error">No readable insight from that screen.</div>
           )}
         </div>
