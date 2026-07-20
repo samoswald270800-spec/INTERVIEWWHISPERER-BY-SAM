@@ -489,6 +489,16 @@ app.whenReady().then(() => {
         }
     });
 
+    // Installed app version + "open in the default browser", for the in-app
+    // "update available" nudge. Old builds lack these, which is exactly how the
+    // web UI tells an outdated app apart from a current one.
+    ipcMain.handle('app:version', () => app.getVersion());
+    ipcMain.on('app:open-external', (_event, url) => {
+        if (typeof url === 'string' && /^https?:\/\//i.test(url)) {
+            electronShell.openExternal(url).catch((e) => console.error('[update] openExternal failed:', e.message));
+        }
+    });
+
     const relayBridgePath = nativeResourcePath('windows-audio-bridge', 'WhisperAudioBridge.exe');
     ipcMain.handle('relay-audio:get-status', () => ({
         platform: process.platform,

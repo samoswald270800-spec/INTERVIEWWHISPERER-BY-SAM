@@ -121,6 +121,21 @@ export async function createApp() {
     return res.sendFile(path.join(ROOT_DIR, 'public', 'build', 'index.html'));
   });
 
+  // Public: latest desktop-app version, for the in-app "update available" nudge.
+  // `version` defaults to this deploy's package.json version (bumped per release);
+  // override with APP_LATEST_VERSION to announce a build without shipping code.
+  // `url` (APP_DOWNLOAD_URL) is where the "Update" button sends people.
+  let latestAppVersion = process.env.APP_LATEST_VERSION || '';
+  if (!latestAppVersion) {
+    try {
+      latestAppVersion = JSON.parse(fs.readFileSync(path.join(ROOT_DIR, 'package.json'), 'utf8')).version || '';
+    } catch { latestAppVersion = ''; }
+  }
+  app.get('/api/app/latest', (req, res) => {
+    res.set('Cache-Control', 'no-store');
+    res.json({ version: latestAppVersion, url: process.env.APP_DOWNLOAD_URL || '' });
+  });
+
   // ===== AUTH GATE: Everything below requires authentication =====
   app.use(requireAuth);
 

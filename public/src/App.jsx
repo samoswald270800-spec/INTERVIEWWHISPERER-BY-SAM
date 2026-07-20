@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import StatusPill from './components/StatusPill';
 import CommandDock from './components/CommandDock';
 import JobDescription from './components/JobDescription';
@@ -17,6 +18,7 @@ import UserHelpButton from './components/UserHelpButton';
 import CandidateCameraPage from './components/CandidateCameraPage';
 import ScreenInsight from './components/ScreenInsight';
 import ProfilePage from './components/ProfilePage';
+import UpdateBanner from './components/UpdateBanner';
 import './App.css';
 
 import API_BASE_URL from './config';
@@ -91,6 +93,11 @@ function InterviewApp() {
     const [userRole, setUserRole] = useState(null);
     const [isAppLoading, setIsAppLoading] = useState(true);
 
+    // "Update available" nudge: set when this desktop build is behind the latest.
+    // Shown once per login, dismissible, and never during a live session.
+    const [updateInfo, setUpdateInfo] = useState(null); // { version, url } | null
+    const [updateDismissed, setUpdateDismissed] = useState(false);
+
     // ── Profile view + candidate theming (accent + light/dark) ──
     // Shares localStorage keys with the login page so the two stay in sync.
     const [view, setView] = useState('console'); // 'console' | 'profile'
@@ -129,6 +136,27 @@ function InterviewApp() {
             root.removeAttribute('data-theme');
         }
     }, [userRole, accent, theme]);
+
+    // On login (desktop app only): is a newer build available? Old apps lack the
+    // version bridge, so they read as outdated and get the nudge; a current build
+    // matches the latest version and shows nothing. Runs once per app mount, so
+    // the banner reappears on the next login but not on every re-render.
+    useEffect(() => {
+        if (typeof window === 'undefined' || !window.electron) return; // desktop only
+        let cancelled = false;
+        (async () => {
+            try {
+                const res = await fetch(`${API_BASE_URL}/api/app/latest`, { credentials: 'include' });
+                if (!res.ok) return;
+                const { version, url } = await res.json();
+                if (cancelled || !version) return;
+                const local = window.electron.getAppVersion ? await window.electron.getAppVersion() : null;
+                if (cancelled) return;
+                if (local !== version) setUpdateInfo({ version, url: url || '' });
+            } catch { /* offline or older server without the endpoint → no nudge */ }
+        })();
+        return () => { cancelled = true; };
+    }, []);
 
     // Socket.IO for user-side remote control (only for user role)
     const socket = useSocket(userRole === 'user');
@@ -1428,6 +1456,16 @@ This is your chance to really impress. Leave nothing on the table.`;
     // window (user role).
     const whispererView = (
         <div className="whisper-view">
+            {/* Soft "update available" nudge — desktop, outdated, and not mid-session.
+                Portaled to <body> so it floats above the console chrome. */}
+            {updateInfo && !updateDismissed && !isSessionActive && createPortal(
+                <UpdateBanner
+                    canUpdate={!!updateInfo.url}
+                    onUpdate={() => { window.electron?.openExternal?.(updateInfo.url); setUpdateDismissed(true); }}
+                    onDismiss={() => setUpdateDismissed(true)}
+                />,
+                document.body,
+            )}
             {/* Floating toolbar, top-left */}
             <div className="whisper-toolbar">
                 <button
