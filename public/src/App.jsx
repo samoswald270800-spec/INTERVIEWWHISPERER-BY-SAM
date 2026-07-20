@@ -15,6 +15,7 @@ import useSocket from './hooks/useSocket';
 import useCandidateCameraSession from './hooks/useCandidateCameraSession';
 import UserHelpButton from './components/UserHelpButton';
 import CandidateCameraPage from './components/CandidateCameraPage';
+import ScreenInsight from './components/ScreenInsight';
 import ProfilePage from './components/ProfilePage';
 import './App.css';
 
@@ -54,6 +55,10 @@ function InterviewApp() {
     const [jd, setJd] = useState("");
     const [speed, setSpeed] = useState(0);
     const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+    // Screen-analysis insight panel (right gutter during the interview)
+    const [insight, setInsight] = useState(null);
+    const [insightLoading, setInsightLoading] = useState(false);
+    const [insightOpen, setInsightOpen] = useState(false);
     const [permissions, setPermissions] = useState({ canExpand: true, canAnalyze: true, canReasoning: true, canTurbo: true, canStartSession: true });
     const [lockedFeatures, setLockedFeatures] = useState({});
     const [visionModel, setVisionModel] = useState("openai");
@@ -1165,6 +1170,8 @@ This is your chance to really impress. Leave nothing on the table.`;
             video.srcObject = null;
 
             setStatus("ANALYZING...");
+            setInsightOpen(true);
+            setInsightLoading(true);
 
             const res = await fetch(`${API_BASE_URL}/analyze-screen`, {
                 method: "POST",
@@ -1180,10 +1187,13 @@ This is your chance to really impress. Leave nothing on the table.`;
             const data = await res.json();
             if (data.error) {
                 alert(data.error);
+                setInsightLoading(false);
+                setInsightOpen(false);
                 setStatus("LISTENING...");
                 return;
             }
             if (data.analysis) {
+                // Feed the model as before (hidden context that shapes the whisper)…
                 if (window._lastDC) {
                     const event = {
                         type: "conversation.item.create",
@@ -1195,12 +1205,25 @@ This is your chance to really impress. Leave nothing on the table.`;
                     };
                     window._lastDC.send(JSON.stringify(event));
                 }
+                // …and surface it visually in the insight panel (previously discarded).
+                setInsight({
+                    keyPoints: data.key_points || '',
+                    answerGuidance: data.answer_guidance || '',
+                    analysis: data.analysis || '',
+                    at: Date.now(),
+                });
+                setInsightLoading(false);
                 setStatus("SCREEN ANALYZED");
                 setTimeout(() => setStatus("LISTENING..."), 2000);
+            } else {
+                setInsightLoading(false);
+                setInsightOpen(false);
             }
         } catch (e) {
             console.error(e);
             alert("Screen Analysis Error: " + e.message); // Show exact error to user
+            setInsightLoading(false);
+            setInsightOpen(false);
             setStatus("ANALYSIS FAILED");
         }
     };
@@ -1423,6 +1446,20 @@ This is your chance to really impress. Leave nothing on the table.`;
                     </svg>
                     Job description
                 </button>
+                {insight && (
+                    <button
+                        className={`toolbar-btn ${insightOpen ? 'active' : ''}`}
+                        onClick={() => setInsightOpen((o) => !o)}
+                        title="Screen insight"
+                    >
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <path d="M9 18h6"></path>
+                            <path d="M10 22h4"></path>
+                            <path d="M15.09 14c.18-.98.65-1.74 1.41-2.5A4.65 4.65 0 0 0 18 8 6 6 0 0 0 6 8c0 1 .23 2.23 1.5 3.5A4.61 4.61 0 0 1 8.91 14"></path>
+                        </svg>
+                        Insight
+                    </button>
+                )}
                 {isSuperAdmin && (
                     <button
                         className={`toolbar-btn icon-only ${camOverlayOn ? 'active' : ''}`}
@@ -1494,6 +1531,15 @@ This is your chance to really impress. Leave nothing on the table.`;
                 isRecording={isRecording}
                 onToggleRecording={toggleRecording}
             />
+
+            {/* Screen-analysis insight, docked in the right gutter */}
+            {insightOpen && (
+                <ScreenInsight
+                    insight={insight}
+                    loading={insightLoading}
+                    onClose={() => setInsightOpen(false)}
+                />
+            )}
 
             {/* Preferences: round floating button, popover opens upward */}
             <button
