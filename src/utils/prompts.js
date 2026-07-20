@@ -126,7 +126,8 @@ You MUST output ONLY a JSON object with exactly these required fields:
 {
   "analysis": "...",
   "key_points": "...",
-  "answer_guidance": "..."
+  "answer_guidance": "...",
+  "spoken_answer": "..."
 }
 
 REQUIREMENTS FOR EACH FIELD:
@@ -156,6 +157,14 @@ REQUIREMENTS FOR EACH FIELD:
      • how to estimate root causes
      • how to communicate this clearly in an interview
    - This section must be 400–800 words minimum.
+
+4. "spoken_answer":
+   - The SAME substance as "answer_guidance", but rewritten as a natural, FIRST-PERSON answer the candidate reads out loud, word for word.
+   - Speak AS the candidate: "What I'm seeing is…", "I'd…", "My read is…", "The way I'd approach this…".
+   - Confident, specific, and pointed — quote the concrete numbers, labels, or code on screen.
+   - Do NOT address "the interviewer" in the third person, and do NOT give meta-instructions like "lead with" or "walk them through" — just say the actual words the candidate should speak.
+   - 4–8 spoken sentences. Conversational but precise. No filler and no preamble like "Sure" or "Great question".
+   - This field is for on-screen display only; write it so it can be read aloud verbatim.
 
 GLOBAL RULES:
 - English only

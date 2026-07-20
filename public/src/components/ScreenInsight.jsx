@@ -24,10 +24,14 @@ export default function ScreenInsight({ insight, loading, onClose }) {
     .map((s) => s.replace(/^\s*(?:[•\-*•]|\d+[.)])\s*/, '').trim())
     .filter(Boolean);
 
+  // First-person, read-aloud answer (falls back to the older guidance field
+  // so responses from before this change still render).
+  const say = insight?.spokenAnswer || insight?.answerGuidance || '';
+
   const copyAll = () => {
     const text = [
+      say ? 'SAY THIS\n' + say : '',
       points.length ? 'KEY POINTS\n' + points.map((p) => '• ' + p).join('\n') : '',
-      insight?.answerGuidance ? 'HOW TO ANSWER\n' + insight.answerGuidance : '',
     ].filter(Boolean).join('\n\n');
     if (!text || !navigator.clipboard) return;
     navigator.clipboard.writeText(text).then(() => {
@@ -74,19 +78,19 @@ export default function ScreenInsight({ insight, loading, onClose }) {
         </div>
       ) : (
         <div className="si-body">
+          {say && (
+            <section className="si-sec">
+              <div className="si-label">Say this</div>
+              <p className="si-text si-say">{say}</p>
+            </section>
+          )}
+
           {points.length > 0 && (
             <section className="si-sec">
               <div className="si-label">Key points</div>
               <ul className="si-points">
                 {points.map((p, i) => <li key={i}>{p}</li>)}
               </ul>
-            </section>
-          )}
-
-          {insight.answerGuidance && (
-            <section className="si-sec">
-              <div className="si-label">How to answer</div>
-              <p className="si-text">{insight.answerGuidance}</p>
             </section>
           )}
 
@@ -99,7 +103,7 @@ export default function ScreenInsight({ insight, loading, onClose }) {
             </section>
           )}
 
-          {points.length === 0 && !insight.answerGuidance && !insight.analysis && (
+          {!say && points.length === 0 && !insight.analysis && (
             <div className="si-error">No readable insight from that screen.</div>
           )}
         </div>

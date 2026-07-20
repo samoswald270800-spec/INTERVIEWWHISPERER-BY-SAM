@@ -1207,6 +1207,7 @@ This is your chance to really impress. Leave nothing on the table.`;
                 }
                 // …and surface it visually in the insight panel (previously discarded).
                 setInsight({
+                    spokenAnswer: data.spoken_answer || '',
                     keyPoints: data.key_points || '',
                     answerGuidance: data.answer_guidance || '',
                     analysis: data.analysis || '',

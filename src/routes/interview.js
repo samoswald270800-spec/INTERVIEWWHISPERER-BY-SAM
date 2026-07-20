@@ -659,6 +659,10 @@ router.post('/analyze-screen', requireAuth, async (req, res) => {
     const analysis = String(parsed.analysis || '').trim();
     const keyPoints = String(parsed.key_points || '').trim();
     const answerGuidance = String(parsed.answer_guidance || '').trim();
+    // Display-only, first-person version for the on-screen insight card. It is
+    // deliberately NOT part of screenAnalysisContext, so what reaches the model
+    // is unchanged.
+    const spokenAnswer = String(parsed.spoken_answer || '').trim();
 
     const screenAnalysisContext =
       analysis && answerGuidance
@@ -697,6 +701,7 @@ router.post('/analyze-screen', requireAuth, async (req, res) => {
       analysis,
       key_points: keyPoints,
       answer_guidance: answerGuidance,
+      spoken_answer: spokenAnswer,
       screen_analysis_context: screenAnalysisContext,
     });
   } catch (err) {
