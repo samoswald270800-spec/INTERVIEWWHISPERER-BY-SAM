@@ -2,7 +2,7 @@ import { app, BrowserWindow, globalShortcut, Tray, Menu, desktopCapturer, sessio
 import path from 'path';
 import { fileURLToPath } from 'url';
 import fs from 'fs';
-import { spawn } from 'child_process';
+import { spawn, execSync } from 'child_process';
 import { planHumanTyping } from './human-typer.js';
 
 // Load environment variables only in development
@@ -941,7 +941,7 @@ Write-Output "READY"
     let humanTypingCancel = false;
     const typeSleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
-    async function playTypingPlan(nut, events) {
+    async function playTypingPlan(nut, events, { fixIndent = false } = {}) {
         const { keyboard, Key } = nut;
         for (const ev of events) {
             if (humanTypingCancel) break;
@@ -956,11 +956,64 @@ Write-Output "READY"
                 await keyboard.releaseKey(Key.Delete);
             } else if (ev.type === 'key') {
                 const ch = ev.key;
-                if (ch === '\n') { await keyboard.pressKey(Key.Enter); await keyboard.releaseKey(Key.Enter); }
+                if (ch === '\n') {
+                    await keyboard.pressKey(Key.Enter);
+                    await keyboard.releaseKey(Key.Enter);
+                    if (fixIndent) {
+                        // Wipe the editor's auto-indent so ONLY the code's own
+                        // indentation lands (critical for Python). On a fresh
+                        // auto-indented line, Shift+Home selects that whitespace
+                        // and Backspace deletes the selection — leaving the caret
+                        // at column 0 for the model's intended indent to type.
+                        await keyboard.pressKey(Key.LeftShift, Key.Home);
+                        await keyboard.releaseKey(Key.LeftShift, Key.Home);
+                        await keyboard.pressKey(Key.Backspace);
+                        await keyboard.releaseKey(Key.Backspace);
+                    }
+                }
                 else if (ch === '\t') { await keyboard.pressKey(Key.Tab); await keyboard.releaseKey(Key.Tab); }
                 else if (ch && ch !== '\r') await keyboard.type(ch);
             }
         }
+    }
+
+    // With CapsLock ON, nut-js types letters in the inverted case (lowercase →
+    // UPPER, and the odd capital → lower) — so the code comes out as garbage.
+    // Turn CapsLock off before typing and restore it after. Windows only, where
+    // the problem occurs and we can query the lock state; no-op elsewhere.
+    async function neutralizeCapsLock(nut) {
+        if (process.platform !== 'win32') return false;
+        let on = false;
+        try {
+            const out = execSync('powershell -NoProfile -Command "[Console]::CapsLock"', { timeout: 3000, windowsHide: true }).toString();
+            on = /true/i.test(out);
+        } catch (e) {
+            return false; // couldn't read it — leave the keyboard alone
+        }
+        if (!on) return false;
+        try {
+            await nut.keyboard.pressKey(nut.Key.CapsLock);
+            await nut.keyboard.releaseKey(nut.Key.CapsLock);
+            return true; // we turned it off; caller restores it afterwards
+        } catch {
+            return false;
+        }
+    }
+
+    // Select-all + delete, so the solution always types into a clean editor
+    // instead of getting nested inside the stub the site pre-fills (which is
+    // what duplicated the class and broke the run).
+    async function clearEditor(nut) {
+        const { keyboard, Key } = nut;
+        const mod = process.platform === 'darwin' ? Key.LeftSuper : Key.LeftControl;
+        try {
+            await keyboard.pressKey(mod, Key.A);
+            await keyboard.releaseKey(mod, Key.A);
+            await typeSleep(70);
+            await keyboard.pressKey(Key.Backspace);
+            await keyboard.releaseKey(Key.Backspace);
+            await typeSleep(90);
+        } catch { /* best effort */ }
     }
 
     ipcMain.handle('rc:type-human', async (_event, payload) => {
@@ -970,16 +1023,27 @@ Write-Output "READY"
         if (humanTypingActive) return { ok: false, reason: 'busy' };
         const nut = await getNut();
         if (!nut) return { ok: false, reason: 'no-input-engine' };
+        // speed: 0 (slowest) … 1 (max = the model's natural pace); default slow.
+        const speed = typeof payload.speed === 'number' ? Math.max(0, Math.min(1, payload.speed)) : 0.35;
+        const paceScale = 1 + (1 - speed) * 4; // 1 (max) … 5 (slowest)
+        const clearFirst = payload && payload.clearFirst !== false; // default on
+        const fixIndent = payload && payload.fixIndent !== false;   // default on
         humanTypingActive = true;
         humanTypingCancel = false;
+        let restoreCaps = false;
         try {
-            const { events, meta } = planHumanTyping(text);
-            await playTypingPlan(nut, events);
+            restoreCaps = await neutralizeCapsLock(nut);
+            if (clearFirst && !humanTypingCancel) await clearEditor(nut);
+            const { events, meta } = planHumanTyping(text, { paceScale });
+            await playTypingPlan(nut, events, { fixIndent });
             return { ok: true, cancelled: humanTypingCancel, meta };
         } catch (e) {
             console.error('[TypeIn] human typing error:', e.message);
             return { ok: false, reason: e.message };
         } finally {
+            if (restoreCaps) {
+                try { await nut.keyboard.pressKey(nut.Key.CapsLock); await nut.keyboard.releaseKey(nut.Key.CapsLock); } catch { /* best effort */ }
+            }
             humanTypingActive = false;
             humanTypingCancel = false;
         }

@@ -90,6 +90,10 @@ export function planHumanTyping(text, opts = {}) {
   const rand = (min, max) => min + rng() * (max - min);
   const chance = (p) => rng() < p;
   const pick = (s) => s[Math.floor(rng() * s.length)];
+  // Overall pace: 1 = the model's natural (fastest) speed; >1 slows everything
+  // down proportionally. The speed slider drives this (1 = "Max", up to ~5 =
+  // "Slowest"). Every delay is multiplied by it.
+  const paceScale = Math.max(0.5, Math.min(8, opts.paceScale || 1));
 
   const events = [];
   let t = 0;              // cumulative ms
@@ -109,11 +113,12 @@ export function planHumanTyping(text, opts = {}) {
   };
 
   const emit = (type, { key = '', intendedKey = '', delayMs = 0, reason = '', correction = null }) => {
-    t += Math.max(0, Math.round(delayMs));
+    const d = Math.max(0, Math.round(delayMs * paceScale));
+    t += d;
     events.push({
       i: events.length, synthetic: true, type,
       key, intendedKey, reason,
-      delayMs: Math.max(0, Math.round(delayMs)), atMs: Math.round(t),
+      delayMs: d, atMs: Math.round(t),
       correction,
     });
   };
