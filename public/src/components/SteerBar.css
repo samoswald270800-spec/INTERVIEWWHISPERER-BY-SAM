@@ -96,6 +96,44 @@
     color: #A5E8FF;
 }
 
+/* "Extend last answer" — an accent action chip (acts on the last answer, so it
+   reads distinct from the queued "next answer" nudges around it). */
+.steer-chip.extend {
+    color: var(--acc-text);
+    background: var(--acc-soft-bg);
+    border-color: var(--acc-soft-border);
+    font-weight: 600;
+}
+
+.steer-chip.extend:not(:disabled):hover {
+    border-color: var(--acc-solid);
+    color: var(--text-primary);
+}
+
+.steer-chip.extend:disabled {
+    opacity: 0.45;
+    cursor: default;
+}
+
+.steer-chip.extend.busy {
+    opacity: 1;
+    cursor: default;
+}
+
+.steer-spin {
+    width: 12px;
+    height: 12px;
+    flex: none;
+    border-radius: 50%;
+    border: 2px solid var(--acc-soft-border);
+    border-top-color: var(--acc-text);
+    animation: steerSpin 0.7s linear infinite;
+}
+
+@keyframes steerSpin {
+    to { transform: rotate(360deg); }
+}
+
 /* Custom nudge input */
 .steer-input {
     height: 32px;

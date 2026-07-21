@@ -248,8 +248,8 @@ export function useReasoningFlow({
     // ─────────────────────────────────────────────
     //  STREAM ANSWER: SSE from /api/reasoning/answer
     // ─────────────────────────────────────────────
-    const streamAnswer = useCallback(async (transcript, expandPrompt = null, skipSteering = false) => {
-        setStatus(expandPrompt ? "EXPANDING..." : "GENERATING...");
+    const streamAnswer = useCallback(async (transcript, overridePrompt = null, skipSteering = false, statusLabel = null) => {
+        setStatus(statusLabel || (overridePrompt ? "EXPANDING..." : "GENERATING..."));
 
         const controller = new AbortController();
         abortControllerRef.current = controller;
@@ -259,7 +259,7 @@ export function useReasoningFlow({
         // Queued steering nudges ride along with normal answers only (not expand,
         // and not a forced "answer now" which carries its own prompt). Sent as a
         // separate field so the displayed question stays clean.
-        const steering = !expandPrompt && !skipSteering && consumeSteering ? consumeSteering() : null;
+        const steering = !overridePrompt && !skipSteering && consumeSteering ? consumeSteering() : null;
 
         try {
             const res = await fetch(`${API_BASE_URL}/api/reasoning/answer`, {
@@ -268,7 +268,7 @@ export function useReasoningFlow({
                 headers: { 'Content-Type': 'application/json' },
                 signal: controller.signal,
                 body: JSON.stringify({
-                    transcript: expandPrompt || transcript,
+                    transcript: overridePrompt || transcript,
                     interviewMode: getInterviewMode(),
                     jd: getJd(),
                     steering: steering || undefined,
@@ -376,6 +376,38 @@ export function useReasoningFlow({
         await streamAnswer(lastQuestionRef.current, expandPrompt);
     }, [setCanExpand, setIsProcessing, setQaList, streamAnswer]);
 
+    // ─────────────────────────────────────────────
+    //  EXTEND: Same answer, just longer & more detailed
+    // ─────────────────────────────────────────────
+    // Unlike EXPAND (which re-answers deeper and may bring new examples),
+    // EXTEND keeps the exact same answer/example and only elaborates it, so the
+    // candidate gets a longer version of the same thing they were already saying.
+    const extendLastAnswer = useCallback(async () => {
+        if (!lastQuestionRef.current || !lastAnswerRef?.current) return;
+
+        // Stop listening while extending
+        stopListening();
+
+        setCanExpand(false);
+        setIsProcessing(true);
+
+        // Clear the current answer and regenerate the longer version in place
+        setQaList(prev => {
+            const newList = [...prev];
+            if (newList.length > 0) {
+                newList[newList.length - 1] = { ...newList[newList.length - 1], answer: "" };
+            }
+            return newList;
+        });
+
+        typeQueueRef.current = [];
+        isTypingRef.current = false;
+
+        const extendPrompt = `The question was: ${lastQuestionRef.current}\nYour previous answer was: ${lastAnswerRef.current}\n\nRewrite THIS SAME answer in a longer, more detailed form. Keep the exact same example, story, structure, and points — do not add new examples, swap the example, or change what the answer is about. Only elaborate: expand each existing point with more detail, explanation, and specifics so it reads as a fuller, lengthier version of the same answer. Do not mention that you are extending or rewriting.`;
+
+        await streamAnswer(lastQuestionRef.current, extendPrompt, false, "EXTENDING...");
+    }, [setCanExpand, setIsProcessing, setQaList, streamAnswer]);
+
 
     // ─────────────────────────────────────────────
     //  STOP LISTENING: Kill VAD, recorder, context
@@ -470,6 +502,7 @@ export function useReasoningFlow({
         stopListening,
         cleanup,
         expandLastAnswer,
+        extendLastAnswer,
         askDirect,
     };
 }
