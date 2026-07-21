@@ -36,6 +36,15 @@ const COMMON = new Set([
   'size', 'push', 'back', 'auto', 'std', 'cout', 'main',
 ]);
 
+// Common letter pairs — the hands flow through these from muscle memory.
+const BIGRAMS = new Set([
+  'th', 'he', 'in', 'er', 'an', 're', 'on', 'at', 'en', 'nd', 'ti', 'es', 'or',
+  'te', 'of', 'ed', 'is', 'it', 'al', 'ar', 'st', 'to', 'nt', 'ng', 'se', 'ha',
+  'as', 'ou', 'io', 'le', 've', 'co', 'me', 'de', 'hi', 'ri', 'ro', 'ic', 'ne',
+  'ea', 'ra', 'ce', 'li', 'ch', 'll', 'be', 'ma', 'si', 'om', 'ur', 'ca', 'el',
+  'ta', 'di', 'ns', 'tr', 'pr', 'nt', 'et', 'ec',
+]);
+
 // Type/declaration keywords — an identifier right after one of these is a
 // freshly-invented name (function/variable), so the typist pauses to think.
 const DECL_BEFORE_NAME = new Set([
@@ -86,6 +95,18 @@ export function planHumanTyping(text, opts = {}) {
   let t = 0;              // cumulative ms
   let buffer = '';        // simulated on-screen text (guards correctness)
   let speed = 1.0;        // slow-drifting rhythm factor
+  let burstUntil = -1;    // source index up to which we're in a fast "flow" burst
+  let cautiousUntil = -1; // source index up to which we type carefully (post-slip)
+  const total = text.length || 1;
+
+  // Whole-solution arc: warm up (slower), settle into flow (fastest), then a
+  // touch of fatigue toward the end.
+  const sessionPace = (idx) => {
+    const p = idx / total;
+    if (p < 0.22) return 1.16 - (p / 0.22) * 0.26;   // 1.16 → 0.90
+    if (p < 0.70) return 0.90 + (p - 0.22) * 0.05;   // ~0.90 → 0.92
+    return 0.92 + (p - 0.70) * 0.33;                 // 0.92 → ~1.02
+  };
 
   const emit = (type, { key = '', intendedKey = '', delayMs = 0, reason = '', correction = null }) => {
     t += Math.max(0, Math.round(delayMs));
@@ -105,16 +126,22 @@ export function planHumanTyping(text, opts = {}) {
   const backspace = (delayMs, reason) => { emit('backspace', { key: 'Backspace', delayMs, reason }); buffer = buffer.slice(0, -1); };
   const pause = (delayMs, reason) => emit('pause', { delayMs, reason });
 
-  // Per-character cadence, shaped by what's being typed.
-  const charDelay = (ch, { fast = false, complex = false, firstOfWord = false } = {}) => {
-    let base = fast ? rand(28, 70) : rand(55, 130);
-    if (ch === ' ') base = rand(24, 70);
-    if (/[{}()[\]<>;:=+\-*/%&|^!?]/.test(ch)) base *= rand(1.15, 1.7); // symbols are fiddlier
-    if (firstOfWord) base *= rand(1.0, 1.25);
-    if (complex) base *= rand(1.3, 1.9);                                // dense/complex code
-    // drift the overall rhythm a little each keystroke
-    speed = Math.min(1.45, Math.max(0.7, speed + rand(-0.06, 0.06)));
-    return base * speed;
+  // Per-character cadence, shaped by what's being typed and where we are.
+  const charDelay = (ch, ctx = {}) => {
+    const { fast = false, complex = false, firstOfWord = false, posInWord = 0, prevCh = '', srcIdx = 0 } = ctx;
+    let base = fast ? rand(28, 66) : rand(52, 122);
+    if (ch === ' ') base = rand(22, 64);                                     // thumb — quick, steady
+    if (/[A-Z]/.test(ch)) base *= rand(1.1, 1.4);                            // reaching for shift
+    if (/[0-9]/.test(ch)) base *= rand(1.1, 1.4);                            // number row
+    if (/[{}()[\]<>;:=+\-*/%&|^!?~@#$]/.test(ch)) base *= rand(1.15, 1.75);  // symbols are fiddlier
+    if (firstOfWord) base *= rand(1.05, 1.3);                               // starting a word
+    else if (posInWord >= 2) base *= rand(0.82, 0.98);                      // momentum mid-word
+    if (prevCh && BIGRAMS.has((prevCh + ch).toLowerCase())) base *= rand(0.78, 0.95); // familiar pair
+    if (complex) base *= rand(1.3, 1.9);                                    // dense/complex code
+    if (srcIdx <= burstUntil) base *= rand(0.6, 0.82);                      // in a flow burst
+    if (srcIdx <= cautiousUntil) base *= rand(1.15, 1.45);                  // careful after a slip
+    speed = Math.min(1.4, Math.max(0.72, speed + rand(-0.05, 0.05)));       // slow rhythm drift
+    return base * speed * sessionPace(srcIdx);
   };
 
   const neighbor = (ch) => {
@@ -164,51 +191,59 @@ export function planHumanTyping(text, opts = {}) {
     // ── type the token's characters ──
     for (let k = 0; k < tok.val.length; k++) {
       const ch = tok.val[k];
+      const srcIdx = tok.start + k;
+      const prevCh = k > 0 ? tok.val[k - 1] : '';
       const firstOfWord = k === 0 && (tok.type === 'word' || tok.type === 'number');
       const eligible = /[A-Za-z0-9]/.test(ch); // only slip on letters/digits — keep structure intact
       const remainingInWord = tok.val.length - 1 - k;
+      const ctx = { fast: isCommon, complex, firstOfWord, posInWord: k, prevCh, srcIdx };
+
+      // occasional flow bursts, mid-typing freezes, and the rare distraction
+      if (chance(0.02) && burstUntil < srcIdx) burstUntil = srcIdx + Math.floor(rand(4, 11));
+      if (chance(0.012)) pause(rand(150, 430), 'micro-stall');
+      if (chance(0.004)) pause(rand(1200, 3600), 'distraction');
 
       // decide a mistake (rarer inside common words)
       const mistakeP = eligible ? (isCommon ? 0.008 : 0.03) : 0;
       if (chance(mistakeP)) {
+        cautiousUntil = srcIdx + Math.floor(rand(3, 9)); // rattled → careful for a bit
         const roll = rng();
-        if (roll < 0.5) {
+        const nextCh = tok.val[k + 1];
+        if (roll < 0.30) {
           // nearby-key slip, corrected immediately
           const wrong = neighbor(ch);
           if (wrong) {
-            keyEvent(wrong, charDelay(ch, { fast: isCommon }), 'slip', ch,
-              { kind: 'nearby-key', expected: ch, got: wrong });
+            keyEvent(wrong, charDelay(ch, ctx), 'slip', ch, { kind: 'nearby-key', expected: ch, got: wrong });
             pause(rand(90, 300), 'notice-error');
             backspace(rand(70, 190), 'fix-slip');
             keyEvent(ch, rand(60, 150), 'retype', ch);
             continue;
           }
-        } else if (roll < 0.68) {
+        } else if (roll < 0.44) {
           // repeated character
-          keyEvent(ch, charDelay(ch, { fast: isCommon, firstOfWord }), 'char', ch);
+          keyEvent(ch, charDelay(ch, ctx), 'char', ch);
           keyEvent(ch, rand(45, 110), 'slip', '', { kind: 'repeat', expected: ch });
           pause(rand(110, 340), 'notice-error');
           backspace(rand(70, 200), 'fix-repeat');
           continue;
-        } else if (roll < 0.84 && remainingInWord >= 1) {
+        } else if (roll < 0.58 && remainingInWord >= 1) {
           // missed character, noticed after typing 1–2 more, then inserted
           const k2 = remainingInWord >= 2 && chance(0.5) ? 2 : 1;
           const ahead = tok.val.slice(k + 1, k + 1 + k2);
-          for (const c of ahead) keyEvent(c, charDelay(c, { fast: isCommon }), 'char', c);
+          for (const c of ahead) keyEvent(c, charDelay(c, ctx), 'char', c);
           pause(rand(160, 520), 'notice-error');
           for (let b = 0; b < k2; b++) backspace(rand(60, 170), 'fix-missed');
           keyEvent(ch, rand(80, 220), 'insert-missed', ch, { kind: 'missed', expected: ch });
           for (const c of ahead) keyEvent(c, rand(45, 120), 'retype', c);
           k += k2;
           continue;
-        } else if (remainingInWord >= 1) {
+        } else if (roll < 0.70 && remainingInWord >= 1) {
           // nearby slip noticed one char late (delayed correction)
           const wrong = neighbor(ch);
           const aheadCh = tok.val[k + 1];
           if (wrong) {
-            keyEvent(wrong, charDelay(ch, { fast: isCommon }), 'slip', ch,
-              { kind: 'nearby-key-delayed', expected: ch, got: wrong });
-            keyEvent(aheadCh, charDelay(aheadCh), 'char', aheadCh);
+            keyEvent(wrong, charDelay(ch, ctx), 'slip', ch, { kind: 'nearby-key-delayed', expected: ch, got: wrong });
+            keyEvent(aheadCh, charDelay(aheadCh, ctx), 'char', aheadCh);
             pause(rand(140, 460), 'notice-error');
             backspace(rand(70, 180), 'fix-delayed');
             backspace(rand(55, 150), 'fix-delayed');
@@ -217,10 +252,35 @@ export function planHumanTyping(text, opts = {}) {
             k += 1;
             continue;
           }
+        } else if (roll < 0.85 && nextCh && /[A-Za-z0-9]/.test(nextCh)) {
+          // transposition — the two keys land in the wrong order ("teh" for "the")
+          keyEvent(nextCh, charDelay(nextCh, ctx), 'slip', ch, { kind: 'transpose', expected: ch + nextCh, got: nextCh + ch });
+          keyEvent(ch, rand(45, 110), 'slip', nextCh);
+          pause(rand(120, 430), 'notice-error');
+          backspace(rand(70, 180), 'fix-transpose');
+          backspace(rand(55, 150), 'fix-transpose');
+          keyEvent(ch, rand(70, 160), 'retype', ch);
+          keyEvent(nextCh, rand(50, 120), 'retype', nextCh);
+          k += 1;
+          continue;
+        } else {
+          // case slip — wrong case, then fixed (missed / over-held shift)
+          const other = ch === ch.toLowerCase() ? ch.toUpperCase() : ch.toLowerCase();
+          if (other !== ch) {
+            keyEvent(other, charDelay(ch, ctx), 'slip', ch, { kind: 'case', expected: ch, got: other });
+            pause(rand(90, 300), 'notice-error');
+            backspace(rand(70, 180), 'fix-case');
+            keyEvent(ch, rand(60, 150), 'retype', ch);
+            continue;
+          }
         }
       }
 
-      keyEvent(ch, charDelay(ch, { fast: isCommon, complex, firstOfWord }), 'char', ch);
+      keyEvent(ch, charDelay(ch, ctx), 'char', ch);
+
+      // structural settle: a beat inside a fresh bracket; a breath after a separator
+      if (ch === '(' || ch === '{') { if (chance(0.22)) pause(rand(120, 480), 'bracket-content'); }
+      else if (ch === ',' || ch === ';') { if (chance(0.28)) pause(rand(60, 240), 'settle'); }
     }
 
     if (tok.type === 'word' || tok.type === 'number') prevWord = tok.val;
