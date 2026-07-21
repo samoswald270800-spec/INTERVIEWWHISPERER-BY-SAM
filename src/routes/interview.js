@@ -565,8 +565,27 @@ router.post('/analyze-screen', requireAuth, async (req, res) => {
       new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), ms))
     ]);
 
-    // Helper: OpenAI Call with Fallback
-    const callOpenAI = async () => {
+    // Vision models — env-overridable so they can be tuned on the host without a
+    // redeploy. GPT-5.5 is a reasoning model: it rejects `temperature`, wants
+    // `max_completion_tokens` (which also has to cover reasoning tokens), and
+    // takes `reasoning_effort`. Default effort is 'medium' — noticeably better
+    // code than 'low' without 'high'/'xhigh' latency. Set VISION_REASONING_EFFORT
+    // to '' to omit it entirely (e.g. if pointed back at a non-reasoning model).
+    const VISION_MODEL = process.env.VISION_MODEL || 'gpt-5.5';
+    const VISION_REASONING_EFFORT = process.env.VISION_REASONING_EFFORT ?? 'medium';
+    const VISION_ANTHROPIC_MODEL = process.env.VISION_ANTHROPIC_MODEL || 'claude-sonnet-5';
+    const VISION_MAX_TOKENS = Number(process.env.VISION_MAX_TOKENS) || 16000;
+    // Last-resort OpenAI model if the primary (and any Claude fallback) fails —
+    // a plain, always-available model so the screen-reader never dead-ends.
+    const VISION_SAFETY_MODEL = process.env.VISION_SAFETY_MODEL || 'gpt-4o';
+    // reasoning_effort / max_completion_tokens are reasoning-model params; gpt-4o
+    // and friends reject reasoning_effort, so gate it on the model family.
+    const isReasoningModel = (m) => /^(o\d|gpt-[5-9])/i.test(String(m));
+
+    // Helper: OpenAI Call with Fallback. Pass a modelOverride to run a specific
+    // model (used for the gpt-4o safety net); defaults to VISION_MODEL.
+    const callOpenAI = async (modelOverride) => {
+      const model = modelOverride || VISION_MODEL;
       const content = [];
       if (combinedTranscript) {
         content.push({ type: 'text', text: `FULL TRANSCRIPT (from Redis):\n${combinedTranscript}` });
@@ -579,19 +598,31 @@ router.post('/analyze-screen', requireAuth, async (req, res) => {
 
       for (let i = 0; i < keys.length; i++) {
         try {
-          console.log(`[analyze-screen] Attempting OpenAI Vision with Key #${i === 0 ? 'Primary' : i}`);
+          console.log(`[analyze-screen] Attempting OpenAI Vision (${model}) with Key #${i === 0 ? 'Primary' : i}`);
           // Dynamic client creation for fallback keys
           const fallbackClient = new OpenAI({ apiKey: keys[i] });
 
-          const response = await fallbackClient.chat.completions.create({
-            model: 'gpt-4o',
+          // Reasoning models (gpt-5.x) reject `temperature` and use
+          // `max_completion_tokens`; gpt-4o works with these too but rejects
+          // `reasoning_effort`, so only send it to reasoning models.
+          const params = {
+            model,
             messages: [{ role: 'user', content }],
-            temperature: 0.4,
-            max_tokens: 3000,
+            max_completion_tokens: VISION_MAX_TOKENS,
             response_format: { type: 'json_object' }
-          });
+          };
+          if (VISION_REASONING_EFFORT && isReasoningModel(model)) params.reasoning_effort = VISION_REASONING_EFFORT;
 
-          return JSON.parse(response.choices[0].message.content);
+          const response = await fallbackClient.chat.completions.create(params);
+
+          const raw = response.choices?.[0]?.message?.content;
+          if (!raw) {
+            // A reasoning model that spent its whole budget thinking returns
+            // empty content — surface it so we fail over to the next key/model
+            // instead of throwing an opaque JSON.parse error.
+            throw new Error(`Empty content (finish_reason: ${response.choices?.[0]?.finish_reason || 'unknown'})`);
+          }
+          return JSON.parse(raw);
         } catch (err) {
           console.warn(`[analyze-screen] Key #${i === 0 ? 'Primary' : i} failed:`, err.message);
           lastError = err;
@@ -609,8 +640,9 @@ router.post('/analyze-screen', requireAuth, async (req, res) => {
         promptText = `FULL TRANSCRIPT (from Redis):\n${combinedTranscript}\n\n${VISION_PROMPT}`;
       }
 
+      // claude-sonnet-5 also rejects sampling params like `temperature`.
       const { text } = await generateText({
-        model: anthropic('claude-3-5-sonnet-20241022'),
+        model: anthropic(VISION_ANTHROPIC_MODEL),
         messages: [
           {
             role: 'user',
@@ -620,8 +652,7 @@ router.post('/analyze-screen', requireAuth, async (req, res) => {
             ]
           }
         ],
-        maxTokens: 3000,
-        temperature: 0.4,
+        maxTokens: 4096,
       });
 
       const s = text.indexOf('{');
@@ -630,26 +661,45 @@ router.post('/analyze-screen', requireAuth, async (req, res) => {
       return JSON.parse(text);
     };
 
-    let parsed;
-    const primary = preferredModel === 'anthropic' ? callAnthropic : callOpenAI;
-    const secondary = preferredModel === 'anthropic' ? callOpenAI : callAnthropic;
-    const primaryName = preferredModel === 'anthropic' ? 'Anthropic' : 'OpenAI';
-    const secondaryName = preferredModel === 'anthropic' ? 'OpenAI' : 'Anthropic';
+    // Build the model attempt chain, tried in order until one succeeds:
+    //   1. the preferred model (GPT-5.5 by default, or Claude if requested+keyed)
+    //   2. Claude Sonnet 5 — only if an Anthropic key is configured
+    //   3. a gpt-4o safety net so the screen-reader never dead-ends
+    // Only the first attempt is bounded by the timeout; fallbacks run to
+    // completion since we're already past the "fast path" budget.
+    const hasAnthropic = !!config.ANTHROPIC_API_KEY;
+    const attempts = [];
+    if (preferredModel === 'anthropic' && hasAnthropic) {
+      attempts.push({ name: `Anthropic (${VISION_ANTHROPIC_MODEL})`, fn: () => callAnthropic() });
+      attempts.push({ name: `OpenAI (${VISION_MODEL})`, fn: () => callOpenAI() });
+    } else {
+      attempts.push({ name: `OpenAI (${VISION_MODEL})`, fn: () => callOpenAI() });
+      if (hasAnthropic) attempts.push({ name: `Anthropic (${VISION_ANTHROPIC_MODEL})`, fn: () => callAnthropic() });
+    }
+    if (VISION_SAFETY_MODEL && VISION_SAFETY_MODEL !== VISION_MODEL) {
+      attempts.push({ name: `OpenAI safety (${VISION_SAFETY_MODEL})`, fn: () => callOpenAI(VISION_SAFETY_MODEL) });
+    }
 
-    try {
-      console.log(`[analyze-screen] Trying ${primaryName}...`);
-      parsed = await timeout(primary(), 30000);
-    } catch (err) {
-      console.warn(`[analyze-screen] ${primaryName} failed/timeout:`, err.message);
-      console.error(`[analyze-screen] Full Error:`, err);
-      console.log(`[analyze-screen] Falling back to ${secondaryName}...`);
+    let parsed;
+    let lastErr = null;
+    for (let a = 0; a < attempts.length; a++) {
+      const { name, fn } = attempts[a];
       try {
-        parsed = await secondary();
-        console.log(`[analyze-screen] ${secondaryName} fallback succeeded`);
-      } catch (err2) {
-        console.error(`[analyze-screen] Both models failed.`);
-        return res.status(502).json({ error: 'Analysis failed on both models.' });
+        console.log(`[analyze-screen] Trying ${name}...`);
+        parsed = a === 0
+          ? await timeout(fn(), Number(process.env.VISION_TIMEOUT_MS) || 90000)
+          : await fn();
+        console.log(`[analyze-screen] ${name} succeeded`);
+        break;
+      } catch (err) {
+        console.warn(`[analyze-screen] ${name} failed:`, err.message);
+        lastErr = err;
       }
+    }
+
+    if (!parsed) {
+      console.error(`[analyze-screen] All vision attempts failed. Last error:`, lastErr?.message);
+      return res.status(502).json({ error: 'Analysis failed on all models.' });
     }
 
     if (!parsed || typeof parsed !== 'object') {
