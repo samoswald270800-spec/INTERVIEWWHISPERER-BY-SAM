@@ -281,12 +281,19 @@
   cursor: pointer;
 }
 
-/* "Clear editor first" toggle */
+/* "Clear first" / "Fix indent" toggles */
+.si-opts {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-top: -3px;
+  flex-wrap: wrap;
+}
+
 .si-clear {
   display: flex;
   align-items: center;
   gap: 7px;
-  margin-top: -3px;
   cursor: pointer;
   user-select: none;
 }

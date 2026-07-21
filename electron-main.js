@@ -941,7 +941,7 @@ Write-Output "READY"
     let humanTypingCancel = false;
     const typeSleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
-    async function playTypingPlan(nut, events) {
+    async function playTypingPlan(nut, events, { fixIndent = false } = {}) {
         const { keyboard, Key } = nut;
         for (const ev of events) {
             if (humanTypingCancel) break;
@@ -956,7 +956,21 @@ Write-Output "READY"
                 await keyboard.releaseKey(Key.Delete);
             } else if (ev.type === 'key') {
                 const ch = ev.key;
-                if (ch === '\n') { await keyboard.pressKey(Key.Enter); await keyboard.releaseKey(Key.Enter); }
+                if (ch === '\n') {
+                    await keyboard.pressKey(Key.Enter);
+                    await keyboard.releaseKey(Key.Enter);
+                    if (fixIndent) {
+                        // Wipe the editor's auto-indent so ONLY the code's own
+                        // indentation lands (critical for Python). On a fresh
+                        // auto-indented line, Shift+Home selects that whitespace
+                        // and Backspace deletes the selection — leaving the caret
+                        // at column 0 for the model's intended indent to type.
+                        await keyboard.pressKey(Key.LeftShift, Key.Home);
+                        await keyboard.releaseKey(Key.LeftShift, Key.Home);
+                        await keyboard.pressKey(Key.Backspace);
+                        await keyboard.releaseKey(Key.Backspace);
+                    }
+                }
                 else if (ch === '\t') { await keyboard.pressKey(Key.Tab); await keyboard.releaseKey(Key.Tab); }
                 else if (ch && ch !== '\r') await keyboard.type(ch);
             }
@@ -1013,6 +1027,7 @@ Write-Output "READY"
         const speed = typeof payload.speed === 'number' ? Math.max(0, Math.min(1, payload.speed)) : 0.35;
         const paceScale = 1 + (1 - speed) * 4; // 1 (max) … 5 (slowest)
         const clearFirst = payload && payload.clearFirst !== false; // default on
+        const fixIndent = payload && payload.fixIndent !== false;   // default on
         humanTypingActive = true;
         humanTypingCancel = false;
         let restoreCaps = false;
@@ -1020,7 +1035,7 @@ Write-Output "READY"
             restoreCaps = await neutralizeCapsLock(nut);
             if (clearFirst && !humanTypingCancel) await clearEditor(nut);
             const { events, meta } = planHumanTyping(text, { paceScale });
-            await playTypingPlan(nut, events);
+            await playTypingPlan(nut, events, { fixIndent });
             return { ok: true, cancelled: humanTypingCancel, meta };
         } catch (e) {
             console.error('[TypeIn] human typing error:', e.message);
