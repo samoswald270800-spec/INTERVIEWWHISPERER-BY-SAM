@@ -986,6 +986,22 @@ Write-Output "READY"
         }
     }
 
+    // Select-all + delete, so the solution always types into a clean editor
+    // instead of getting nested inside the stub the site pre-fills (which is
+    // what duplicated the class and broke the run).
+    async function clearEditor(nut) {
+        const { keyboard, Key } = nut;
+        const mod = process.platform === 'darwin' ? Key.LeftSuper : Key.LeftControl;
+        try {
+            await keyboard.pressKey(mod, Key.A);
+            await keyboard.releaseKey(mod, Key.A);
+            await typeSleep(70);
+            await keyboard.pressKey(Key.Backspace);
+            await keyboard.releaseKey(Key.Backspace);
+            await typeSleep(90);
+        } catch { /* best effort */ }
+    }
+
     ipcMain.handle('rc:type-human', async (_event, payload) => {
         const raw = payload && typeof payload.text === 'string' ? payload.text : '';
         const text = raw.replace(/\r\n?/g, '\n'); // fold CRLF → LF
@@ -996,11 +1012,13 @@ Write-Output "READY"
         // speed: 0 (slowest) … 1 (max = the model's natural pace); default slow.
         const speed = typeof payload.speed === 'number' ? Math.max(0, Math.min(1, payload.speed)) : 0.35;
         const paceScale = 1 + (1 - speed) * 4; // 1 (max) … 5 (slowest)
+        const clearFirst = payload && payload.clearFirst !== false; // default on
         humanTypingActive = true;
         humanTypingCancel = false;
         let restoreCaps = false;
         try {
             restoreCaps = await neutralizeCapsLock(nut);
+            if (clearFirst && !humanTypingCancel) await clearEditor(nut);
             const { events, meta } = planHumanTyping(text, { paceScale });
             await playTypingPlan(nut, events);
             return { ok: true, cancelled: humanTypingCancel, meta };

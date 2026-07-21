@@ -281,6 +281,59 @@
   cursor: pointer;
 }
 
+/* "Clear editor first" toggle */
+.si-clear {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin-top: -3px;
+  cursor: pointer;
+  user-select: none;
+}
+
+.si-clear input {
+  position: absolute;
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.si-clear-box {
+  flex: none;
+  position: relative;
+  width: 14px;
+  height: 14px;
+  border-radius: 4px;
+  border: 1px solid var(--border-strong);
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.si-clear input:checked + .si-clear-box {
+  background: var(--acc-solid);
+  border-color: var(--acc-solid);
+}
+
+.si-clear input:checked + .si-clear-box::after {
+  content: '';
+  position: absolute;
+  left: 4px;
+  top: 1px;
+  width: 4px;
+  height: 8px;
+  border: solid #fff;
+  border-width: 0 2px 2px 0;
+  transform: rotate(45deg);
+}
+
+.si-clear input:focus-visible + .si-clear-box {
+  box-shadow: 0 0 0 2px var(--acc-soft-border);
+}
+
+.si-clear-text {
+  font-size: 11.5px;
+  color: var(--text-secondary);
+}
+
 .si-code {
   margin: 0;
   padding: 12px 13px;

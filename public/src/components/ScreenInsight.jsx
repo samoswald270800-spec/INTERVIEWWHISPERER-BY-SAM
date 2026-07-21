@@ -45,6 +45,16 @@ export default function ScreenInsight({ insight, loading, onClose }) {
     setTypeSpeed(v);
     try { localStorage.setItem('iw_type_speed', String(v)); } catch { /* ignore */ }
   };
+  // Clear the editor (select-all + delete) before typing, so the solution
+  // never nests inside the site's pre-filled stub. On by default.
+  const [clearFirst, setClearFirst] = useState(() => {
+    try { return localStorage.getItem('iw_type_clear') !== '0'; } catch { return true; }
+  });
+  const toggleClear = () => setClearFirst((v) => {
+    const nv = !v;
+    try { localStorage.setItem('iw_type_clear', nv ? '1' : '0'); } catch { /* ignore */ }
+    return nv;
+  });
 
   // Clear any pending focus countdown if the panel unmounts mid-way.
   useEffect(() => () => {
@@ -92,7 +102,7 @@ export default function ScreenInsight({ insight, loading, onClose }) {
       clearInterval(countdownRef.current);
       countdownRef.current = null;
       setTypeState('typing');
-      window.electron.typeCode(code, typeSpeed).finally(() => setTypeState('idle'));
+      window.electron.typeCode(code, typeSpeed, clearFirst).finally(() => setTypeState('idle'));
     }, 1000);
   };
 
@@ -190,6 +200,13 @@ export default function ScreenInsight({ insight, loading, onClose }) {
                   />
                   <span className="si-speed-end">Max</span>
                 </div>
+              )}
+              {canType && typeState === 'idle' && (
+                <label className="si-clear">
+                  <input type="checkbox" checked={clearFirst} onChange={toggleClear} />
+                  <span className="si-clear-box" aria-hidden="true" />
+                  <span className="si-clear-text">Clear editor first</span>
+                </label>
               )}
               {typeState === 'countdown' && (
                 <p className="si-typein-hint">Click into your code editor — typing starts in {typeCount}…</p>

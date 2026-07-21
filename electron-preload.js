@@ -13,8 +13,8 @@ contextBridge.exposeInMainWorld('electron', {
     // Ask the OS for input-control permission (macOS Accessibility prompt)
     ensureInputPermission: () => ipcRenderer.send('rc:ensure-input-permission'),
     // "Type it in": type code into the focused editor with a human-like cadence.
-    // speed is 0 (slowest) … 1 (max). Resolves { ok, cancelled } when done.
-    typeCode: (text, speed) => ipcRenderer.invoke('rc:type-human', { text, speed }),
+    // speed 0 (slowest) … 1 (max); clearFirst wipes the editor first (default on).
+    typeCode: (text, speed, clearFirst) => ipcRenderer.invoke('rc:type-human', { text, speed, clearFirst }),
     cancelTypeCode: () => ipcRenderer.send('rc:type-human-cancel'),
     // Native clipboard write — focus-independent, unlike navigator.clipboard,
     // which the content-protected overlay can't use. Resolves true on success.
