@@ -3,6 +3,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import fs from 'fs';
 import { spawn } from 'child_process';
+import { planHumanTyping } from './human-typer.js';
 
 // Load environment variables only in development
 if (!app.isPackaged) {
@@ -925,93 +926,46 @@ Write-Output "READY"
 
     // ═══════════════════════════════════════════════════
     //  Human-like code typing (the "Type it in" action).
-    //  Runs entirely in the MAIN process: while it types,
-    //  the candidate's editor is focused and the Electron
-    //  overlay is backgrounded, so a renderer-side timer
-    //  loop would be throttled and lose its rhythm. Types
-    //  character-by-character with a varying cadence,
-    //  natural pauses at line breaks / brackets, and the
-    //  occasional self-corrected typo — so it reads as the
-    //  candidate actually typing, not an instant paste.
+    //  Generation lives in the pure model (human-typer.js),
+    //  which builds a timestamped sequence of synthetic
+    //  keystroke events — variable speed, thinking pauses,
+    //  nearby-key slips, missed/repeated chars, and delayed
+    //  corrections. This side is a dumb PLAYER that executes
+    //  that sequence on the real keyboard, honouring each
+    //  event's delay. It runs in the MAIN process because
+    //  while it types the candidate's editor is focused and
+    //  the overlay is backgrounded — a renderer-side timer
+    //  would be throttled and lose the rhythm.
     // ═══════════════════════════════════════════════════
     let humanTypingActive = false;
     let humanTypingCancel = false;
-
     const typeSleep = (ms) => new Promise((r) => setTimeout(r, ms));
-    const typeRand = (min, max) => min + Math.random() * (max - min);
 
-    // QWERTY neighbours — a slip lands on a physically adjacent key, which is
-    // what real mistyping looks like (not a random character).
-    const QWERTY_NEIGHBORS = {
-        a: 'sqwz', b: 'vghn', c: 'xdfv', d: 'sefcx', e: 'wrsdf', f: 'drtgcv',
-        g: 'ftyhbv', h: 'gyujbn', i: 'ujko', j: 'huikmn', k: 'jiolm', l: 'kop',
-        m: 'njk', n: 'bhjm', o: 'iklp', p: 'ol', q: 'wa', r: 'edft',
-        s: 'awedxz', t: 'rfgy', u: 'yhji', v: 'cfgb', w: 'qase', x: 'zsdc',
-        y: 'tghu', z: 'asx',
-        0: '9', 1: '2', 2: '13', 3: '24', 4: '35', 5: '46',
-        6: '57', 7: '68', 8: '79', 9: '80',
-    };
-
-    function typoSlip(ch) {
-        const lower = ch.toLowerCase();
-        const near = QWERTY_NEIGHBORS[lower];
-        if (!near) return null;
-        const pick = near[Math.floor(Math.random() * near.length)];
-        const isUpper = ch !== lower && ch === ch.toUpperCase();
-        return isUpper ? pick.toUpperCase() : pick;
-    }
-
-    async function typeHumanLike(nut, text) {
+    async function playTypingPlan(nut, events) {
         const { keyboard, Key } = nut;
-        for (let i = 0; i < text.length; i++) {
+        for (const ev of events) {
             if (humanTypingCancel) break;
-            const ch = text[i];
-
-            if (ch === '\r') continue; // fold CRLF → LF (handled by '\n')
-
-            if (ch === '\n') {
-                await keyboard.pressKey(Key.Enter);
-                await keyboard.releaseKey(Key.Enter);
-                // Glance at what comes next — humans pause on a fresh line.
-                await typeSleep(typeRand(140, 380));
-                continue;
+            if (ev.delayMs > 0) await typeSleep(ev.delayMs);
+            if (humanTypingCancel) break;
+            if (ev.type === 'pause') continue;
+            if (ev.type === 'backspace') {
+                await keyboard.pressKey(Key.Backspace);
+                await keyboard.releaseKey(Key.Backspace);
+            } else if (ev.type === 'delete') {
+                await keyboard.pressKey(Key.Delete);
+                await keyboard.releaseKey(Key.Delete);
+            } else if (ev.type === 'key') {
+                const ch = ev.key;
+                if (ch === '\n') { await keyboard.pressKey(Key.Enter); await keyboard.releaseKey(Key.Enter); }
+                else if (ch === '\t') { await keyboard.pressKey(Key.Tab); await keyboard.releaseKey(Key.Tab); }
+                else if (ch && ch !== '\r') await keyboard.type(ch);
             }
-
-            if (ch === '\t') {
-                await keyboard.pressKey(Key.Tab);
-                await keyboard.releaseKey(Key.Tab);
-                await typeSleep(typeRand(40, 100));
-                continue;
-            }
-
-            // A short "thinking" beat before opening a call/block or a new word.
-            if (Math.random() < 0.05 && (ch === ' ' || ch === '(' || ch === '{')) {
-                await typeSleep(typeRand(160, 420));
-            }
-
-            // Occasional self-corrected slip on letters/digits only, so brackets,
-            // quotes and structure never get mangled.
-            if (/[A-Za-z0-9]/.test(ch) && Math.random() < 0.02) {
-                const wrong = typoSlip(ch);
-                if (wrong) {
-                    await keyboard.type(wrong);
-                    await typeSleep(typeRand(90, 240));   // "wait, that's wrong"
-                    await keyboard.pressKey(Key.Backspace);
-                    await keyboard.releaseKey(Key.Backspace);
-                    await typeSleep(typeRand(60, 170));
-                    if (humanTypingCancel) break;
-                }
-            }
-
-            await keyboard.type(ch);
-
-            // Base per-character cadence with jitter; spaces run a touch quicker.
-            await typeSleep(ch === ' ' ? typeRand(30, 85) : typeRand(45, 115));
         }
     }
 
     ipcMain.handle('rc:type-human', async (_event, payload) => {
-        const text = payload && typeof payload.text === 'string' ? payload.text : '';
+        const raw = payload && typeof payload.text === 'string' ? payload.text : '';
+        const text = raw.replace(/\r\n?/g, '\n'); // fold CRLF → LF
         if (!text) return { ok: false, reason: 'empty' };
         if (humanTypingActive) return { ok: false, reason: 'busy' };
         const nut = await getNut();
@@ -1019,8 +973,9 @@ Write-Output "READY"
         humanTypingActive = true;
         humanTypingCancel = false;
         try {
-            await typeHumanLike(nut, text);
-            return { ok: true, cancelled: humanTypingCancel };
+            const { events, meta } = planHumanTyping(text);
+            await playTypingPlan(nut, events);
+            return { ok: true, cancelled: humanTypingCancel, meta };
         } catch (e) {
             console.error('[TypeIn] human typing error:', e.message);
             return { ok: false, reason: e.message };
