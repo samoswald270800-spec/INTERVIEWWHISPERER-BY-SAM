@@ -20,7 +20,7 @@ function Sparkle() {
  * Chips + a free-text nudge queue that rides along with the interviewer's
  * next question — mixed into the model context, never into the transcript.
  */
-export default function SteerBar({ nudges, suggestions = [], onToggle, onClear, onSendNow }) {
+export default function SteerBar({ nudges, suggestions = [], onToggle, onClear, onSendNow, onExtend, canExtend, isExtending }) {
     const [draft, setDraft] = useState('');
 
     // Default action (Enter + Queue button): queue the nudge to ride along with
@@ -72,6 +72,26 @@ export default function SteerBar({ nudges, suggestions = [], onToggle, onClear, 
                 )}
             </div>
             <div className="steer-chips">
+                {onExtend && (
+                    <button
+                        type="button"
+                        className={`steer-chip extend ${isExtending ? 'busy' : ''}`}
+                        onClick={onExtend}
+                        disabled={!canExtend || isExtending}
+                        title={canExtend ? 'Extend the last answer — same points and example, just longer' : 'Answer something first, then extend it'}
+                    >
+                        {isExtending ? (
+                            <span className="steer-spin" aria-hidden="true" />
+                        ) : (
+                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                                <line x1="3" y1="6" x2="21" y2="6"></line>
+                                <line x1="3" y1="12" x2="21" y2="12"></line>
+                                <line x1="3" y1="18" x2="14" y2="18"></line>
+                            </svg>
+                        )}
+                        {isExtending ? 'Extending…' : 'Extend last answer'}
+                    </button>
+                )}
                 {chips.map((chip) => {
                     const active = nudges.includes(chip.text);
                     return (

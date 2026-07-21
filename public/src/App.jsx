@@ -54,6 +54,9 @@ function InterviewApp() {
     const [isRecording, setIsRecording] = useState(false);
     const [canExpand, setCanExpand] = useState(false);
     const [isExpanding, setIsExpanding] = useState(false);
+    // "Extend" = same answer, just longer. Shares the canExpand gate/permission
+    // with Expand, but tracks its own in-flight flag so only its button spins.
+    const [isExtending, setIsExtending] = useState(false);
     const [jd, setJd] = useState("");
     const [speed, setSpeed] = useState(0);
     const [isSettingsOpen, setIsSettingsOpen] = useState(false);
@@ -920,8 +923,11 @@ function InterviewApp() {
             setStatus("LISTENING...");
             setIsProcessing(false);
             setIsExpanding(false);
+            setIsExtending(false);
 
-            if (isExpanding) {
+            // After a one-off expand/extend, revert the session back to normal
+            // mode so the next answer isn't stuck in the longer format.
+            if (isExpanding || isExtending) {
                 sendSessionUpdate("smart");
             }
         }
@@ -1042,6 +1048,58 @@ function InterviewApp() {
         });
     };
 
+    // Extend = a longer version of the SAME answer (same example/points), not a
+    // deeper re-answer. Mirrors expandLastAnswer's routing and permission gate.
+    const extendLastAnswer = async () => {
+        if (architecture === "reasoning") {
+            if (!lastQuestionRef.current || isExtending) return;
+            setIsExtending(true);
+            reasoningFlow.extendLastAnswer().finally(() => setIsExtending(false));
+            return;
+        }
+
+        // Live/WebRTC extend — reuses the same server-side permission gate.
+        if (!window._lastDC || !lastQuestionRef.current || isExtending) return;
+
+        try {
+            const authRes = await fetch(`${API_BASE_URL}/session/expand-authorize`, {
+                method: 'POST',
+                credentials: 'include',
+            });
+            if (authRes.status === 403) {
+                const d = await authRes.json().catch(() => ({}));
+                setStatus((d.error || 'EXPAND DISABLED').toUpperCase());
+                setCanExpand(false);
+                return;
+            }
+        } catch (_) { /* fail-open on network error */ }
+
+        setIsExtending(true);
+
+        const extendInstructions = buildInstructions("extend");
+        sendSessionUpdate("extend", extendInstructions);
+
+        const event = {
+            type: "conversation.item.create",
+            item: {
+                type: "message",
+                role: "user",
+                content: [{ type: "input_text", text: `Extend on this: ${lastQuestionRef.current}` }]
+            }
+        };
+        window._lastDC.send(JSON.stringify(event));
+
+        window._lastDC.send(JSON.stringify({ type: "response.create" }));
+
+        setQaList(prev => {
+            const newList = [...prev];
+            if (newList.length > 0) {
+                newList[newList.length - 1].answer = "";
+            }
+            return newList;
+        });
+    };
+
     const buildInstructions = (mode) => {
         const GLOBAL = `GLOBAL RULES (ABSOLUTE — APPLY TO EVERY SINGLE RESPONSE)
 
@@ -1139,9 +1197,17 @@ Full context, full technical depth, full business impact with real metrics.
 Answer as if it's a fresh question. Don't say "as I mentioned" or reference the previous answer.
 This is your chance to really impress. Leave nothing on the table.`;
 
+        const EXTEND = `EXTENSION MODE
+Re-deliver your PREVIOUS answer as the SAME answer — same example, same story, same points and structure — just longer and more detailed.
+Do NOT introduce new examples, swap the example, or change the substance. Elaborate on what you already said: add detail, explanation, and specifics to each existing point.
+The result must be a fuller, lengthier version of the SAME answer, not a different one.
+Don't say "as I mentioned" or reference that you're extending.`;
+
         let modeText;
         if (mode === "expand") {
             modeText = EXPAND;
+        } else if (mode === "extend") {
+            modeText = EXTEND;
         } else if (interviewMode === 'god') {
             modeText = GOD;
         } else if (interviewMode === 'hr') {
@@ -1530,6 +1596,9 @@ This is your chance to really impress. Leave nothing on the table.`;
                             onToggle={toggleNudge}
                             onClear={clearNudges}
                             onSendNow={sendNudgeNow}
+                            onExtend={extendLastAnswer}
+                            canExtend={canExpand && permissions.canExpand}
+                            isExtending={isExtending}
                         />
                     ) : null}
                 />
