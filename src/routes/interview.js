@@ -565,6 +565,17 @@ router.post('/analyze-screen', requireAuth, async (req, res) => {
       new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), ms))
     ]);
 
+    // Vision models — env-overridable so they can be tuned on the host without a
+    // redeploy. GPT-5.5 is a reasoning model: it rejects `temperature`, wants
+    // `max_completion_tokens` (which also has to cover reasoning tokens), and
+    // takes `reasoning_effort`. Default effort is 'medium' — noticeably better
+    // code than 'low' without 'high'/'xhigh' latency. Set VISION_REASONING_EFFORT
+    // to '' to omit it entirely (e.g. if pointed back at a non-reasoning model).
+    const VISION_MODEL = process.env.VISION_MODEL || 'gpt-5.5';
+    const VISION_REASONING_EFFORT = process.env.VISION_REASONING_EFFORT ?? 'medium';
+    const VISION_ANTHROPIC_MODEL = process.env.VISION_ANTHROPIC_MODEL || 'claude-sonnet-5';
+    const VISION_MAX_TOKENS = Number(process.env.VISION_MAX_TOKENS) || 16000;
+
     // Helper: OpenAI Call with Fallback
     const callOpenAI = async () => {
       const content = [];
@@ -583,15 +594,27 @@ router.post('/analyze-screen', requireAuth, async (req, res) => {
           // Dynamic client creation for fallback keys
           const fallbackClient = new OpenAI({ apiKey: keys[i] });
 
-          const response = await fallbackClient.chat.completions.create({
-            model: 'gpt-4o',
+          // Reasoning models (gpt-5.x) reject `temperature` and use
+          // `max_completion_tokens`; older models (gpt-4o) still work with these
+          // params, so this stays correct if VISION_MODEL is overridden back.
+          const params = {
+            model: VISION_MODEL,
             messages: [{ role: 'user', content }],
-            temperature: 0.4,
-            max_tokens: 3000,
+            max_completion_tokens: VISION_MAX_TOKENS,
             response_format: { type: 'json_object' }
-          });
+          };
+          if (VISION_REASONING_EFFORT) params.reasoning_effort = VISION_REASONING_EFFORT;
 
-          return JSON.parse(response.choices[0].message.content);
+          const response = await fallbackClient.chat.completions.create(params);
+
+          const raw = response.choices?.[0]?.message?.content;
+          if (!raw) {
+            // A reasoning model that spent its whole budget thinking returns
+            // empty content — surface it so we fail over to the next key/model
+            // instead of throwing an opaque JSON.parse error.
+            throw new Error(`Empty content (finish_reason: ${response.choices?.[0]?.finish_reason || 'unknown'})`);
+          }
+          return JSON.parse(raw);
         } catch (err) {
           console.warn(`[analyze-screen] Key #${i === 0 ? 'Primary' : i} failed:`, err.message);
           lastError = err;
@@ -609,8 +632,9 @@ router.post('/analyze-screen', requireAuth, async (req, res) => {
         promptText = `FULL TRANSCRIPT (from Redis):\n${combinedTranscript}\n\n${VISION_PROMPT}`;
       }
 
+      // claude-sonnet-5 also rejects sampling params like `temperature`.
       const { text } = await generateText({
-        model: anthropic('claude-3-5-sonnet-20241022'),
+        model: anthropic(VISION_ANTHROPIC_MODEL),
         messages: [
           {
             role: 'user',
@@ -620,8 +644,7 @@ router.post('/analyze-screen', requireAuth, async (req, res) => {
             ]
           }
         ],
-        maxTokens: 3000,
-        temperature: 0.4,
+        maxTokens: 4096,
       });
 
       const s = text.indexOf('{');
@@ -638,7 +661,9 @@ router.post('/analyze-screen', requireAuth, async (req, res) => {
 
     try {
       console.log(`[analyze-screen] Trying ${primaryName}...`);
-      parsed = await timeout(primary(), 30000);
+      // GPT-5.5 reasons before answering, so give it room to finish rather than
+      // cutting it off and falling back. Override with VISION_TIMEOUT_MS.
+      parsed = await timeout(primary(), Number(process.env.VISION_TIMEOUT_MS) || 90000);
     } catch (err) {
       console.warn(`[analyze-screen] ${primaryName} failed/timeout:`, err.message);
       console.error(`[analyze-screen] Full Error:`, err);
