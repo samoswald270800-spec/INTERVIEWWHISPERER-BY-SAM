@@ -35,6 +35,16 @@ export default function ScreenInsight({ insight, loading, onClose }) {
   const [typeState, setTypeState] = useState('idle');
   const [typeCount, setTypeCount] = useState(0);
   const countdownRef = useRef(null);
+  // Typing speed: 0 = slowest human pace, 1 = max (the model's natural speed).
+  // Defaults slow, and remembers your choice.
+  const [typeSpeed, setTypeSpeed] = useState(() => {
+    try { const v = parseFloat(localStorage.getItem('iw_type_speed')); return isNaN(v) ? 0.3 : Math.max(0, Math.min(1, v)); }
+    catch { return 0.3; }
+  });
+  const changeSpeed = (v) => {
+    setTypeSpeed(v);
+    try { localStorage.setItem('iw_type_speed', String(v)); } catch { /* ignore */ }
+  };
 
   // Clear any pending focus countdown if the panel unmounts mid-way.
   useEffect(() => () => {
@@ -82,7 +92,7 @@ export default function ScreenInsight({ insight, loading, onClose }) {
       clearInterval(countdownRef.current);
       countdownRef.current = null;
       setTypeState('typing');
-      window.electron.typeCode(code).finally(() => setTypeState('idle'));
+      window.electron.typeCode(code, typeSpeed).finally(() => setTypeState('idle'));
     }, 1000);
   };
 
@@ -167,6 +177,20 @@ export default function ScreenInsight({ insight, loading, onClose }) {
                   )}
                 </div>
               </div>
+              {canType && typeState === 'idle' && (
+                <div className="si-speed">
+                  <span className="si-speed-label">Typing speed</span>
+                  <span className="si-speed-end">Slowest</span>
+                  <input
+                    className="si-speed-range"
+                    type="range" min="0" max="1" step="0.05"
+                    value={typeSpeed}
+                    onChange={(e) => changeSpeed(parseFloat(e.target.value))}
+                    aria-label="Typing speed"
+                  />
+                  <span className="si-speed-end">Max</span>
+                </div>
+              )}
               {typeState === 'countdown' && (
                 <p className="si-typein-hint">Click into your code editor — typing starts in {typeCount}…</p>
               )}

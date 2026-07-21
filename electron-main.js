@@ -2,7 +2,7 @@ import { app, BrowserWindow, globalShortcut, Tray, Menu, desktopCapturer, sessio
 import path from 'path';
 import { fileURLToPath } from 'url';
 import fs from 'fs';
-import { spawn } from 'child_process';
+import { spawn, execSync } from 'child_process';
 import { planHumanTyping } from './human-typer.js';
 
 // Load environment variables only in development
@@ -963,6 +963,29 @@ Write-Output "READY"
         }
     }
 
+    // With CapsLock ON, nut-js types letters in the inverted case (lowercase →
+    // UPPER, and the odd capital → lower) — so the code comes out as garbage.
+    // Turn CapsLock off before typing and restore it after. Windows only, where
+    // the problem occurs and we can query the lock state; no-op elsewhere.
+    async function neutralizeCapsLock(nut) {
+        if (process.platform !== 'win32') return false;
+        let on = false;
+        try {
+            const out = execSync('powershell -NoProfile -Command "[Console]::CapsLock"', { timeout: 3000, windowsHide: true }).toString();
+            on = /true/i.test(out);
+        } catch (e) {
+            return false; // couldn't read it — leave the keyboard alone
+        }
+        if (!on) return false;
+        try {
+            await nut.keyboard.pressKey(nut.Key.CapsLock);
+            await nut.keyboard.releaseKey(nut.Key.CapsLock);
+            return true; // we turned it off; caller restores it afterwards
+        } catch {
+            return false;
+        }
+    }
+
     ipcMain.handle('rc:type-human', async (_event, payload) => {
         const raw = payload && typeof payload.text === 'string' ? payload.text : '';
         const text = raw.replace(/\r\n?/g, '\n'); // fold CRLF → LF
@@ -970,16 +993,24 @@ Write-Output "READY"
         if (humanTypingActive) return { ok: false, reason: 'busy' };
         const nut = await getNut();
         if (!nut) return { ok: false, reason: 'no-input-engine' };
+        // speed: 0 (slowest) … 1 (max = the model's natural pace); default slow.
+        const speed = typeof payload.speed === 'number' ? Math.max(0, Math.min(1, payload.speed)) : 0.35;
+        const paceScale = 1 + (1 - speed) * 4; // 1 (max) … 5 (slowest)
         humanTypingActive = true;
         humanTypingCancel = false;
+        let restoreCaps = false;
         try {
-            const { events, meta } = planHumanTyping(text);
+            restoreCaps = await neutralizeCapsLock(nut);
+            const { events, meta } = planHumanTyping(text, { paceScale });
             await playTypingPlan(nut, events);
             return { ok: true, cancelled: humanTypingCancel, meta };
         } catch (e) {
             console.error('[TypeIn] human typing error:', e.message);
             return { ok: false, reason: e.message };
         } finally {
+            if (restoreCaps) {
+                try { await nut.keyboard.pressKey(nut.Key.CapsLock); await nut.keyboard.releaseKey(nut.Key.CapsLock); } catch { /* best effort */ }
+            }
             humanTypingActive = false;
             humanTypingCancel = false;
         }
