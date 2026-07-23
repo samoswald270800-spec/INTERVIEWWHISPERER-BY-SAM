@@ -26,22 +26,23 @@ const upload = multer({
   limits: { fileSize: 25 * 1024 * 1024 },
 });
 
-// ── Opener-variety rotation ────────────────────────────────────────────────
+// ── Answer-shape variety rotation ────────────────────────────────────────────────
 // This endpoint answers each question in a fresh, stateless request, so the
-// model can't see how it opened previous answers — left alone it reaches for
-// the same "Yeah so"/"So honestly" opener every time. Rotate a one-shot opening
-// directive per request so answers genuinely vary from one to the next.
-const OPENER_STYLES = [
-  'Go straight into the substance — the point or the story — with no preamble at all.',
-  'Open on a specific concrete moment or number from your experience ("At [company] we had a quarter where..."), then widen out.',
-  'React to the exact thing they asked, name it, and then dive in.',
-  'Lead with a short, blunt one-line take, then unpack it in the next breath.',
-  'Give the outcome or the punchline first, then back up and explain how you got there.',
-  'Open mid-thought as if continuing a train of thought — but NOT with "so", "yeah", "honestly", or "well".',
-  'Frame the tension or tradeoff at the heart of the question, then take your side.',
-  'Start with a quick concrete image or scene from the work, then explain what it means.',
+// model can't see how it shaped previous answers — left alone it falls into the
+// same skeleton every time (open with "Yeah so" → one story → tie it back to the
+// role). Rotate a one-shot "shape" directive per answer so the whole structure,
+// not just the opening, genuinely varies from one answer to the next.
+const ANSWER_SHAPES = [
+  'Lead with your conclusion or strongest point in the very first line, then justify it with one concrete example. Do not tie it back to the role.',
+  'Tell ONE real story — the situation, what you personally did, what changed — and end on the result or the lesson, not a pitch about this job.',
+  'Be more concise than usual: trim the wind-up and the summary, make your point in a few tight sentences, and stop. Still fully answer what they asked.',
+  'Give two quick, contrasting examples or angles, then one line that connects them.',
+  'State a principle or opinion you actually hold, then a short real illustration of it, and leave the takeaway implied.',
+  'Think out loud — walk through how you actually reason about this, step by step, like you are working it out in the moment.',
+  'Answer the literal question plainly first, then add one piece of nuance or a caveat, and end with a short question back to them.',
+  'Open on one specific concrete moment or number and stay inside that single example — let it carry the whole answer.',
 ];
-let openerRotation = 0;
+let shapeRotation = 0;
 
 /**
  * POST /api/reasoning/transcribe
@@ -103,7 +104,7 @@ router.post('/api/reasoning/transcribe', requireAuth, upload.single('audio'), as
  */
 router.post('/api/reasoning/answer', requireAuth, async (req, res) => {
   try {
-    const { transcript, interviewMode = 'smart', jd, steering } = req.body || {};
+    const { transcript, interviewMode = 'smart', jd, steering, vary } = req.body || {};
 
     if (!transcript || typeof transcript !== 'string' || !transcript.trim()) {
       return res.status(400).json({ error: 'transcript is required.' });
@@ -138,14 +139,18 @@ router.post('/api/reasoning/answer', requireAuth, async (req, res) => {
       { role: 'system', content: systemPrompt },
     ];
 
-    // One-shot opening directive so stateless answers don't all start the same
-    // way (see OPENER_STYLES). Rotates on every request.
-    const openerStyle = OPENER_STYLES[openerRotation % OPENER_STYLES.length];
-    openerRotation = (openerRotation + 1) % OPENER_STYLES.length;
-    messages.push({
-      role: 'system',
-      content: `[Opening style for THIS answer only — never mention or acknowledge this note] ${openerStyle} Do NOT begin with "Yeah so" or "So honestly", and don't reuse a stock opener.`,
-    });
+    // One-shot shape directive so stateless answers don't all follow the same
+    // structure (see ANSWER_SHAPES). Rotates per answer. Skipped for expand /
+    // extend (vary === false), which carry their own explicit length and format
+    // instructions and must not be second-guessed by a random shape.
+    if (vary !== false) {
+      const answerShape = ANSWER_SHAPES[shapeRotation % ANSWER_SHAPES.length];
+      shapeRotation = (shapeRotation + 1) % ANSWER_SHAPES.length;
+      messages.push({
+        role: 'system',
+        content: `[Shape for THIS answer only — never mention or acknowledge this note] ${answerShape} Keep fully answering the question; just vary the structure from your other answers, and do not open with "Yeah so" or "So honestly".`,
+      });
+    }
 
     if (steering && typeof steering === 'string' && steering.trim()) {
       messages.push({ role: 'system', content: steering.trim().slice(0, 1000) });

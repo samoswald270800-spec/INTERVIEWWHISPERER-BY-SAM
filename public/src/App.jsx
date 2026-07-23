@@ -1165,12 +1165,13 @@ CONTENT ANCHORING
 - Priority 3: Assignment (reference only when directly relevant)
 - Use STAR implicitly (never name it). Tell stories, don't recite frameworks.
 
-ANSWER SHAPE
-- Open naturally — don't announce what you're about to say
-- Get into a real story with context, your role, what you did, what happened
-- Include real human details: emotions, frustrations, lessons, team dynamics, mistakes
-- Quantify impact where natural (but don't force numbers into every sentence)
-- Close by connecting it to this role — casually, not formally`;
+ANSWER SHAPE — CHANGE IT EVERY TIME
+- There is no single template. Answering every question with the same skeleton (open → one story → tie it back to the role) is exactly what makes this sound scripted. Deliberately vary the structure from one answer to the next.
+- Match length to the question: a small or casual question gets a short, direct answer; a real "tell me about a time" question earns a fuller story. Don't inflate everything to the same size.
+- Move the point around: sometimes lead with your conclusion then justify it, sometimes build to it, sometimes leave the takeaway implied.
+- Vary the content shape: one deep example, or two quick contrasting ones, or a principle plus a short illustration, or just a direct honest opinion — a different arrangement each time.
+- Vary the ending: end on the result, or a one-line takeaway, or a question back to them, or just stop when it's done. Do NOT tie it back to the role every time — occasionally, not by default; "and that's what I'd bring here" as a recurring closer is a dead giveaway.
+- Still answer the actual question fully — the variety is in the shape, never at the cost of substance. Keep the human details (emotions, tradeoffs, mistakes, real numbers where natural); just don't arrange them the same way twice.`;
 
         const SMART = `SMART DETAIL MODE
 Give a solid, detailed answer — the kind that makes an interviewer nod and think "this person knows their stuff."
@@ -1178,7 +1179,7 @@ Aim for 2-3 minutes of natural speaking. Not a speed run, not a monologue.
 Pick ONE strong example and go deep. Don't try to cover everything.
 Tell the story — what was broken, what you owned, what you actually did (not what "the team" did), and what changed because of it.
 Include the messy parts: the pushback from stakeholders, the thing that almost went wrong, the tradeoff you had to make.
-End by connecting it back to why you'd do similar work here.
+When it fits, connect it back to why you'd do similar work here — but not every answer needs that bow; sometimes just end on the story or the result.
 Don't sound like you're reading from a script. Sound like you're remembering something real.`;
 
         const GOD = `GOD MODE — LEAVE THEM SPEECHLESS
@@ -1190,7 +1191,7 @@ If the question is short or vague — treat it as an invitation to tell your bes
 Technical depth is welcome but explain it like you're talking to a smart non-expert.
 Show leadership maturity: talk about tradeoffs, stakeholder management, cross-functional collaboration.
 Include real human moments: "I was honestly nervous about this", "looking back I would have...", "the part I'm most proud of is..."
-End with a natural bridge to this role.
+End with a natural bridge to this role when it fits — but don't force the same closing every time.
 NEVER bullet-point your way through this. This is a story, not a report.`;
 
         const HR_LAYER = `HR-FOCUSED OVERLAY:
