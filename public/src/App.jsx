@@ -25,6 +25,22 @@ import API_BASE_URL from './config';
 
 const GLOBAL_PROCESSED_EVENTS = new Set();
 
+// Rotating "answer shapes" for Live/Turbo (both use the realtime pipeline). A
+// fresh one is slipped into the conversation for each interviewer question so
+// answers don't all fall into the same skeleton (open with "Yeah so" -> one
+// story -> tie it back to the role). Kept in sync with ANSWER_SHAPES in
+// src/routes/reasoning.js (which serves the separate Reasoning engine).
+const ANSWER_SHAPES = [
+    'Lead with your conclusion or strongest point in the very first line, then justify it with one concrete example. Do not tie it back to the role.',
+    'Tell ONE real story — the situation, what you personally did, what changed — and end on the result or the lesson, not a pitch about this job.',
+    'Be more concise than usual: trim the wind-up and the summary, make your point in a few tight sentences, and stop. Still fully answer what they asked.',
+    'Give two quick, contrasting examples or angles, then one line that connects them.',
+    'State a principle or opinion you actually hold, then a short real illustration of it, and leave the takeaway implied.',
+    'Think out loud — walk through how you actually reason about this, step by step, like you are working it out in the moment.',
+    'Answer the literal question plainly first, then add one piece of nuance or a caveat, and end with a short question back to them.',
+    'Open on one specific concrete moment or number and stay inside that single example — let it carry the whole answer.',
+];
+
 // Offline fallback for the "Steer the next answer" suggestion chips when the
 // /api/steer-suggestions endpoint is unavailable. Derives simple nudges from
 // the JD and the latest completed answer.
@@ -874,11 +890,11 @@ function InterviewApp() {
             setStatus("USER SPEAKING");
             setIsListening(true);
 
-            // A steering nudge (e.g. "Crack a light joke") is meant to shape the
-            // ONE answer it was queued for. In the realtime session a conversation
-            // item lives in context until it's deleted, so before handling this
-            // new question we remove any steering note left over from the previous
-            // turn — otherwise it keeps steering every future answer too.
+            // Each answer gets a one-shot directive (a rotated answer shape, plus
+            // any queued steering nudge like "Crack a light joke"). In the realtime
+            // session a conversation item lives in context until it's deleted, so
+            // before handling this new question we remove the previous turn's
+            // directive — otherwise it keeps shaping every future answer too.
             if (steerItemIdRef.current && window._lastDC && window._lastDC.readyState === "open") {
                 try {
                     window._lastDC.send(JSON.stringify({
@@ -889,13 +905,22 @@ function InterviewApp() {
                 steerItemIdRef.current = null;
             }
 
-            // If nudges are queued for THIS question, slip them into the
-            // conversation as a system item NOW — before server VAD triggers the
-            // response — so they mix with this question without touching its
-            // transcript. Tag it with an id so the cleanup above can remove it
-            // again on the next question, keeping it one-shot.
-            if (nudgesRef.current.length > 0 && window._lastDC && window._lastDC.readyState === "open") {
+            // Slip a one-shot directive for THIS answer into the conversation as a
+            // system item NOW — before server VAD triggers the response — so it
+            // shapes this answer without touching the question transcript. It
+            // carries a rotated "answer shape" (so Live/Turbo don't fall into the
+            // same skeleton every time) plus any queued steering nudges. Tagged
+            // with an id so the cleanup above removes it again on the next question,
+            // keeping it strictly one-shot.
+            if (window._lastDC && window._lastDC.readyState === "open") {
                 try {
+                    const shape = ANSWER_SHAPES[steerSeqRef.current % ANSWER_SHAPES.length];
+                    let text =
+                        `[For THIS answer only — never mention or acknowledge this note] ${shape} ` +
+                        `Open differently than your last answer; do not start with "Yeah so" or "So honestly". Still fully answer the question.`;
+                    if (nudgesRef.current.length > 0) {
+                        text += ` ${buildSteeringNote(nudgesRef.current)}`;
+                    }
                     const steerId = `steer_${++steerSeqRef.current}`;
                     window._lastDC.send(JSON.stringify({
                         type: "conversation.item.create",
@@ -903,13 +928,13 @@ function InterviewApp() {
                             id: steerId,
                             type: "message",
                             role: "system",
-                            content: [{ type: "input_text", text: buildSteeringNote(nudgesRef.current) }]
+                            content: [{ type: "input_text", text }]
                         }
                     }));
                     steerItemIdRef.current = steerId;
-                    clearNudges();
+                    if (nudgesRef.current.length > 0) clearNudges();
                 } catch (e) {
-                    console.warn("Failed to send steering note:", e);
+                    console.warn("Failed to send per-turn directive:", e);
                 }
             }
         }
