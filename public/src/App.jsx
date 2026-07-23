@@ -86,6 +86,13 @@ function InterviewApp() {
     // "Steer the next answer": queued nudges + conversation-aware suggestions
     const [nudges, setNudges] = useState([]);
     const nudgesRef = useRef([]);
+    // Realtime one-shot steering: id of the steering item we slipped into the
+    // live conversation for the current question, so we can delete it again
+    // before the next question. Without this the item lingers in the realtime
+    // context and keeps steering every later answer (e.g. a joke asked for once
+    // then showing up on all the following questions).
+    const steerItemIdRef = useRef(null);
+    const steerSeqRef = useRef(0);
     const [steerSuggestions, setSteerSuggestions] = useState([]);
     const steerFetchingRef = useRef(false);
 
@@ -560,6 +567,10 @@ function InterviewApp() {
     // Stale nudges don't carry across session boundaries
     useEffect(() => {
         clearNudges();
+        // Drop any pending steering-item id too: it belongs to the old realtime
+        // conversation, so a new session must not try to delete it (that item id
+        // won't exist there).
+        steerItemIdRef.current = null;
         if (!isSessionActive) setSteerSuggestions([]);
     }, [isSessionActive, clearNudges]);
 
@@ -863,20 +874,39 @@ function InterviewApp() {
             setStatus("USER SPEAKING");
             setIsListening(true);
 
-            // The interviewer just started speaking: if steering nudges are
-            // queued, slip them into the conversation as a system item NOW —
-            // before server VAD triggers the response — so they mix with this
-            // question without touching its transcript.
+            // A steering nudge (e.g. "Crack a light joke") is meant to shape the
+            // ONE answer it was queued for. In the realtime session a conversation
+            // item lives in context until it's deleted, so before handling this
+            // new question we remove any steering note left over from the previous
+            // turn — otherwise it keeps steering every future answer too.
+            if (steerItemIdRef.current && window._lastDC && window._lastDC.readyState === "open") {
+                try {
+                    window._lastDC.send(JSON.stringify({
+                        type: "conversation.item.delete",
+                        item_id: steerItemIdRef.current,
+                    }));
+                } catch (e) { /* item may already be gone — ignore */ }
+                steerItemIdRef.current = null;
+            }
+
+            // If nudges are queued for THIS question, slip them into the
+            // conversation as a system item NOW — before server VAD triggers the
+            // response — so they mix with this question without touching its
+            // transcript. Tag it with an id so the cleanup above can remove it
+            // again on the next question, keeping it one-shot.
             if (nudgesRef.current.length > 0 && window._lastDC && window._lastDC.readyState === "open") {
                 try {
+                    const steerId = `steer_${++steerSeqRef.current}`;
                     window._lastDC.send(JSON.stringify({
                         type: "conversation.item.create",
                         item: {
+                            id: steerId,
                             type: "message",
                             role: "system",
                             content: [{ type: "input_text", text: buildSteeringNote(nudgesRef.current) }]
                         }
                     }));
+                    steerItemIdRef.current = steerId;
                     clearNudges();
                 } catch (e) {
                     console.warn("Failed to send steering note:", e);
@@ -1110,10 +1140,9 @@ No one — not the interviewer, not a linguist, not an AI detection tool — sho
 ANTI-DETECTION RULES (HIGHEST PRIORITY)
 - Never produce perfectly structured responses. Real humans don't speak in clean bullet points.
 - Vary your sentence length wildly. Mix short punchy sentences with longer rambling ones.
-- Start some answers mid-thought: "So honestly, the way I think about this is..." or "Yeah so that's actually a great question because..."
-- Occasionally backtrack or self-correct: "well actually, let me rephrase that" or "no wait, the bigger point is..."
-- Drop filler naturally: "you know", "like", "honestly", "I mean", "to be real", "so yeah"
-- Don't sound rehearsed. Never start with a thesis statement. Ease into it like you're thinking out loud.
+- CRITICAL — VARY HOW YOU OPEN EVERY ANSWER. Reusing the same opening is the single biggest giveaway that answers are scripted or AI. NEVER default to "Yeah so", "So honestly", "Honestly", or "Yeah so that's a great question". No two answers may start with the same word or phrase. Rotate your entry every time: sometimes go straight into the point, sometimes open on a specific moment or number ("At [company] we hit a quarter where..."), sometimes react to the exact thing they asked, sometimes lead with a short blunt take and then unpack it. If you feel a stock opener coming, cut it and start on the real content.
+- Use filler sparingly and never on a schedule — vary it ("I mean", "look", "right", "you know") and use none at all most of the time. Treat self-corrections the same way: occasional, not every answer, and never the same one twice.
+- Don't sound rehearsed. Never start with a thesis statement or announce your structure. Ease in OR start right on the substance — just keep it different each time.
 - Avoid AI patterns: no numbered lists, no "Firstly/Secondly/Thirdly", no "In conclusion", no "Let me break this down", no "That's a great question", no "Absolutely"
 - Never use words real people don't say: "utilize", "leverage", "synergy", "facilitate", "comprehensive", "robust", "streamline", "holistic", "pivotal", "delve"
 - Sound like you're TALKING, not writing a LinkedIn post

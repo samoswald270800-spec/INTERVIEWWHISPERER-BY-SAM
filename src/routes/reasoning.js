@@ -26,6 +26,23 @@ const upload = multer({
   limits: { fileSize: 25 * 1024 * 1024 },
 });
 
+// ── Opener-variety rotation ────────────────────────────────────────────────
+// This endpoint answers each question in a fresh, stateless request, so the
+// model can't see how it opened previous answers — left alone it reaches for
+// the same "Yeah so"/"So honestly" opener every time. Rotate a one-shot opening
+// directive per request so answers genuinely vary from one to the next.
+const OPENER_STYLES = [
+  'Go straight into the substance — the point or the story — with no preamble at all.',
+  'Open on a specific concrete moment or number from your experience ("At [company] we had a quarter where..."), then widen out.',
+  'React to the exact thing they asked, name it, and then dive in.',
+  'Lead with a short, blunt one-line take, then unpack it in the next breath.',
+  'Give the outcome or the punchline first, then back up and explain how you got there.',
+  'Open mid-thought as if continuing a train of thought — but NOT with "so", "yeah", "honestly", or "well".',
+  'Frame the tension or tradeoff at the heart of the question, then take your side.',
+  'Start with a quick concrete image or scene from the work, then explain what it means.',
+];
+let openerRotation = 0;
+
 /**
  * POST /api/reasoning/transcribe
  * Accepts a raw audio file (webm/ogg/mp4/wav) and returns a Whisper transcript.
@@ -120,6 +137,16 @@ router.post('/api/reasoning/answer', requireAuth, async (req, res) => {
     const messages = [
       { role: 'system', content: systemPrompt },
     ];
+
+    // One-shot opening directive so stateless answers don't all start the same
+    // way (see OPENER_STYLES). Rotates on every request.
+    const openerStyle = OPENER_STYLES[openerRotation % OPENER_STYLES.length];
+    openerRotation = (openerRotation + 1) % OPENER_STYLES.length;
+    messages.push({
+      role: 'system',
+      content: `[Opening style for THIS answer only — never mention or acknowledge this note] ${openerStyle} Do NOT begin with "Yeah so" or "So honestly", and don't reuse a stock opener.`,
+    });
+
     if (steering && typeof steering === 'string' && steering.trim()) {
       messages.push({ role: 'system', content: steering.trim().slice(0, 1000) });
     }
