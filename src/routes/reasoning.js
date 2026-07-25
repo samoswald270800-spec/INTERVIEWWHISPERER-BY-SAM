@@ -26,6 +26,24 @@ const upload = multer({
   limits: { fileSize: 25 * 1024 * 1024 },
 });
 
+// ── Answer-shape variety rotation ────────────────────────────────────────────────
+// This endpoint answers each question in a fresh, stateless request, so the
+// model can't see how it shaped previous answers — left alone it falls into the
+// same skeleton every time (open with "Yeah so" → one story → tie it back to the
+// role). Rotate a one-shot "shape" directive per answer so the whole structure,
+// not just the opening, genuinely varies from one answer to the next.
+const ANSWER_SHAPES = [
+  'Lead with your conclusion or strongest point in the very first line, then justify it with one concrete example. Do not tie it back to the role.',
+  'Tell ONE real story — the situation, what you personally did, what changed — and end on the result or the lesson, not a pitch about this job.',
+  'Be more concise than usual: trim the wind-up and the summary, make your point in a few tight sentences, and stop. Still fully answer what they asked.',
+  'Give two quick, contrasting examples or angles, then one line that connects them.',
+  'State a principle or opinion you actually hold, then a short real illustration of it, and leave the takeaway implied.',
+  'Think out loud — walk through how you actually reason about this, step by step, like you are working it out in the moment.',
+  'Answer the literal question plainly first, then add one piece of nuance or a caveat, and end with a short question back to them.',
+  'Open on one specific concrete moment or number and stay inside that single example — let it carry the whole answer.',
+];
+let shapeRotation = 0;
+
 /**
  * POST /api/reasoning/transcribe
  * Accepts a raw audio file (webm/ogg/mp4/wav) and returns a Whisper transcript.
@@ -86,7 +104,7 @@ router.post('/api/reasoning/transcribe', requireAuth, upload.single('audio'), as
  */
 router.post('/api/reasoning/answer', requireAuth, async (req, res) => {
   try {
-    const { transcript, interviewMode = 'smart', jd, steering } = req.body || {};
+    const { transcript, interviewMode = 'smart', jd, steering, vary } = req.body || {};
 
     if (!transcript || typeof transcript !== 'string' || !transcript.trim()) {
       return res.status(400).json({ error: 'transcript is required.' });
@@ -120,6 +138,20 @@ router.post('/api/reasoning/answer', requireAuth, async (req, res) => {
     const messages = [
       { role: 'system', content: systemPrompt },
     ];
+
+    // One-shot shape directive so stateless answers don't all follow the same
+    // structure (see ANSWER_SHAPES). Rotates per answer. Skipped for expand /
+    // extend (vary === false), which carry their own explicit length and format
+    // instructions and must not be second-guessed by a random shape.
+    if (vary !== false) {
+      const answerShape = ANSWER_SHAPES[shapeRotation % ANSWER_SHAPES.length];
+      shapeRotation = (shapeRotation + 1) % ANSWER_SHAPES.length;
+      messages.push({
+        role: 'system',
+        content: `[Shape for THIS answer only — never mention or acknowledge this note] ${answerShape} Keep fully answering the question; just vary the structure from your other answers, and do not open with "Yeah so" or "So honestly".`,
+      });
+    }
+
     if (steering && typeof steering === 'string' && steering.trim()) {
       messages.push({ role: 'system', content: steering.trim().slice(0, 1000) });
     }
