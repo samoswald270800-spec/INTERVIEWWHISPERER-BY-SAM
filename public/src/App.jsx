@@ -25,22 +25,6 @@ import API_BASE_URL from './config';
 
 const GLOBAL_PROCESSED_EVENTS = new Set();
 
-// Rotating "answer shapes" for Live/Turbo (both use the realtime pipeline). A
-// fresh one is slipped into the conversation for each interviewer question so
-// answers don't all fall into the same skeleton (open with "Yeah so" -> one
-// story -> tie it back to the role). Kept in sync with ANSWER_SHAPES in
-// src/routes/reasoning.js (which serves the separate Reasoning engine).
-const ANSWER_SHAPES = [
-    'Lead with your conclusion or strongest point in the very first line, then justify it with one concrete example. Do not tie it back to the role.',
-    'Tell ONE real story — the situation, what you personally did, what changed — and end on the result or the lesson, not a pitch about this job.',
-    'Be more concise than usual: trim the wind-up and the summary, make your point in a few tight sentences, and stop. Still fully answer what they asked.',
-    'Give two quick, contrasting examples or angles, then one line that connects them.',
-    'State a principle or opinion you actually hold, then a short real illustration of it, and leave the takeaway implied.',
-    'Think out loud — walk through how you actually reason about this, step by step, like you are working it out in the moment.',
-    'Answer the literal question plainly first, then add one piece of nuance or a caveat, and end with a short question back to them.',
-    'Open on one specific concrete moment or number and stay inside that single example — let it carry the whole answer.',
-];
-
 // Offline fallback for the "Steer the next answer" suggestion chips when the
 // /api/steer-suggestions endpoint is unavailable. Derives simple nudges from
 // the JD and the latest completed answer.
@@ -102,13 +86,6 @@ function InterviewApp() {
     // "Steer the next answer": queued nudges + conversation-aware suggestions
     const [nudges, setNudges] = useState([]);
     const nudgesRef = useRef([]);
-    // Realtime one-shot steering: id of the steering item we slipped into the
-    // live conversation for the current question, so we can delete it again
-    // before the next question. Without this the item lingers in the realtime
-    // context and keeps steering every later answer (e.g. a joke asked for once
-    // then showing up on all the following questions).
-    const steerItemIdRef = useRef(null);
-    const steerSeqRef = useRef(0);
     const [steerSuggestions, setSteerSuggestions] = useState([]);
     const steerFetchingRef = useRef(false);
 
@@ -583,10 +560,6 @@ function InterviewApp() {
     // Stale nudges don't carry across session boundaries
     useEffect(() => {
         clearNudges();
-        // Drop any pending steering-item id too: it belongs to the old realtime
-        // conversation, so a new session must not try to delete it (that item id
-        // won't exist there).
-        steerItemIdRef.current = null;
         if (!isSessionActive) setSteerSuggestions([]);
     }, [isSessionActive, clearNudges]);
 
@@ -890,51 +863,23 @@ function InterviewApp() {
             setStatus("USER SPEAKING");
             setIsListening(true);
 
-            // Each answer gets a one-shot directive (a rotated answer shape, plus
-            // any queued steering nudge like "Crack a light joke"). In the realtime
-            // session a conversation item lives in context until it's deleted, so
-            // before handling this new question we remove the previous turn's
-            // directive — otherwise it keeps shaping every future answer too.
-            if (steerItemIdRef.current && window._lastDC && window._lastDC.readyState === "open") {
+            // The interviewer just started speaking: if steering nudges are
+            // queued, slip them into the conversation as a system item NOW —
+            // before server VAD triggers the response — so they mix with this
+            // question without touching its transcript.
+            if (nudgesRef.current.length > 0 && window._lastDC && window._lastDC.readyState === "open") {
                 try {
-                    window._lastDC.send(JSON.stringify({
-                        type: "conversation.item.delete",
-                        item_id: steerItemIdRef.current,
-                    }));
-                } catch (e) { /* item may already be gone — ignore */ }
-                steerItemIdRef.current = null;
-            }
-
-            // Slip a one-shot directive for THIS answer into the conversation as a
-            // system item NOW — before server VAD triggers the response — so it
-            // shapes this answer without touching the question transcript. It
-            // carries a rotated "answer shape" (so Live/Turbo don't fall into the
-            // same skeleton every time) plus any queued steering nudges. Tagged
-            // with an id so the cleanup above removes it again on the next question,
-            // keeping it strictly one-shot.
-            if (window._lastDC && window._lastDC.readyState === "open") {
-                try {
-                    const shape = ANSWER_SHAPES[steerSeqRef.current % ANSWER_SHAPES.length];
-                    let text =
-                        `[For THIS answer only — never mention or acknowledge this note] ${shape} ` +
-                        `Open differently than your last answer; do not start with "Yeah so" or "So honestly". Still fully answer the question.`;
-                    if (nudgesRef.current.length > 0) {
-                        text += ` ${buildSteeringNote(nudgesRef.current)}`;
-                    }
-                    const steerId = `steer_${++steerSeqRef.current}`;
                     window._lastDC.send(JSON.stringify({
                         type: "conversation.item.create",
                         item: {
-                            id: steerId,
                             type: "message",
                             role: "system",
-                            content: [{ type: "input_text", text }]
+                            content: [{ type: "input_text", text: buildSteeringNote(nudgesRef.current) }]
                         }
                     }));
-                    steerItemIdRef.current = steerId;
-                    if (nudgesRef.current.length > 0) clearNudges();
+                    clearNudges();
                 } catch (e) {
-                    console.warn("Failed to send per-turn directive:", e);
+                    console.warn("Failed to send steering note:", e);
                 }
             }
         }
@@ -1165,9 +1110,10 @@ No one — not the interviewer, not a linguist, not an AI detection tool — sho
 ANTI-DETECTION RULES (HIGHEST PRIORITY)
 - Never produce perfectly structured responses. Real humans don't speak in clean bullet points.
 - Vary your sentence length wildly. Mix short punchy sentences with longer rambling ones.
-- CRITICAL — VARY HOW YOU OPEN EVERY ANSWER. Reusing the same opening is the single biggest giveaway that answers are scripted or AI. NEVER default to "Yeah so", "So honestly", "Honestly", or "Yeah so that's a great question". No two answers may start with the same word or phrase. Rotate your entry every time: sometimes go straight into the point, sometimes open on a specific moment or number ("At [company] we hit a quarter where..."), sometimes react to the exact thing they asked, sometimes lead with a short blunt take and then unpack it. If you feel a stock opener coming, cut it and start on the real content.
-- Use filler sparingly and never on a schedule — vary it ("I mean", "look", "right", "you know") and use none at all most of the time. Treat self-corrections the same way: occasional, not every answer, and never the same one twice.
-- Don't sound rehearsed. Never start with a thesis statement or announce your structure. Ease in OR start right on the substance — just keep it different each time.
+- Start some answers mid-thought: "So honestly, the way I think about this is..." or "Yeah so that's actually a great question because..."
+- Occasionally backtrack or self-correct: "well actually, let me rephrase that" or "no wait, the bigger point is..."
+- Drop filler naturally: "you know", "like", "honestly", "I mean", "to be real", "so yeah"
+- Don't sound rehearsed. Never start with a thesis statement. Ease into it like you're thinking out loud.
 - Avoid AI patterns: no numbered lists, no "Firstly/Secondly/Thirdly", no "In conclusion", no "Let me break this down", no "That's a great question", no "Absolutely"
 - Never use words real people don't say: "utilize", "leverage", "synergy", "facilitate", "comprehensive", "robust", "streamline", "holistic", "pivotal", "delve"
 - Sound like you're TALKING, not writing a LinkedIn post
@@ -1190,13 +1136,12 @@ CONTENT ANCHORING
 - Priority 3: Assignment (reference only when directly relevant)
 - Use STAR implicitly (never name it). Tell stories, don't recite frameworks.
 
-ANSWER SHAPE — CHANGE IT EVERY TIME
-- There is no single template. Answering every question with the same skeleton (open → one story → tie it back to the role) is exactly what makes this sound scripted. Deliberately vary the structure from one answer to the next.
-- Match length to the question: a small or casual question gets a short, direct answer; a real "tell me about a time" question earns a fuller story. Don't inflate everything to the same size.
-- Move the point around: sometimes lead with your conclusion then justify it, sometimes build to it, sometimes leave the takeaway implied.
-- Vary the content shape: one deep example, or two quick contrasting ones, or a principle plus a short illustration, or just a direct honest opinion — a different arrangement each time.
-- Vary the ending: end on the result, or a one-line takeaway, or a question back to them, or just stop when it's done. Do NOT tie it back to the role every time — occasionally, not by default; "and that's what I'd bring here" as a recurring closer is a dead giveaway.
-- Still answer the actual question fully — the variety is in the shape, never at the cost of substance. Keep the human details (emotions, tradeoffs, mistakes, real numbers where natural); just don't arrange them the same way twice.`;
+ANSWER SHAPE
+- Open naturally — don't announce what you're about to say
+- Get into a real story with context, your role, what you did, what happened
+- Include real human details: emotions, frustrations, lessons, team dynamics, mistakes
+- Quantify impact where natural (but don't force numbers into every sentence)
+- Close by connecting it to this role — casually, not formally`;
 
         const SMART = `SMART DETAIL MODE
 Give a solid, detailed answer — the kind that makes an interviewer nod and think "this person knows their stuff."
@@ -1204,7 +1149,7 @@ Aim for 2-3 minutes of natural speaking. Not a speed run, not a monologue.
 Pick ONE strong example and go deep. Don't try to cover everything.
 Tell the story — what was broken, what you owned, what you actually did (not what "the team" did), and what changed because of it.
 Include the messy parts: the pushback from stakeholders, the thing that almost went wrong, the tradeoff you had to make.
-When it fits, connect it back to why you'd do similar work here — but not every answer needs that bow; sometimes just end on the story or the result.
+End by connecting it back to why you'd do similar work here.
 Don't sound like you're reading from a script. Sound like you're remembering something real.`;
 
         const GOD = `GOD MODE — LEAVE THEM SPEECHLESS
@@ -1216,7 +1161,7 @@ If the question is short or vague — treat it as an invitation to tell your bes
 Technical depth is welcome but explain it like you're talking to a smart non-expert.
 Show leadership maturity: talk about tradeoffs, stakeholder management, cross-functional collaboration.
 Include real human moments: "I was honestly nervous about this", "looking back I would have...", "the part I'm most proud of is..."
-End with a natural bridge to this role when it fits — but don't force the same closing every time.
+End with a natural bridge to this role.
 NEVER bullet-point your way through this. This is a story, not a report.`;
 
         const HR_LAYER = `HR-FOCUSED OVERLAY:
