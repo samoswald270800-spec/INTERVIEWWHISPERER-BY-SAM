@@ -272,9 +272,6 @@ export function useReasoningFlow({
                     interviewMode: getInterviewMode(),
                     jd: getJd(),
                     steering: steering || undefined,
-                    // Expand/extend carry their own explicit length+format prompt,
-                    // so skip the rotating shape directive for them (vary=false).
-                    vary: !overridePrompt,
                 }),
             });
 
