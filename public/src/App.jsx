@@ -86,6 +86,13 @@ function InterviewApp() {
     // "Steer the next answer": queued nudges + conversation-aware suggestions
     const [nudges, setNudges] = useState([]);
     const nudgesRef = useRef([]);
+    // Id of the steering item we slipped into the live conversation for the
+    // current question, so we can delete it again before the next one. A
+    // realtime conversation item stays in context until it's deleted, so
+    // without this a nudge queued once (e.g. "Crack a light joke") keeps
+    // steering every later answer too.
+    const steerItemIdRef = useRef(null);
+    const steerSeqRef = useRef(0);
     const [steerSuggestions, setSteerSuggestions] = useState([]);
     const steerFetchingRef = useRef(false);
 
@@ -560,6 +567,9 @@ function InterviewApp() {
     // Stale nudges don't carry across session boundaries
     useEffect(() => {
         clearNudges();
+        // The pending steering-item id belongs to the old realtime conversation,
+        // so a new session must not try to delete it (it won't exist there).
+        steerItemIdRef.current = null;
         if (!isSessionActive) setSteerSuggestions([]);
     }, [isSessionActive, clearNudges]);
 
@@ -863,20 +873,40 @@ function InterviewApp() {
             setStatus("USER SPEAKING");
             setIsListening(true);
 
+            // A queued nudge is meant to shape only the answer it was queued for,
+            // but a realtime conversation item stays in context until it's
+            // deleted. So before handling this new question, drop the steering
+            // note left over from the previous turn — otherwise it keeps steering
+            // every later answer as well.
+            if (steerItemIdRef.current && window._lastDC && window._lastDC.readyState === "open") {
+                try {
+                    window._lastDC.send(JSON.stringify({
+                        type: "conversation.item.delete",
+                        item_id: steerItemIdRef.current,
+                    }));
+                } catch (e) { /* item may already be gone — ignore */ }
+                steerItemIdRef.current = null;
+            }
+
             // The interviewer just started speaking: if steering nudges are
             // queued, slip them into the conversation as a system item NOW —
             // before server VAD triggers the response — so they mix with this
-            // question without touching its transcript.
+            // question without touching its transcript. Tag it with an id so the
+            // cleanup above can remove it on the next question, keeping it
+            // one-shot.
             if (nudgesRef.current.length > 0 && window._lastDC && window._lastDC.readyState === "open") {
                 try {
+                    const steerId = `steer_${++steerSeqRef.current}`;
                     window._lastDC.send(JSON.stringify({
                         type: "conversation.item.create",
                         item: {
+                            id: steerId,
                             type: "message",
                             role: "system",
                             content: [{ type: "input_text", text: buildSteeringNote(nudgesRef.current) }]
                         }
                     }));
+                    steerItemIdRef.current = steerId;
                     clearNudges();
                 } catch (e) {
                     console.warn("Failed to send steering note:", e);
