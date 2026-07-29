@@ -3,6 +3,14 @@ import './CommandDock.css';
 
 const DOCK_POSITION_KEY = 'iw-dock-pos';
 
+// Expand is retired from the UI but deliberately kept in the codebase: the
+// button below, its props, and App.jsx's expandLastAnswer()/permission gate are
+// all still wired up. Flip this to true to bring the control back.
+//
+// Note: "Extend" (the steer-bar chip) is a separate feature and stays active,
+// even though it shares the canExpand permission gate.
+const EXPAND_ENABLED = false;
+
 function loadDockPosition() {
     try {
         const saved = JSON.parse(localStorage.getItem(DOCK_POSITION_KEY) || 'null');
@@ -116,20 +124,22 @@ export default function CommandDock({
                         <span className="dock-kbd dim">A</span>
                     </button>
 
-                    <button
-                        className={`dock-tool ${canExpand ? 'enabled' : ''}`}
-                        onClick={onExpand}
-                        disabled={!canExpand}
-                        title="Expand answer"
-                    >
-                        {isExpanding ? (
-                            <svg className="icon spin" width="13" height="13" viewBox="0 0 24 24">
-                                <circle cx="12" cy="12" r="10"></circle>
-                                <path d="M12 6v6l4 2"></path>
-                            </svg>
-                        ) : 'Expand'}
-                        <span className="dock-kbd dim">E</span>
-                    </button>
+                    {EXPAND_ENABLED && (
+                        <button
+                            className={`dock-tool ${canExpand ? 'enabled' : ''}`}
+                            onClick={onExpand}
+                            disabled={!canExpand}
+                            title="Expand answer"
+                        >
+                            {isExpanding ? (
+                                <svg className="icon spin" width="13" height="13" viewBox="0 0 24 24">
+                                    <circle cx="12" cy="12" r="10"></circle>
+                                    <path d="M12 6v6l4 2"></path>
+                                </svg>
+                            ) : 'Expand'}
+                            <span className="dock-kbd dim">E</span>
+                        </button>
+                    )}
                 </>
             )}
 
