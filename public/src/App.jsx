@@ -1049,7 +1049,8 @@ function InterviewApp() {
     };
 
     // Extend = a longer version of the SAME answer (same example/points), not a
-    // deeper re-answer. Mirrors expandLastAnswer's routing and permission gate.
+    // deeper re-answer. Mirrors expandLastAnswer's routing, but is available to
+    // every user — Extend carries no permission gate on either path.
     const extendLastAnswer = async () => {
         if (architecture === "reasoning") {
             if (!lastQuestionRef.current || isExtending) return;
@@ -1058,21 +1059,11 @@ function InterviewApp() {
             return;
         }
 
-        // Live/WebRTC extend — reuses the same server-side permission gate.
+        // Live/WebRTC extend. Extend is available to every user, so there is no
+        // permission check here — this matches the reasoning path above, which
+        // never gated it either. (Expand keeps its own /session/expand-authorize
+        // gate; only Extend is ungated.)
         if (!window._lastDC || !lastQuestionRef.current || isExtending) return;
-
-        try {
-            const authRes = await fetch(`${API_BASE_URL}/session/expand-authorize`, {
-                method: 'POST',
-                credentials: 'include',
-            });
-            if (authRes.status === 403) {
-                const d = await authRes.json().catch(() => ({}));
-                setStatus((d.error || 'EXPAND DISABLED').toUpperCase());
-                setCanExpand(false);
-                return;
-            }
-        } catch (_) { /* fail-open on network error */ }
 
         setIsExtending(true);
 
@@ -1597,7 +1588,7 @@ Don't say "as I mentioned" or reference that you're extending.`;
                             onClear={clearNudges}
                             onSendNow={sendNudgeNow}
                             onExtend={extendLastAnswer}
-                            canExtend={canExpand && permissions.canExpand}
+                            canExtend={canExpand}
                             isExtending={isExtending}
                         />
                     ) : null}
