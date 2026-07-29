@@ -86,6 +86,9 @@ function InterviewApp() {
     // "Steer the next answer": queued nudges + conversation-aware suggestions
     const [nudges, setNudges] = useState([]);
     const nudgesRef = useRef([]);
+    // True while a queued nudge is baked into the live session instructions, so
+    // response.done knows to revert them and keep the nudge to a single answer.
+    const steerActiveRef = useRef(false);
     const [steerSuggestions, setSteerSuggestions] = useState([]);
     const steerFetchingRef = useRef(false);
 
@@ -560,6 +563,9 @@ function InterviewApp() {
     // Stale nudges don't carry across session boundaries
     useEffect(() => {
         clearNudges();
+        // A new session starts from freshly built instructions, so nothing is
+        // left to revert.
+        steerActiveRef.current = false;
         if (!isSessionActive) setSteerSuggestions([]);
     }, [isSessionActive, clearNudges]);
 
@@ -864,22 +870,24 @@ function InterviewApp() {
             setIsListening(true);
 
             // The interviewer just started speaking: if steering nudges are
-            // queued, slip them into the conversation as a system item NOW —
-            // before server VAD triggers the response — so they mix with this
-            // question without touching its transcript.
+            // queued, apply them to the upcoming answer by swapping the session
+            // instructions, then revert on response.done (see below).
+            //
+            // This deliberately does NOT add the note to the conversation. An
+            // item added to a realtime conversation stays in context until it is
+            // deleted, which is what previously made a nudge keep steering every
+            // later answer — and deleting it mid-turn destabilised the turn.
+            // session.update only changes configuration, so the note applies to
+            // exactly one answer and leaves no trace in the conversation.
+            // Same apply/revert pattern Expand and Extend already use.
             if (nudgesRef.current.length > 0 && window._lastDC && window._lastDC.readyState === "open") {
                 try {
-                    window._lastDC.send(JSON.stringify({
-                        type: "conversation.item.create",
-                        item: {
-                            type: "message",
-                            role: "system",
-                            content: [{ type: "input_text", text: buildSteeringNote(nudgesRef.current) }]
-                        }
-                    }));
+                    const note = buildSteeringNote(nudgesRef.current);
+                    sendSessionUpdate("smart", `${buildInstructions("smart")}\n\n${note}`);
+                    steerActiveRef.current = true;
                     clearNudges();
                 } catch (e) {
-                    console.warn("Failed to send steering note:", e);
+                    console.warn("Failed to apply steering note:", e);
                 }
             }
         }
@@ -925,9 +933,11 @@ function InterviewApp() {
             setIsExpanding(false);
             setIsExtending(false);
 
-            // After a one-off expand/extend, revert the session back to normal
-            // mode so the next answer isn't stuck in the longer format.
-            if (isExpanding || isExtending) {
+            // After a one-off expand/extend — or an answer that a steering nudge
+            // was applied to — revert the session back to normal mode so the next
+            // answer isn't stuck in the longer format or still being steered.
+            if (isExpanding || isExtending || steerActiveRef.current) {
+                steerActiveRef.current = false;
                 sendSessionUpdate("smart");
             }
         }
